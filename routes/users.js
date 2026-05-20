@@ -34,8 +34,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
   if (!allowedRoles.includes(role))
     return res.status(403).json({ error: 'Voce so pode criar usuarios do tipo Simples' });
 
-  if (role === 'manager' && (!est_ids || est_ids.length === 0))
-    return res.status(400).json({ error: 'Gerente precisa de ao menos um estabelecimento' });
+  // Gerente pode ser criado sem estabelecimentos (criara o proprio e sera auto-vinculado)
   if (role === 'simples' && !est_id)
     return res.status(400).json({ error: 'Usuario simples precisa de um estabelecimento' });
 
@@ -63,8 +62,7 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
   const { name, email, password, role, est_id, est_ids } = req.body;
   if (!['admin', 'manager', 'simples'].includes(role))
     return res.status(400).json({ error: 'Role invalido' });
-  if (role === 'manager' && (!est_ids || est_ids.length === 0))
-    return res.status(400).json({ error: 'Gerente precisa de ao menos um estabelecimento' });
+  // Gerente pode ter lista vazia (criado antes de ter estabelecimento)
   if (role === 'simples' && !est_id)
     return res.status(400).json({ error: 'Usuario simples precisa de um estabelecimento' });
 

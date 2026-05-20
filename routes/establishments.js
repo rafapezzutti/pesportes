@@ -2,11 +2,10 @@ const router = require('express').Router();
 const pool = require('../db/pool');
 const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 
-// Campos públicos (visíveis no marketplace)
 const PUBLIC_COLS = `id, name, street, number, complement, cep, city, state,
                      phone, photos, main_photo, operating_hours`;
 
-// ── GET /api/establishments — lista pública ──────────────────────
+// GET /api/establishments
 router.get('/', async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -18,34 +17,35 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ── GET /api/establishments/:id ──────────────────────────────────
+// GET /api/establishments/:id
 router.get('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT ${PUBLIC_COLS} FROM establishments WHERE id = $1`,
       [req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
+    if (!rows.length) return res.status(404).json({ error: 'Nao encontrado' });
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Erro interno' });
   }
 });
 
-// ── GET /api/establishments/:id/full — dados completos (CRM) ────
+// GET /api/establishments/:id/full — dados completos (CRM)
 router.get('/:id/full', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT * FROM establishments WHERE id = $1`, [req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
+    if (!rows.length) return res.status(404).json({ error: 'Nao encontrado' });
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Erro interno' });
   }
 });
 
-// ── POST /api/establishments — criar (admin) ─────────────────────
+// POST /api/establishments — criar
+// Se for gerente, vincula automaticamente o novo est ao seu est_ids
 router.post('/', auth, adminOrManager, async (req, res) => {
   const {
     name, responsible, cpf_cnpj, street, number, complement,
@@ -53,7 +53,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
   } = req.body;
 
   if (!name || !responsible || !phone)
-    return res.status(400).json({ error: 'Campos obrigatórios: name, responsible, phone' });
+    return res.status(400).json({ error: 'Campos obrigatorios: name, responsible, phone' });
 
   try {
     const { rows } = await pool.query(`
@@ -67,13 +67,26 @@ router.post('/', auth, adminOrManager, async (req, res) => {
        photos || [], main_photo || null,
        JSON.stringify(operating_hours || {})]
     );
-    res.status(201).json(rows[0]);
+    const newEst = rows[0];
+
+    // Auto-vincula ao gerente que criou
+    if (req.user.role === 'manager') {
+      await pool.query(
+        `UPDATE crm_users
+         SET est_ids = array_append(COALESCE(est_ids, '{}'), $1)
+         WHERE id = $2`,
+        [newEst.id, req.user.id]
+      );
+    }
+
+    res.status(201).json(newEst);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Erro ao criar estabelecimento' });
   }
 });
 
-// ── PUT /api/establishments/:id — atualizar (admin) ─────────────
+// PUT /api/establishments/:id — atualizar
 router.put('/:id', auth, adminOrManager, async (req, res) => {
   const {
     name, responsible, cpf_cnpj, street, number, complement,
@@ -93,7 +106,7 @@ router.put('/:id', auth, adminOrManager, async (req, res) => {
        JSON.stringify(operating_hours || {}),
        req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
+    if (!rows.length) return res.status(404).json({ error: 'Nao encontrado' });
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao atualizar estabelecimento' });
