@@ -70,7 +70,7 @@ export const userApi = {
 
 // ── Dashboard ─────────────────────────────────────────────────────
 export const dashboardApi = {
-  get: () => get('/dashboard'),
+  get: (params = {}) => get('/dashboard?' + new URLSearchParams(params).toString()),
 };
 
 // ── Reservations ──────────────────────────────────────────────────

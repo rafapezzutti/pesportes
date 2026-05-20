@@ -7,8 +7,9 @@ router.get('/', auth, crmOnly, async (req, res) => {
   try {
     const { role, est_id, est_ids } = req.user;
 
-    const today      = new Date().toISOString().split('T')[0];
-    const monthStart = today.slice(0, 7) + '-01';
+    // date and month filters from query params
+    const today      = req.query.date  || new Date().toISOString().split('T')[0];
+    const monthStart = req.query.month ? req.query.month + '-01' : today.slice(0, 7) + '-01';
 
     let estClause = '';
     let estParam  = null;

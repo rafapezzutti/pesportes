@@ -67,7 +67,7 @@ router.get('/', auth, async (req, res) => {
        FROM bar_vendas b
        LEFT JOIN establishments e ON b.est_id = e.id
        ${where}
-       ORDER BY b.created_at DESC`,
+       ORDER BY b.data_venda DESC, b.created_at DESC`,
       params
     );
     res.json(rows);
@@ -78,18 +78,19 @@ router.get('/', auth, async (req, res) => {
 
 // POST /api/bar
 router.post('/', auth, adminOrManager, async (req, res) => {
-  const { est_id, cliente_nome, cliente_ref, itens, observacoes } = req.body;
+  const { est_id, cliente_nome, cliente_ref, itens, observacoes, data_venda } = req.body;
   if (!cliente_nome) return res.status(400).json({ error: 'Nome do cliente é obrigatório' });
   if (!itens || !itens.length) return res.status(400).json({ error: 'Adicione ao menos um item' });
 
   const total = itens.reduce((s, i) => s + (Number(i.quantidade) * Number(i.valor_unitario)), 0);
+  const dataFinal = data_venda || new Date().toISOString().split('T')[0];
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO bar_vendas (est_id, cliente_nome, cliente_ref, itens, total, observacoes)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      `INSERT INTO bar_vendas (est_id, cliente_nome, cliente_ref, itens, total, observacoes, data_venda)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [est_id || null, cliente_nome, cliente_ref || 'manual',
-       JSON.stringify(itens), total, observacoes || null]
+       JSON.stringify(itens), total, observacoes || null, dataFinal]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
