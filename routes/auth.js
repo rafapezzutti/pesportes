@@ -155,4 +155,17 @@ router.get('/me', async (req, res) => {
     const cols  = payload.type === 'crm' ? 'id,name,email,role,est_id' : 'id,name,email,cpf';
     const { rows } = await pool.query(`SELECT ${cols} FROM ${table} WHERE id = $1`, [payload.id]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
-    res.json({ user: rows[0], type: payload.typ
+    res.json({ user: rows[0], type: payload.type });
+  } catch {
+    res.status(401).json({ error: 'Token inválido' });
+  }
+});
+
+module.exports = router;
+e });
+  } catch {
+    res.status(401).json({ error: 'Token inválido' });
+  }
+});
+
+module.exports = router;

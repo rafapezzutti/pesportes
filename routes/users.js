@@ -75,4 +75,21 @@ router.put('/:id', async (req, res) => {
     const { rows } = await pool.query(query, params);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
     res.json(rows[0]);
-  } cat
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao atualizar usuário' });
+  }
+});
+
+// ── DELETE /api/crm-users/:id ────────────────────────────────────
+router.delete('/:id', async (req, res) => {
+  try {
+    if (Number(req.params.id) === req.user.id)
+      return res.status(400).json({ error: 'Você não pode excluir sua própria conta' });
+    await pool.query('DELETE FROM crm_users WHERE id=$1', [req.params.id]);
+    res.json({ message: 'Usuário excluído' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao excluir usuário' });
+  }
+});
+
+module.exports = router;

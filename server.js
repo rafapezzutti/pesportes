@@ -77,4 +77,9 @@ cron.schedule('* * * * *', async () => {
 });
 
 // ── Start ────────────────────────────────────────────────────────
-app.listen(PORT, () =>
+app.listen(PORT, () => {
+  console.log(`✅ Servidor rodando na porta ${PORT}`);
+});
+ {
+  console.log(`✅ Servidor rodando na porta ${PORT}`);
+});
