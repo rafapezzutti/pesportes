@@ -40,6 +40,24 @@ async function viaCEP(cep) {
   try{const r=await fetch(`https://viacep.com.br/ws/${c}/json/`);const d=await r.json();return d.erro?null:d;}catch{return null;}
 }
 
+function resizeImage(file,maxW=1200,quality=0.82){
+  return new Promise(resolve=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const scale=Math.min(1,maxW/img.width);
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(img.width*scale);
+      canvas.height=Math.round(img.height*scale);
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg',quality));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);resolve(null);};
+    img.src=url;
+  });
+}
+
 // ================================================================
 // UI COMPONENTS
 // ================================================================
@@ -332,7 +350,7 @@ function CRMEstablishment({showToast}){
   const [saving,setSaving]=useState(false);
   const [form,setForm]=useState({name:'',responsible:'',cpf_cnpj:'',phone:'',email:'',street:'',number:'',complement:'',cep:'',city:'',state:'',photos:[],main_photo:'',operating_hours:{...DEFAULT_HOURS}});
   const [cepLoading,setCepLoading]=useState(false);
-  const [newUrl,setNewUrl]=useState('');
+  const [uploading,setUploading]=useState(false);
 
   useEffect(()=>{
     estApi.list().then(list=>{
@@ -350,7 +368,19 @@ function CRMEstablishment({showToast}){
 
   const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
   const handleCEP=async(v)=>{upd('cep',v);if(v.replace(/\D/g,'').length===8){setCepLoading(true);const d=await viaCEP(v);setCepLoading(false);if(d){upd('street',d.logradouro);upd('city',d.localidade);upd('state',d.uf);showToast('Endereço preenchido!','success');}}};
-  const addPhoto=()=>{if(!newUrl.trim())return;setForm(f=>({...f,photos:[...f.photos,newUrl],main_photo:f.main_photo||newUrl}));setNewUrl('');};
+  const addPhotosFromFiles=async(e)=>{
+    const files=Array.from(e.target.files);
+    if(!files.length)return;
+    setUploading(true);
+    for(const file of files){
+      if(!file.type.startsWith('image/')){showToast(`${file.name}: somente imagens`,  'error');continue;}
+      if(file.size>8*1024*1024){showToast(`${file.name}: máx. 8MB`,'error');continue;}
+      const dataUrl=await resizeImage(file);
+      if(dataUrl)setForm(f=>({...f,photos:[...f.photos,dataUrl],main_photo:f.main_photo||dataUrl}));
+    }
+    setUploading(false);
+    e.target.value='';
+  };
   const rmPhoto=(u)=>setForm(f=>({...f,photos:f.photos.filter(p=>p!==u),main_photo:f.main_photo===u?(f.photos.find(p=>p!==u)||''):f.main_photo}));
 
   const save=async()=>{
@@ -366,7 +396,7 @@ function CRMEstablishment({showToast}){
 
   if(loading)return<Spinner/>;
 
-  return<div className="p-6 max-w-5xl"><div className="flex items-center justify-between mb-6"><div><h1 className="text-2xl font-black text-gray-900">Cadastro do Estabelecimento</h1><p className="text-sm text-gray-400 mt-0.5">🌐 Público / 🔒 Interno — visibilidade no Marketplace</p></div><Btn onClick={save} size="lg" disabled={saving}>{saving?'Salvando...':'💾 Salvar'}</Btn></div><div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4"><h2 className="font-bold text-gray-700">Dados Gerais</h2><Field label="Nome do Local" badge="pub" required><Inp value={form.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Responsável" badge="int" required><Inp value={form.responsible} onChange={e=>upd('responsible',e.target.value)}/></Field><Field label="CPF / CNPJ" badge="int"><Inp value={form.cpf_cnpj} onChange={e=>upd('cpf_cnpj',e.target.value)}/></Field><Field label="Telefone" badge="pub" required><Inp value={form.phone} onChange={e=>upd('phone',e.target.value)} placeholder="(00) 00000-0000"/></Field><Field label="Email" badge="int"><Inp type="email" value={form.email} onChange={e=>upd('email',e.target.value)}/></Field></div><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Endereço <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><Field label="CEP" help={cepLoading?'Buscando endereço...':''}><Inp value={form.cep} onChange={e=>handleCEP(e.target.value)} placeholder="00000-000"/></Field><Field label="Rua"><Inp value={form.street} onChange={e=>upd('street',e.target.value)}/></Field><div className="grid grid-cols-2 gap-3"><Field label="Número"><Inp value={form.number} onChange={e=>upd('number',e.target.value)}/></Field><Field label="Complemento"><Inp value={form.complement} onChange={e=>upd('complement',e.target.value)}/></Field></div><div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Field label="Cidade"><Inp value={form.city} onChange={e=>upd('city',e.target.value)}/></Field></div><Field label="UF"><Inp value={form.state} onChange={e=>upd('state',e.target.value.toUpperCase().slice(0,2))} placeholder="SP"/></Field></div></div></div><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Fotos <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><div className="flex gap-2"><Inp value={newUrl} onChange={e=>setNewUrl(e.target.value)} placeholder="URL da foto..." className="flex-1"/><Btn size="sm" onClick={addPhoto}>Add</Btn></div>{form.photos.length===0&&<p className="text-xs text-gray-400 text-center py-2">Nenhuma foto</p>}<div className="grid grid-cols-2 gap-2">{form.photos.map((ph,i)=><div key={i} className={`relative rounded-xl overflow-hidden border-2 ${form.main_photo===ph?'border-emerald-500':'border-transparent'}`}><img src={ph} alt="" className="w-full h-28 object-cover" onError={e=>e.target.style.display='none'}/><div className="absolute bottom-0 left-0 right-0 flex gap-1 p-1.5"><button onClick={()=>upd('main_photo',ph)} className="flex-1 text-xs text-white bg-emerald-600/90 rounded-lg py-1">{form.main_photo===ph?'★ Principal':'★'}</button><button onClick={()=>rmPhoto(ph)} className="text-xs text-white bg-red-600/90 rounded-lg px-2 py-1">✕</button></div></div>)}</div></div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h2 className="font-bold text-gray-700 mb-1">Horário de Funcionamento <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><p className="text-xs text-gray-400 mb-3">Padrão herdado por todos os pontos</p><HoursEditor value={form.operating_hours} onChange={v=>upd('operating_hours',v)}/></div></div></div></div>;
+  return<div className="p-6 max-w-5xl"><div className="flex items-center justify-between mb-6"><div><h1 className="text-2xl font-black text-gray-900">Cadastro do Estabelecimento</h1><p className="text-sm text-gray-400 mt-0.5">🌐 Público / 🔒 Interno — visibilidade no Marketplace</p></div><Btn onClick={save} size="lg" disabled={saving}>{saving?'Salvando...':'💾 Salvar'}</Btn></div><div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4"><h2 className="font-bold text-gray-700">Dados Gerais</h2><Field label="Nome do Local" badge="pub" required><Inp value={form.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Responsável" badge="int" required><Inp value={form.responsible} onChange={e=>upd('responsible',e.target.value)}/></Field><Field label="CPF / CNPJ" badge="int"><Inp value={form.cpf_cnpj} onChange={e=>upd('cpf_cnpj',e.target.value)}/></Field><Field label="Telefone" badge="pub" required><Inp value={form.phone} onChange={e=>upd('phone',e.target.value)} placeholder="(00) 00000-0000"/></Field><Field label="Email" badge="int"><Inp type="email" value={form.email} onChange={e=>upd('email',e.target.value)}/></Field></div><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Endereço <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><Field label="CEP" help={cepLoading?'Buscando endereço...':''}><Inp value={form.cep} onChange={e=>handleCEP(e.target.value)} placeholder="00000-000"/></Field><Field label="Rua"><Inp value={form.street} onChange={e=>upd('street',e.target.value)}/></Field><div className="grid grid-cols-2 gap-3"><Field label="Número"><Inp value={form.number} onChange={e=>upd('number',e.target.value)}/></Field><Field label="Complemento"><Inp value={form.complement} onChange={e=>upd('complement',e.target.value)}/></Field></div><div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Field label="Cidade"><Inp value={form.city} onChange={e=>upd('city',e.target.value)}/></Field></div><Field label="UF"><Inp value={form.state} onChange={e=>upd('state',e.target.value.toUpperCase().slice(0,2))} placeholder="SP"/></Field></div></div></div><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Fotos <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><label className={`flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors ${uploading?'border-emerald-300 bg-emerald-50':'border-gray-300 hover:border-emerald-400 hover:bg-emerald-50'}`}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={addPhotosFromFiles} disabled={uploading}/><span className="text-3xl">{uploading?'⏳':'📷'}</span><div className="text-center"><p className="text-sm font-medium text-gray-700">{uploading?'Processando...':'Clique para adicionar fotos'}</p><p className="text-xs text-gray-400">JPEG · PNG · WebP · máx. 8MB por foto · múltiplos arquivos</p></div></label>{form.photos.length===0&&<p className="text-xs text-gray-400 text-center py-1">Nenhuma foto adicionada</p>}<div className="grid grid-cols-2 gap-2">{form.photos.map((ph,i)=><div key={i} className={`relative rounded-xl overflow-hidden border-2 ${form.main_photo===ph?'border-emerald-500':'border-transparent'}`}><img src={ph} alt="" className="w-full h-28 object-cover" onError={e=>e.target.style.display='none'}/><div className="absolute bottom-0 left-0 right-0 flex gap-1 p-1.5"><button onClick={()=>upd('main_photo',ph)} className="flex-1 text-xs text-white bg-emerald-600/90 rounded-lg py-1">{form.main_photo===ph?'★ Principal':'★'}</button><button onClick={()=>rmPhoto(ph)} className="text-xs text-white bg-red-600/90 rounded-lg px-2 py-1">✕</button></div></div>)}</div></div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h2 className="font-bold text-gray-700 mb-1">Horário de Funcionamento <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><p className="text-xs text-gray-400 mb-3">Padrão herdado por todos os pontos</p><HoursEditor value={form.operating_hours} onChange={v=>upd('operating_hours',v)}/></div></div></div></div>;
 }
 
 // ================================================================
@@ -378,7 +408,7 @@ function CRMPoints({crmUser,showToast}){
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
   const [editPt,setEditPt]=useState(null);
-  const [f,setF]=useState({type:'',name:'',price_per_hour:'',custom_hours:null});
+  const [f,setF]=useState({est_id:'',type:'',name:'',price_per_hour:'',custom_hours:null});
   const [customH,setCustomH]=useState(false);
   const [delPt,setDelPt]=useState(null);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -389,13 +419,12 @@ function CRMPoints({crmUser,showToast}){
   };
   useEffect(()=>{load();},[]);
 
-  const openNew=()=>{setF({type:'',name:'',price_per_hour:'',custom_hours:null});setCustomH(false);setEditPt(null);setShowForm(true);};
-  const openEdit=(p)=>{setF({type:p.type,name:p.name,price_per_hour:p.price_per_hour,custom_hours:p.custom_hours});setCustomH(!!p.custom_hours);setEditPt(p);setShowForm(true);};
+  const openNew=()=>{setF({est_id:ests[0]?.id||'',type:'',name:'',price_per_hour:'',custom_hours:null});setCustomH(false);setEditPt(null);setShowForm(true);};
+  const openEdit=(p)=>{setF({est_id:p.est_id||ests[0]?.id||'',type:p.type,name:p.name,price_per_hour:p.price_per_hour,custom_hours:p.custom_hours});setCustomH(!!p.custom_hours);setEditPt(p);setShowForm(true);};
 
   const save=async()=>{
-    if(!f.type||!f.name||!f.price_per_hour){showToast('Preencha todos os campos','error');return;}
-    const est=ests[0];
-    const payload={...f,est_id:est?.id,custom_hours:customH?(f.custom_hours||{...DEFAULT_HOURS}):null};
+    if(!f.est_id||!f.type||!f.name||!f.price_per_hour){showToast('Preencha todos os campos obrigatórios','error');return;}
+    const payload={...f,custom_hours:customH?(f.custom_hours||{...DEFAULT_HOURS}):null};
     try{
       if(editPt){await pointApi.update(editPt.id,payload);}
       else{await pointApi.create(payload);}
@@ -410,7 +439,7 @@ function CRMPoints({crmUser,showToast}){
 
   if(loading)return<Spinner/>;
 
-  return<div className="p-6"><div className="flex items-center justify-between mb-6"><h1 className="text-2xl font-black text-gray-900">Pontos / Espaços</h1>{isAdmin&&<Btn onClick={openNew}>+ Novo Ponto</Btn>}</div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{points.map(pt=><div key={pt.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm"><div className="flex items-start justify-between mb-2"><div className="min-w-0"><h3 className="font-bold text-gray-800 truncate">{pt.name}</h3><p className="text-xs text-gray-500 mt-0.5">{pt.type}</p></div><div className="text-right shrink-0 ml-2"><p className="text-emerald-600 font-black text-lg">{fmt$(pt.price_per_hour)}</p><p className="text-xs text-gray-400">/hora</p></div></div><p className="text-xs text-gray-400 mb-3">{pt.custom_hours?'⏰ Horário próprio':'📋 Herda do estabelecimento'}</p>{isAdmin&&<div className="flex gap-2"><Btn variant="secondary" size="sm" onClick={()=>openEdit(pt)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelPt(pt)}>Excluir</Btn></div>}</div>)}{points.length===0&&<div className="col-span-3 text-center py-16 text-gray-400"><p className="text-4xl mb-2">📍</p><p>Nenhum ponto cadastrado</p></div>}</div><Modal open={showForm} onClose={()=>setShowForm(false)} title={editPt?'Editar Ponto':'Novo Ponto'} maxW="max-w-xl"><div className="space-y-4"><Field label="Tipo" required><Sel value={f.type} onChange={e=>upd('type',e.target.value)} options={ESTABLISHMENT_TYPES} placeholder="Selecione..."/></Field><Field label="Nome do Ponto" required><Inp value={f.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Valor por hora (R$)" required><Inp type="number" value={f.price_per_hour} onChange={e=>upd('price_per_hour',Number(e.target.value))}/></Field><div className="bg-amber-50 border border-amber-100 rounded-xl p-3"><label className="flex items-start gap-2.5 cursor-pointer"><input type="checkbox" checked={customH} onChange={e=>setCustomH(e.target.checked)} className="w-4 h-4 accent-emerald-600 mt-0.5"/><div><p className="text-sm font-medium text-gray-700">Horário próprio para este ponto</p><p className="text-xs text-gray-400">Por padrão herda do estabelecimento</p></div></label></div>{customH&&<HoursEditor value={f.custom_hours||{...DEFAULT_HOURS}} onChange={v=>upd('custom_hours',v)}/>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn><Btn className="flex-1" onClick={save}>Salvar</Btn></div></div></Modal><Modal open={!!delPt} onClose={()=>setDelPt(null)} title="Confirmar Exclusão"><p className="text-sm text-gray-600 mb-5">Excluir <strong>"{delPt?.name}"</strong>?</p><div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelPt(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={()=>del(delPt.id)}>Excluir</Btn></div></Modal></div>;
+  return<div className="p-6"><div className="flex items-center justify-between mb-6"><h1 className="text-2xl font-black text-gray-900">Pontos / Espaços</h1>{isAdmin&&<Btn onClick={openNew}>+ Novo Ponto</Btn>}</div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{points.map(pt=><div key={pt.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm"><div className="flex items-start justify-between mb-2"><div className="min-w-0"><h3 className="font-bold text-gray-800 truncate">{pt.name}</h3><p className="text-xs text-gray-500 mt-0.5">{pt.type}</p></div><div className="text-right shrink-0 ml-2"><p className="text-emerald-600 font-black text-lg">{fmt$(pt.price_per_hour)}</p><p className="text-xs text-gray-400">/hora</p></div></div><p className="text-xs text-gray-400 mb-3">{pt.custom_hours?'⏰ Horário próprio':'📋 Herda do estabelecimento'}</p>{isAdmin&&<div className="flex gap-2"><Btn variant="secondary" size="sm" onClick={()=>openEdit(pt)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelPt(pt)}>Excluir</Btn></div>}</div>)}{points.length===0&&<div className="col-span-3 text-center py-16 text-gray-400"><p className="text-4xl mb-2">📍</p><p>Nenhum ponto cadastrado</p></div>}</div><Modal open={showForm} onClose={()=>setShowForm(false)} title={editPt?'Editar Ponto':'Novo Ponto'} maxW="max-w-xl"><div className="space-y-4"><Field label="Estabelecimento" required><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/></Field><Field label="Tipo de Espaço" required><Sel value={f.type} onChange={e=>upd('type',e.target.value)} options={ESTABLISHMENT_TYPES} placeholder="Selecione..."/></Field><Field label="Nome do Ponto" required><Inp value={f.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Valor por hora (R$)" required><Inp type="number" value={f.price_per_hour} onChange={e=>upd('price_per_hour',Number(e.target.value))}/></Field><div className="bg-amber-50 border border-amber-100 rounded-xl p-3"><label className="flex items-start gap-2.5 cursor-pointer"><input type="checkbox" checked={customH} onChange={e=>setCustomH(e.target.checked)} className="w-4 h-4 accent-emerald-600 mt-0.5"/><div><p className="text-sm font-medium text-gray-700">Horário próprio para este ponto</p><p className="text-xs text-gray-400">Por padrão herda do estabelecimento</p></div></label></div>{customH&&<HoursEditor value={f.custom_hours||{...DEFAULT_HOURS}} onChange={v=>upd('custom_hours',v)}/>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn><Btn className="flex-1" onClick={save}>Salvar</Btn></div></div></Modal><Modal open={!!delPt} onClose={()=>setDelPt(null)} title="Confirmar Exclusão"><p className="text-sm text-gray-600 mb-5">Excluir <strong>"{delPt?.name}"</strong>?</p><div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelPt(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={()=>del(delPt.id)}>Excluir</Btn></div></Modal></div>;
 }
 
 // ================================================================
@@ -614,29 +643,4 @@ export default function App(){
       'crm-users':        <CRMUsers showToast={showToast}/>,
       'crm-reservations': <CRMReservations showToast={showToast}/>,
     };
-    return<><Toast toast={toast}/><CRMLayout crmUser={crmUser} page={page} navigate={navigate} onLogout={crmLogout}>{pages[page]||pages['crm-dashboard']}</CRMLayout></>;
-  }
-
-  const mktPage=()=>{
-    switch(page){
-      case 'est-detail':
-        return<EstDetail estId={pageArg} points={points} navigate={navigate} publicUser={publicUser} onReserve={handleReserve}/>;
-      case 'my-reservations':
-        return publicUser
-          ?<MyReservations publicUser={publicUser} navigate={navigate} showToast={showToast}/>
-          :<div className="max-w-md mx-auto text-center py-24 px-4"><p className="text-5xl mb-4">🔐</p><p className="text-gray-600 mb-5">Você precisa estar logado para ver suas reservas.</p><Btn onClick={()=>{setAuthMode('login');setShowAuth(true);}}>Entrar na minha conta</Btn></div>;
-      case 'public-auth':
-        return<div className="min-h-[60vh] flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-lg p-6 w-full max-w-sm"><button onClick={()=>navigate('mkt-home')} className="text-sm text-gray-400 hover:text-gray-600 mb-4 block">← Voltar</button><AuthModal open={true} onClose={()=>navigate('mkt-home')} onLogin={pubLogin} onRegister={pubRegister} initialMode={pageArg||'login'}/></div></div>;
-      default:
-        return<MktHome establishments={establishments} points={points} navigate={navigate}/>;
-    }
-  };
-
-  return<div className="min-h-screen bg-gray-50">
-    <Toast toast={toast}/>
-    <MktHeader publicUser={publicUser} page={page} navigate={navigate} onLogout={pubLogout}/>
-    {mktPage()}
-    <AuthModal open={showAuth} onClose={(a)=>{setShowAuth(false);setPendRes(null);if(a==='forgot')navigate('password-recovery');}} onLogin={pubLogin} onRegister={pubRegister} initialMode={authMode}/>
-    <ResConfirmModal open={!!confRes&&!!publicUser} data={confRes} publicUser={publicUser} onConfirm={confirmRes} onClose={()=>setConfRes(null)} loading={confLoading}/>
-  </div>;
-}
+    return<><Toast toast={toast}/><CRMLayout crmUser={crmUser} page={page} navigate={
