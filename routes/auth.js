@@ -22,7 +22,6 @@ router.post('/crm/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password_hash)))
       return res.status(401).json({ error: 'Email ou senha inválidos' });
 
-    // est_id incluído no token para filtragem server-side de managers/simples
     const token = sign({ id: user.id, role: user.role, type: 'crm', est_id: user.est_id || null });
     res.json({
       token,
@@ -156,13 +155,6 @@ router.get('/me', async (req, res) => {
     const { rows } = await pool.query(`SELECT ${cols} FROM ${table} WHERE id = $1`, [payload.id]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
     res.json({ user: rows[0], type: payload.type });
-  } catch {
-    res.status(401).json({ error: 'Token inválido' });
-  }
-});
-
-module.exports = router;
-e });
   } catch {
     res.status(401).json({ error: 'Token inválido' });
   }
