@@ -35,14 +35,10 @@ app.get('*', (req, res) => {
 });
 
 // ── Cron Jobs — Lembretes de Reserva ────────────────────────────
-// Roda a cada minuto, verifica reservas que iniciam em 60min ou 15min
 cron.schedule('* * * * *', async () => {
   try {
     const now = new Date();
-
-    // Lembrete 1h antes
     const in60 = new Date(now.getTime() + 60 * 60 * 1000);
-    // Lembrete 15min antes
     const in15 = new Date(now.getTime() + 15 * 60 * 1000);
 
     const fmt = (d) => {
@@ -78,8 +74,5 @@ cron.schedule('* * * * *', async () => {
 
 // ── Start ────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`✅ Servidor rodando na porta ${PORT}`);
-});
- {
   console.log(`✅ Servidor rodando na porta ${PORT}`);
 });
