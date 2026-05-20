@@ -413,35 +413,36 @@ function CRMDashboard(){
 // CRM ESTABLISHMENT
 // ================================================================
 function CRMEstablishment({showToast}){
-  const [est,setEst]=useState(null);
+  const BLANK={name:'',responsible:'',cpf_cnpj:'',phone:'',email:'',street:'',number:'',complement:'',cep:'',city:'',state:'',photos:[],main_photo:'',operating_hours:{...DEFAULT_HOURS}};
+  const [tab,setTab]=useState('consulta');
+  const [ests,setEsts]=useState([]);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
-  const [form,setForm]=useState({name:'',responsible:'',cpf_cnpj:'',phone:'',email:'',street:'',number:'',complement:'',cep:'',city:'',state:'',photos:[],main_photo:'',operating_hours:{...DEFAULT_HOURS}});
+  const [editId,setEditId]=useState(null);
+  const [form,setForm]=useState(BLANK);
   const [cepLoading,setCepLoading]=useState(false);
   const [uploading,setUploading]=useState(false);
 
-  useEffect(()=>{
-    estApi.list().then(list=>{
-      if(list.length){
-        const e=list[0];
-        setEst(e);
-        setForm(f=>({...f,name:e.name||'',phone:e.phone||'',street:e.street||'',number:e.number||'',complement:e.complement||'',cep:e.cep||'',city:e.city||'',state:e.state||'',photos:e.photos||[],main_photo:e.main_photo||'',operating_hours:e.operating_hours||{...DEFAULT_HOURS}}));
-        // Busca campos internos
-        estApi.getFull(e.id).then(full=>{
-          setForm(f=>({...f,responsible:full.responsible||'',cpf_cnpj:full.cpf_cnpj||'',email:full.email||''}));
-        }).catch(()=>{});
-      }
-    }).catch(()=>{}).finally(()=>setLoading(false));
-  },[]);
+  const loadList=()=>{setLoading(true);estApi.list().then(setEsts).catch(()=>{}).finally(()=>setLoading(false));};
+  useEffect(()=>{loadList();},[]);
 
   const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  const openNew=()=>{setEditId(null);setForm(BLANK);setTab('cadastro');};
+  const openEdit=async(e)=>{
+    setEditId(e.id);
+    setForm({...BLANK,name:e.name||'',phone:e.phone||'',street:e.street||'',number:e.number||'',complement:e.complement||'',cep:e.cep||'',city:e.city||'',state:e.state||'',photos:e.photos||[],main_photo:e.main_photo||'',operating_hours:e.operating_hours||{...DEFAULT_HOURS}});
+    try{const full=await estApi.getFull(e.id);setForm(f=>({...f,responsible:full.responsible||'',cpf_cnpj:full.cpf_cnpj||'',email:full.email||''}));}catch{}
+    setTab('cadastro');
+  };
+
   const handleCEP=async(v)=>{upd('cep',v);if(v.replace(/\D/g,'').length===8){setCepLoading(true);const d=await viaCEP(v);setCepLoading(false);if(d){upd('street',d.logradouro);upd('city',d.localidade);upd('state',d.uf);showToast('Endereço preenchido!','success');}}};
   const addPhotosFromFiles=async(e)=>{
     const files=Array.from(e.target.files);
     if(!files.length)return;
     setUploading(true);
     for(const file of files){
-      if(!file.type.startsWith('image/')){showToast(`${file.name}: somente imagens`,  'error');continue;}
+      if(!file.type.startsWith('image/')){showToast(`${file.name}: somente imagens`,'error');continue;}
       if(file.size>8*1024*1024){showToast(`${file.name}: máx. 8MB`,'error');continue;}
       const dataUrl=await resizeImage(file);
       if(dataUrl)setForm(f=>({...f,photos:[...f.photos,dataUrl],main_photo:f.main_photo||dataUrl}));
@@ -455,20 +456,54 @@ function CRMEstablishment({showToast}){
     if(!form.name||!form.responsible||!form.phone){showToast('Preencha os campos obrigatórios','error');return;}
     setSaving(true);
     try{
-      const payload={...form};
-      if(est){await estApi.update(est.id,payload);}
-      else{const e=await estApi.create(payload);setEst(e);}
+      if(editId){await estApi.update(editId,form);}else{await estApi.create(form);}
       showToast('Estabelecimento salvo!','success');
+      loadList();
+      setTab('consulta');
     }catch(e){showToast(e.message,'error');}finally{setSaving(false);}
   };
 
+  const TabBtn=({id,label})=><button onClick={()=>setTab(id)} className={`px-5 py-2.5 text-sm font-semibold rounded-xl transition-all ${tab===id?'bg-emerald-600 text-white shadow-sm':'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>{label}</button>;
+
   if(loading)return<Spinner/>;
 
-  return<div className="p-6 max-w-5xl"><div className="flex items-center justify-between mb-6"><div><h1 className="text-2xl font-black text-gray-900">Cadastro do Estabelecimento</h1><p className="text-sm text-gray-400 mt-0.5">🌐 Público / 🔒 Interno — visibilidade no Marketplace</p></div><Btn onClick={save} size="lg" disabled={saving}>{saving?'Salvando...':'💾 Salvar'}</Btn></div><div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4"><h2 className="font-bold text-gray-700">Dados Gerais</h2><Field label="Nome do Local" badge="pub" required><Inp value={form.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Responsável" badge="int" required><Inp value={form.responsible} onChange={e=>upd('responsible',e.target.value)}/></Field><Field label="CPF / CNPJ" badge="int"><Inp value={form.cpf_cnpj} onChange={e=>upd('cpf_cnpj',e.target.value)}/></Field><Field label="Telefone" badge="pub" required><Inp value={form.phone} onChange={e=>upd('phone',e.target.value)} placeholder="(00) 00000-0000"/></Field><Field label="Email" badge="int"><Inp type="email" value={form.email} onChange={e=>upd('email',e.target.value)}/></Field></div><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Endereço <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><Field label="CEP" help={cepLoading?'Buscando endereço...':''}><Inp value={form.cep} onChange={e=>handleCEP(e.target.value)} placeholder="00000-000"/></Field><Field label="Rua"><Inp value={form.street} onChange={e=>upd('street',e.target.value)}/></Field><div className="grid grid-cols-2 gap-3"><Field label="Número"><Inp value={form.number} onChange={e=>upd('number',e.target.value)}/></Field><Field label="Complemento"><Inp value={form.complement} onChange={e=>upd('complement',e.target.value)}/></Field></div><div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Field label="Cidade"><Inp value={form.city} onChange={e=>upd('city',e.target.value)}/></Field></div><Field label="UF"><Inp value={form.state} onChange={e=>upd('state',e.target.value.toUpperCase().slice(0,2))} placeholder="SP"/></Field></div></div></div><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Fotos <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><label className={`flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors ${uploading?'border-emerald-300 bg-emerald-50':'border-gray-300 hover:border-emerald-400 hover:bg-emerald-50'}`}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={addPhotosFromFiles} disabled={uploading}/><span className="text-3xl">{uploading?'⏳':'📷'}</span><div className="text-center"><p className="text-sm font-medium text-gray-700">{uploading?'Processando...':'Clique para adicionar fotos'}</p><p className="text-xs text-gray-400">JPEG · PNG · WebP · máx. 8MB por foto · múltiplos arquivos</p></div></label>{form.photos.length===0&&<p className="text-xs text-gray-400 text-center py-1">Nenhuma foto adicionada</p>}<div className="grid grid-cols-2 gap-2">{form.photos.map((ph,i)=><div key={i} className={`relative rounded-xl overflow-hidden border-2 ${form.main_photo===ph?'border-emerald-500':'border-transparent'}`}><img src={ph} alt="" className="w-full h-28 object-cover" onError={e=>e.target.style.display='none'}/><div className="absolute bottom-0 left-0 right-0 flex gap-1 p-1.5"><button onClick={()=>upd('main_photo',ph)} className="flex-1 text-xs text-white bg-emerald-600/90 rounded-lg py-1">{form.main_photo===ph?'★ Principal':'★'}</button><button onClick={()=>rmPhoto(ph)} className="text-xs text-white bg-red-600/90 rounded-lg px-2 py-1">✕</button></div></div>)}</div></div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h2 className="font-bold text-gray-700 mb-1">Horário de Funcionamento <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><p className="text-xs text-gray-400 mb-3">Padrão herdado por todos os pontos</p><HoursEditor value={form.operating_hours} onChange={v=>upd('operating_hours',v)}/></div></div></div></div>;
-}
+  return<div className="p-6 max-w-5xl">
+    <div className="flex items-center justify-between mb-6">
+      <h1 className="text-2xl font-black text-gray-900">Estabelecimentos</h1>
+      <div className="flex items-center gap-3">
+        <div className="flex bg-gray-100 rounded-xl p-1 gap-1"><TabBtn id="consulta" label="📋 Consulta"/><TabBtn id="cadastro" label="➕ Cadastro"/></div>
+        {tab==='consulta'&&<Btn onClick={openNew}>+ Novo</Btn>}
+        {tab==='cadastro'&&<Btn onClick={save} disabled={saving}>{saving?'Salvando...':'💾 Salvar'}</Btn>}
+      </div>
+    </div>
 
-// ================================================================
-// CRM POINTS
+    {tab==='consulta'&&<div>
+      {ests.length===0
+        ?<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🏢</p><p className="text-lg">Nenhum estabelecimento cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro estabelecimento</Btn></div>
+        :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>{['Nome','Cidade / UF','Telefone','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {ests.map(e=><tr key={e.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 font-semibold text-gray-800">{e.name}</td>
+                <td className="px-4 py-3 text-gray-500">{e.city&&e.state?`${e.city} / ${e.state}`:e.city||e.state||'—'}</td>
+                <td className="px-4 py-3 text-gray-500">{e.phone||'—'}</td>
+                <td className="px-4 py-3 text-right"><Btn variant="secondary" size="sm" onClick={()=>openEdit(e)}>Editar</Btn></td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>}
+
+    {tab==='cadastro'&&<div>
+      {editId&&<p className="text-xs text-emerald-600 font-medium mb-4">✏️ Editando estabelecimento existente — <button className="underline" onClick={openNew}>ou criar novo</button></p>}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4"><h2 className="font-bold text-gray-700">Dados Gerais</h2><Field label="Nome do Local" badge="pub" required><Inp value={form.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Responsável" badge="int" required><Inp value={form.responsible} onChange={e=>upd('responsible',e.target.value)}/></Field><Field label="CPF / CNPJ" badge="int"><Inp value={form.cpf_cnpj} onChange={e=>upd('cpf_cnpj',e.target.value)}/></Field><Field label="Telefone" badge="pub" required><Inp value={form.phone} onChange={e=>upd('phone',e.target.value)} placeholder="(00) 00000-0000"/></Field><Field label="Email" badge="int"><Inp type="email" value={form.email} onChange={e=>upd('email',e.target.value)}/></Field></div><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Endereço <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><Field label="CEP" help={cepLoading?'Buscando endereço...':''}><Inp value={form.cep} onChange={e=>handleCEP(e.target.value)} placeholder="00000-000"/></Field><Field label="Rua"><Inp value={form.street} onChange={e=>upd('street',e.target.value)}/></Field><div className="grid grid-cols-2 gap-3"><Field label="Número"><Inp value={form.number} onChange={e=>upd('number',e.target.value)}/></Field><Field label="Complemento"><Inp value={form.complement} onChange={e=>upd('complement',e.target.value)}/></Field></div><div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Field label="Cidade"><Inp value={form.city} onChange={e=>upd('city',e.target.value)}/></Field></div><Field label="UF"><Inp value={form.state} onChange={e=>upd('state',e.target.value.toUpperCase().slice(0,2))} placeholder="SP"/></Field></div></div></div><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Fotos <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><label className={`flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors ${uploading?'border-emerald-300 bg-emerald-50':'border-gray-300 hover:border-emerald-400 hover:bg-emerald-50'}`}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={addPhotosFromFiles} disabled={uploading}/><span className="text-3xl">{uploading?'⏳':'📷'}</span><div className="text-center"><p className="text-sm font-medium text-gray-700">{uploading?'Processando...':'Clique para adicionar fotos'}</p><p className="text-xs text-gray-400">JPEG · PNG · WebP · máx. 8MB por foto · múltiplos arquivos</p></div></label>{form.photos.length===0&&<p className="text-xs text-gray-400 text-center py-1">Nenhuma foto adicionada</p>}<div className="grid grid-cols-2 gap-2">{form.photos.map((ph,i)=><div key={i} className={`relative rounded-xl overflow-hidden border-2 ${form.main_photo===ph?'border-emerald-500':'border-transparent'}`}><img src={ph} alt="" className="w-full h-28 object-cover" onError={e=>e.target.style.display='none'}/><div className="absolute bottom-0 left-0 right-0 flex gap-1 p-1.5"><button onClick={()=>upd('main_photo',ph)} className="flex-1 text-xs text-white bg-emerald-600/90 rounded-lg py-1">{form.main_photo===ph?'★ Principal':'★'}</button><button onClick={()=>rmPhoto(ph)} className="text-xs text-white bg-red-600/90 rounded-lg px-2 py-1">✕</button></div></div>)}</div></div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h2 className="font-bold text-gray-700 mb-1">Horário de Funcionamento <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><p className="text-xs text-gray-400 mb-3">Padrão herdado por todos os pontos</p><HoursEditor value={form.operating_hours} onChange={v=>upd('operating_hours',v)}/></div></div></div>
+    </div>}
+  </div>;
+}
 // ================================================================
 function CRMPoints({crmUser,showToast}){
   const [points,setPoints]=useState([]);
