@@ -25,3 +25,9 @@ ALTER TABLE reservations
 -- 4. Adiciona reset_token / reset_expires ao crm_users (caso ainda não existam)
 ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS reset_token   TEXT;
 ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS reset_expires TIMESTAMPTZ;
+
+-- Reserva manual: cliente sem cadastro
+ALTER TABLE reservations ALTER COLUMN user_id DROP NOT NULL;
+ALTER TABLE reservations ADD COLUMN IF NOT EXISTS client_name  TEXT;
+ALTER TABLE reservations ADD COLUMN IF NOT EXISTS client_phone TEXT;
+ALTER TABLE reservations ADD COLUMN IF NOT EXISTS client_email TEXT;

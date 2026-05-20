@@ -9,12 +9,14 @@ const {
 
 const RES_QUERY = `
   SELECT r.*,
-         pu.name  AS user_name,  pu.email AS user_email,
+         COALESCE(pu.name,  r.client_name)  AS user_name,
+         COALESCE(pu.email, r.client_email, '') AS user_email,
+         r.client_phone,
          p.name   AS point_name, p.price_per_hour,
          e.name   AS est_name,   e.phone  AS est_phone,
          e.street, e.number AS est_number, e.city, e.state
   FROM reservations r
-  JOIN public_users  pu ON r.user_id  = pu.id
+  LEFT JOIN public_users  pu ON r.user_id  = pu.id
   JOIN points         p ON r.point_id = p.id
   JOIN establishments e ON r.est_id   = e.id
 `;
@@ -187,21 +189,15 @@ router.patch('/:id', auth, crmOnly, async (req, res) => {
 
 module.exports = router;
 
-// ── POST /api/reservations/manual — CRM cria reserva por cliente ─
+// ── POST /api/reservations/manual — CRM cria reserva sem cadastro ─
 router.post('/manual', auth, crmOnly, async (req, res) => {
-  const { point_id, est_id, date, start_time, end_time, hours, payment_method, user_email } = req.body;
-  if (!point_id || !est_id || !date || !start_time || !end_time || !hours || !user_email)
-    return res.status(400).json({ error: 'Campos obrigatórios faltando' });
+  const { point_id, est_id, date, start_time, end_time, hours,
+          payment_method, client_name, client_phone, client_email } = req.body;
+
+  if (!point_id || !est_id || !date || !start_time || !end_time || !hours || !client_name || !client_phone)
+    return res.status(400).json({ error: 'Nome e telefone do cliente são obrigatórios' });
 
   try {
-    // Busca usuário público pelo email
-    const { rows: userRows } = await pool.query(
-      'SELECT id, name, email FROM public_users WHERE email = $1', [user_email.toLowerCase()]
-    );
-    if (!userRows.length)
-      return res.status(404).json({ error: 'Usuário público não encontrado com esse email' });
-    const user_id = userRows[0].id;
-
     // Verifica conflito
     const { rows: conflicts } = await pool.query(`
       SELECT id FROM reservations
@@ -221,16 +217,16 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
     const pm = ['pix','credito','debito','dinheiro'].includes(payment_method) ? payment_method : 'dinheiro';
 
     const { rows } = await pool.query(`
-      INSERT INTO reservations (point_id, est_id, user_id, date, start_time, end_time, hours, total, payment_method)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [point_id, est_id, user_id, date, start_time, end_time, hours, total, pm]
+      INSERT INTO reservations
+        (point_id, est_id, user_id, date, start_time, end_time, hours, total,
+         payment_method, client_name, client_phone, client_email)
+      VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [point_id, est_id, date, start_time, end_time, hours, total, pm,
+       client_name.trim(), client_phone.trim(), client_email?.trim() || null]
     );
 
     const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [rows[0].id]);
-    const reservation = full[0];
-
-    sendConfirmationEmail(reservation, reservation.user_email).catch(console.error);
-    res.status(201).json(reservation);
+    res.status(201).json(full[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao criar reserva manual' });

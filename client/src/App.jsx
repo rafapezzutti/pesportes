@@ -639,12 +639,11 @@ function CRMReservations({showToast}){
 
   // ── Nova reserva manual ──
   const [showManual,setShowManual]=useState(false);
-  const MBL={email:'',userId:null,userName:'',estId:'',pointId:'',date:'',slots:[],pm:'dinheiro'};
+  const MBL={name:'',phone:'',email:'',estId:'',pointId:'',date:'',slots:[],pm:'dinheiro'};
   const [mb,setMb]=useState(MBL);
   const [mbEsts,setMbEsts]=useState([]);
   const [mbPoints,setMbPoints]=useState([]);
   const [mbSlots,setMbSlots]=useState([]);
-  const [mbSearching,setMbSearching]=useState(false);
   const [mbSaving,setMbSaving]=useState(false);
   const updMb=(k,v)=>setMb(m=>({...m,[k]:v}));
 
@@ -678,19 +677,7 @@ function CRMReservations({showToast}){
     updMb('slots',[]);
   },[mb.pointId,mb.date]);
 
-  const searchUser=async()=>{
-    if(!mb.email)return;
-    setMbSearching(true);
-    try{
-      // Tentamos criar reserva vazia só pra verificar — na verdade chamamos /auth/me não,
-      // usamos um endpoint de listagem de reservas do usuário. Melhor: buscamos pelo email
-      // via GET /api/reservations?userEmail — mas não existe. Usaremos manualCreate com
-      // campos vazios e capturamos o erro 404 para saber se existe.
-      // Alternativa: endpoint público de busca. Por ora usamos o fluxo de tentar criar.
-      // Simplificação: apenas validamos email no save, aqui apenas marcamos como buscado.
-      updMb('userId','?');updMb('userName',mb.email);
-    }finally{setMbSearching(false);}
-  };
+
 
   const toggleMbSlot=(s)=>{
     if(!s.available)return;
@@ -703,7 +690,7 @@ function CRMReservations({showToast}){
   };
 
   const saveManual=async()=>{
-    if(!mb.email||!mb.estId||!mb.pointId||!mb.date||!mb.slots.length){showToast('Preencha todos os campos','error');return;}
+    if(!mb.name||!mb.phone||!mb.estId||!mb.pointId||!mb.date||!mb.slots.length){showToast('Nome, telefone e horário são obrigatórios','error');return;}
     const s=mb.slots[0];
     const e=`${String(parseInt(mb.slots[mb.slots.length-1])+1).padStart(2,'0')}:00`;
     setMbSaving(true);
@@ -711,7 +698,7 @@ function CRMReservations({showToast}){
       await resApi.manualCreate({
         point_id:Number(mb.pointId),est_id:Number(mb.estId),
         date:mb.date,start_time:s,end_time:e,hours:mb.slots.length,
-        payment_method:mb.pm,user_email:mb.email,
+        payment_method:mb.pm,client_name:mb.name,client_phone:mb.phone,client_email:mb.email||undefined,
       });
       showToast('Reserva criada com sucesso!','success');
       setShowManual(false);setMb(MBL);load();
@@ -787,11 +774,16 @@ function CRMReservations({showToast}){
     {/* Modal Nova Reserva Manual */}
     <Modal open={showManual} onClose={()=>setShowManual(false)} title="Nova Reserva Manual" maxW="max-w-lg">
       <div className="space-y-4">
-        <Field label="Email do cliente" required>
-          <div className="flex gap-2">
-            <Inp value={mb.email} onChange={e=>updMb('email',e.target.value)} placeholder="email@cliente.com" className="flex-1"/>
-          </div>
-          <p className="text-xs text-gray-400 mt-1">O cliente deve ter cadastro no Marketplace</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Nome completo" required>
+            <Inp value={mb.name} onChange={e=>updMb('name',e.target.value)} placeholder="João Silva"/>
+          </Field>
+          <Field label="Telefone" required>
+            <Inp value={mb.phone} onChange={e=>updMb('phone',e.target.value)} placeholder="(00) 00000-0000"/>
+          </Field>
+        </div>
+        <Field label="Email (opcional)">
+          <Inp value={mb.email} onChange={e=>updMb('email',e.target.value)} placeholder="email@cliente.com"/>
         </Field>
         <Field label="Estabelecimento" required>
           <Sel value={mb.estId} onChange={e=>updMb('estId',e.target.value)} options={mbEsts.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>
@@ -819,7 +811,7 @@ function CRMReservations({showToast}){
         </Field>
         <div className="flex gap-3 pt-1">
           <Btn variant="secondary" className="flex-1" onClick={()=>setShowManual(false)}>Cancelar</Btn>
-          <Btn className="flex-1" disabled={mbSaving||!mb.email||!mb.slots.length} onClick={saveManual}>{mbSaving?'Salvando...':'Confirmar Reserva'}</Btn>
+          <Btn className="flex-1" disabled={mbSaving||!mb.name||!mb.phone||!mb.slots.length} onClick={saveManual}>{mbSaving?'Salvando...':'Confirmar Reserva'}</Btn>
         </div>
       </div>
     </Modal>
