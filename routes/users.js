@@ -3,11 +3,12 @@ const bcrypt = require('bcryptjs');
 const pool   = require('../db/pool');
 const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 
-// ── GET /api/crm-users ───────────────────────────────────────────
+// GET /api/crm-users
 router.get('/', auth, adminOrManager, async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT cu.id, cu.name, cu.email, cu.role, cu.est_id,
+             COALESCE(cu.est_ids, '{}') AS est_ids,
              e.name AS est_name, cu.created_at
       FROM crm_users cu
       LEFT JOIN establishments e ON cu.est_id = e.id
@@ -15,84 +16,92 @@ router.get('/', auth, adminOrManager, async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar usuários' });
+    res.status(500).json({ error: 'Erro ao listar usuarios' });
   }
 });
 
-// ── POST /api/crm-users ──────────────────────────────────────────
+// POST /api/crm-users
 router.post('/', auth, adminOrManager, async (req, res) => {
-  const { name, email, password, role, est_id } = req.body;
+  const { name, email, password, role, est_id, est_ids } = req.body;
   if (!name || !email || !password)
-    return res.status(400).json({ error: 'name, email e password obrigatórios' });
+    return res.status(400).json({ error: 'name, email e password obrigatorios' });
   if (password.length < 6)
-    return res.status(400).json({ error: 'Senha mínima: 6 caracteres' });
+    return res.status(400).json({ error: 'Senha minima: 6 caracteres' });
 
-  // Gerente só pode criar usuário simples
   const allowedRoles = req.user.role === 'admin'
     ? ['admin', 'manager', 'simples']
     : ['simples'];
   if (!allowedRoles.includes(role))
-    return res.status(403).json({ error: 'Você só pode criar usuários do tipo Simples' });
+    return res.status(403).json({ error: 'Voce so pode criar usuarios do tipo Simples' });
 
-  if (role !== 'admin' && !est_id)
-    return res.status(400).json({ error: 'Gerentes e usuários simples precisam de um estabelecimento' });
+  if (role === 'manager' && (!est_ids || est_ids.length === 0))
+    return res.status(400).json({ error: 'Gerente precisa de ao menos um estabelecimento' });
+  if (role === 'simples' && !est_id)
+    return res.status(400).json({ error: 'Usuario simples precisa de um estabelecimento' });
 
   try {
     const exists = await pool.query('SELECT id FROM crm_users WHERE email=$1', [email.toLowerCase()]);
-    if (exists.rows.length) return res.status(409).json({ error: 'Email já cadastrado' });
+    if (exists.rows.length) return res.status(409).json({ error: 'Email ja cadastrado' });
 
     const hash = await bcrypt.hash(password, 10);
+    const resolvedEstId  = role === 'simples' ? (est_id || null) : null;
+    const resolvedEstIds = role === 'manager' ? (est_ids || []) : [];
+
     const { rows } = await pool.query(
-      `INSERT INTO crm_users (name, email, password_hash, role, est_id)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id, name, email, role, est_id`,
-      [name, email.toLowerCase(), hash, role, role === 'admin' ? null : (est_id || null)]
+      `INSERT INTO crm_users (name, email, password_hash, role, est_id, est_ids)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, name, email, role, est_id, est_ids`,
+      [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao criar usuário' });
+    res.status(500).json({ error: 'Erro ao criar usuario' });
   }
 });
 
-// ── PUT /api/crm-users/:id — somente admin ───────────────────────
+// PUT /api/crm-users/:id
 router.put('/:id', auth, adminOnly, async (req, res) => {
-  const { name, email, password, role, est_id } = req.body;
+  const { name, email, password, role, est_id, est_ids } = req.body;
   if (!['admin', 'manager', 'simples'].includes(role))
-    return res.status(400).json({ error: 'Role inválido' });
-  if (role !== 'admin' && !est_id)
-    return res.status(400).json({ error: 'Gerentes e usuários simples precisam de um estabelecimento' });
+    return res.status(400).json({ error: 'Role invalido' });
+  if (role === 'manager' && (!est_ids || est_ids.length === 0))
+    return res.status(400).json({ error: 'Gerente precisa de ao menos um estabelecimento' });
+  if (role === 'simples' && !est_id)
+    return res.status(400).json({ error: 'Usuario simples precisa de um estabelecimento' });
 
   try {
-    const resolvedEstId = role === 'admin' ? null : (est_id || null);
+    const resolvedEstId  = role === 'simples' ? (est_id || null) : null;
+    const resolvedEstIds = role === 'manager' ? (est_ids || []) : [];
+
     let query, params;
     if (password) {
       if (password.length < 6)
-        return res.status(400).json({ error: 'Senha mínima: 6 caracteres' });
+        return res.status(400).json({ error: 'Senha minima: 6 caracteres' });
       const hash = await bcrypt.hash(password, 10);
-      query  = `UPDATE crm_users SET name=$1, email=$2, password_hash=$3, role=$4, est_id=$5
-                WHERE id=$6 RETURNING id, name, email, role, est_id`;
-      params = [name, email.toLowerCase(), hash, role, resolvedEstId, req.params.id];
+      query  = `UPDATE crm_users SET name=$1, email=$2, password_hash=$3, role=$4, est_id=$5, est_ids=$6
+                WHERE id=$7 RETURNING id, name, email, role, est_id, est_ids`;
+      params = [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds, req.params.id];
     } else {
-      query  = `UPDATE crm_users SET name=$1, email=$2, role=$3, est_id=$4
-                WHERE id=$5 RETURNING id, name, email, role, est_id`;
-      params = [name, email.toLowerCase(), role, resolvedEstId, req.params.id];
+      query  = `UPDATE crm_users SET name=$1, email=$2, role=$3, est_id=$4, est_ids=$5
+                WHERE id=$6 RETURNING id, name, email, role, est_id, est_ids`;
+      params = [name, email.toLowerCase(), role, resolvedEstId, resolvedEstIds, req.params.id];
     }
     const { rows } = await pool.query(query, params);
-    if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado' });
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao atualizar usuário' });
+    res.status(500).json({ error: 'Erro ao atualizar usuario' });
   }
 });
 
-// ── DELETE /api/crm-users/:id — somente admin ───────────────────
+// DELETE /api/crm-users/:id
 router.delete('/:id', auth, adminOnly, async (req, res) => {
   try {
     if (Number(req.params.id) === req.user.id)
-      return res.status(400).json({ error: 'Você não pode excluir sua própria conta' });
+      return res.status(400).json({ error: 'Voce nao pode excluir sua propria conta' });
     await pool.query('DELETE FROM crm_users WHERE id=$1', [req.params.id]);
-    res.json({ message: 'Usuário excluído' });
+    res.json({ message: 'Usuario excluido' });
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao excluir usuário' });
+    res.status(500).json({ error: 'Erro ao excluir usuario' });
   }
 });
 

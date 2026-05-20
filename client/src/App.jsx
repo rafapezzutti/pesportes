@@ -563,7 +563,7 @@ function CRMUsers({crmUser,showToast}){
   const [estSearch,setEstSearch]=useState('');
   const [showForm,setShowForm]=useState(false);
   const [editU,setEditU]=useState(null);
-  const [f,setF]=useState({name:'',email:'',password:'',pw2:'',role:'manager',est_id:''});
+  const [f,setF]=useState({name:'',email:'',password:'',pw2:'',role:'manager',est_id:'',est_ids:[]});
   const [err,setErr]=useState({});
   const [delU,setDelU]=useState(null);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -571,15 +571,16 @@ function CRMUsers({crmUser,showToast}){
   const ROLE_OPTS=isAdmin
     ?[{value:'admin',label:'Administrador — acesso total'},{value:'manager',label:'Gerente — vários estabelecimentos'},{value:'simples',label:'Usuário Simples — somente reservas'}]
     :[{value:'simples',label:'Usuário Simples — somente reservas'}];
-  const needsEst=f.role!=='admin';
+  const needsEstMulti=f.role==='manager';
+  const needsEstSingle=f.role==='simples';
 
   const load=()=>{
     Promise.all([userApi.list(),estApi.list()]).then(([u,e])=>{setUsers(u);setEsts(e);}).catch(()=>{}).finally(()=>setLoading(false));
   };
   useEffect(()=>{load();},[]);
 
-  const openNew=()=>{setF({name:'',email:'',password:'',pw2:'',role:isAdmin?'manager':'simples',est_id:ests[0]?.id||''});setEditU(null);setErr({});setShowForm(true);};
-  const openEdit=(u)=>{setF({name:u.name,email:u.email,password:'',pw2:'',role:u.role,est_id:u.est_id||''});setEditU(u);setErr({});setShowForm(true);};
+  const openNew=()=>{setF({name:'',email:'',password:'',pw2:'',role:isAdmin?'manager':'simples',est_id:isAdmin?'':ests[0]?.id||'',est_ids:[]});setEditU(null);setErr({});setShowForm(true);};
+  const openEdit=(u)=>{setF({name:u.name,email:u.email,password:'',pw2:'',role:u.role,est_id:u.est_id||'',est_ids:(u.est_ids||[]).map(Number)});setEditU(u);setErr({});setShowForm(true);};
 
   const validate=()=>{
     const e={};
@@ -588,14 +589,15 @@ function CRMUsers({crmUser,showToast}){
     if(!editU&&!f.password)e.password='Obrigatório';
     if(f.password&&f.password.length<6)e.password='Mínimo 6 caracteres';
     if(f.password&&f.password!==f.pw2)e.pw2='Senhas não coincidem';
-    if(needsEst&&!f.est_id)e.est_id='Selecione um estabelecimento';
+    if(needsEstMulti&&f.est_ids.length===0)e.est_ids='Selecione ao menos um estabelecimento';
+    if(needsEstSingle&&!f.est_id)e.est_id='Selecione um estabelecimento';
     setErr(e);return!Object.keys(e).length;
   };
 
   const save=async()=>{
     if(!validate())return;
     try{
-      const payload={name:f.name,email:f.email,role:f.role,est_id:needsEst?f.est_id:null,...(f.password?{password:f.password}:{})};
+      const payload={name:f.name,email:f.email,role:f.role,est_id:needsEstSingle?f.est_id:null,est_ids:needsEstMulti?f.est_ids:[],...(f.password?{password:f.password}:{})};
       if(editU){await userApi.update(editU.id,payload);}else{await userApi.create({...payload,password:f.password});}
       showToast('Usuário salvo!','success');setShowForm(false);load();
     }catch(e){showToast(e.message,'error');}
@@ -610,12 +612,12 @@ function CRMUsers({crmUser,showToast}){
 
   return<div className="p-6"><div className="flex items-center justify-between mb-6"><h1 className="text-2xl font-black text-gray-900">Usuários do Sistema</h1><Btn onClick={openNew}>+ Novo Usuário</Btn></div>
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-    <table className="w-full text-sm"><thead className="bg-gray-50 border-b border-gray-100"><tr>{['Nome','Email','Perfil','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr></thead>
+    <table className="w-full text-sm"><thead className="bg-gray-50 border-b border-gray-100"><tr>{['Nome','Email','Perfil','Estabelecimento(s)','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr></thead>
     <tbody className="divide-y divide-gray-50">{users.map(u=><tr key={u.id} className="hover:bg-gray-50">
       <td className="px-4 py-3 font-semibold text-gray-800">{u.name}</td>
       <td className="px-4 py-3 text-gray-500">{u.email}</td>
       <td className="px-4 py-3"><Badge color={ROLE_BADGE[u.role]||'gray'}>{ROLE_NAME[u.role]||u.role}</Badge></td>
-      <td className="px-4 py-3 text-gray-500 text-xs">{u.est_name||<span className="italic text-gray-300">—</span>}</td>
+      <td className="px-4 py-3 text-gray-500 text-xs">{u.role==='manager'?(u.est_ids&&u.est_ids.length>0?ests.filter(e=>u.est_ids.map(Number).includes(Number(e.id))).map(e=>e.name).join(', '):<span className="italic text-gray-300">—</span>):(u.est_name||<span className="italic text-gray-300">—</span>)}</td>
       <td className="px-4 py-3"><div className="flex gap-2 justify-end">{isAdmin&&<><Btn variant="secondary" size="sm" onClick={()=>openEdit(u)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelU(u)}>Excluir</Btn></>}</div></td>
     </tr>)}</tbody></table>
     {users.length===0&&<div className="text-center py-12 text-gray-400">Nenhum usuário</div>}
@@ -623,8 +625,9 @@ function CRMUsers({crmUser,showToast}){
   <Modal open={showForm} onClose={()=>setShowForm(false)} title={editU?'Editar Usuário':'Novo Usuário'}><div className="space-y-3">
     <Field label="Nome" required><Inp value={f.name} onChange={e=>upd('name',e.target.value)}/>{err.name&&<p className="text-xs text-red-500">{err.name}</p>}</Field>
     <Field label="Email" required><Inp type="email" value={f.email} onChange={e=>upd('email',e.target.value)}/>{err.email&&<p className="text-xs text-red-500">{err.email}</p>}</Field>
-    <Field label="Perfil"><Sel value={f.role} onChange={e=>{upd('role',e.target.value);if(e.target.value==='admin')upd('est_id','');}} options={ROLE_OPTS}/></Field>
-    {needsEst&&<Field label="Estabelecimento" required><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>{err.est_id&&<p className="text-xs text-red-500">{err.est_id}</p>}</Field>}
+    <Field label="Perfil"><Sel value={f.role} onChange={e=>{const r=e.target.value;setF(p=>({...p,role:r,est_id:r==='simples'?p.est_id:'',est_ids:r==='manager'?p.est_ids:[]}));}} options={ROLE_OPTS}/></Field>
+    {needsEstMulti&&<Field label="Estabelecimentos" required><div className="border border-gray-200 rounded-xl p-3 space-y-2 max-h-48 overflow-y-auto">{ests.length===0?<p className="text-sm text-gray-400">Nenhum estabelecimento cadastrado</p>:ests.map(est=><label key={est.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded p-1"><input type="checkbox" checked={f.est_ids.map(Number).includes(Number(est.id))} onChange={ev=>{const id=Number(est.id);upd('est_ids',ev.target.checked?[...f.est_ids,id]:f.est_ids.filter(x=>Number(x)!==id));}} className="w-4 h-4 accent-emerald-600"/><span className="text-sm text-gray-700">{est.name}</span></label>)}</div>{err.est_ids&&<p className="text-xs text-red-500">{err.est_ids}</p>}</Field>}
+    {needsEstSingle&&<Field label="Estabelecimento" required><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>{err.est_id&&<p className="text-xs text-red-500">{err.est_id}</p>}</Field>}
     <Field label={editU?'Nova senha (vazio = manter)':'Senha'} required={!editU}><Inp type="password" value={f.password} onChange={e=>upd('password',e.target.value)}/>{err.password&&<p className="text-xs text-red-500">{err.password}</p>}</Field>
     {f.password&&<Field label="Confirmar senha" required><Inp type="password" value={f.pw2} onChange={e=>upd('pw2',e.target.value)}/>{err.pw2&&<p className="text-xs text-red-500">{err.pw2}</p>}</Field>}
     <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn><Btn className="flex-1" onClick={save}>Salvar</Btn></div>

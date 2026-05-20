@@ -2,19 +2,25 @@ const router = require('express').Router();
 const pool   = require('../db/pool');
 const { auth, crmOnly } = require('../middleware/auth');
 
-// Retorna estatísticas para o dashboard (admin vê tudo, manager/simples vê só o seu est.)
+// Dashboard: admin ve tudo | manager filtra por est_ids | simples por est_id
 router.get('/', auth, crmOnly, async (req, res) => {
   try {
-    const { role, est_id } = req.user;
-    const restricted = (role === 'manager' || role === 'simples') && est_id;
+    const { role, est_id, est_ids } = req.user;
 
     const today      = new Date().toISOString().split('T')[0];
     const monthStart = today.slice(0, 7) + '-01';
 
-    // Cláusula de filtro por estabelecimento
-    const estClause = restricted ? 'AND r.est_id = $2' : '';
+    let estClause = '';
+    let estParam  = null;
+    if (role === 'simples' && est_id) {
+      estClause = 'AND r.est_id = $2';
+      estParam  = est_id;
+    } else if (role === 'manager' && est_ids && est_ids.length > 0) {
+      estClause = 'AND r.est_id = ANY($2)';
+      estParam  = est_ids;
+    }
+    const restricted = !!estParam;
 
-    // ── Hoje por ponto ──────────────────────────────────────────
     const todayRes = await pool.query(`
       SELECT p.name  AS point_name,
              e.name  AS est_name,
@@ -27,9 +33,8 @@ router.get('/', auth, crmOnly, async (req, res) => {
       ${estClause}
       GROUP BY p.id, p.name, e.name
       ORDER BY e.name, p.name
-    `, restricted ? [today, est_id] : [today]);
+    `, restricted ? [today, estParam] : [today]);
 
-    // ── Mês corrente por ponto ──────────────────────────────────
     const monthPtRes = await pool.query(`
       SELECT p.name  AS point_name,
              e.name  AS est_name,
@@ -42,9 +47,8 @@ router.get('/', auth, crmOnly, async (req, res) => {
       ${estClause}
       GROUP BY p.id, p.name, e.name
       ORDER BY e.name, p.name
-    `, restricted ? [monthStart, est_id] : [monthStart]);
+    `, restricted ? [monthStart, estParam] : [monthStart]);
 
-    // ── Mês corrente por forma de pagamento ─────────────────────
     const monthPayRes = await pool.query(`
       SELECT COALESCE(r.payment_method, 'dinheiro') AS payment_method,
              COUNT(*)::int                           AS count,
@@ -54,7 +58,7 @@ router.get('/', auth, crmOnly, async (req, res) => {
       ${estClause}
       GROUP BY r.payment_method
       ORDER BY r.payment_method
-    `, restricted ? [monthStart, est_id] : [monthStart]);
+    `, restricted ? [monthStart, estParam] : [monthStart]);
 
     res.json({
       today:        todayRes.rows,
@@ -63,7 +67,7 @@ router.get('/', auth, crmOnly, async (req, res) => {
     });
   } catch (err) {
     console.error('[dashboard]', err);
-    res.status(500).json({ error: 'Erro ao buscar estatísticas' });
+    res.status(500).json({ error: 'Erro ao buscar estatisticas' });
   }
 });
 

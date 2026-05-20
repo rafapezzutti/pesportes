@@ -8,11 +8,11 @@ const { sendPasswordResetEmail } = require('../services/email');
 const sign = (payload) =>
   jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-// ── CRM Login ────────────────────────────────────────────────────
+// CRM Login
 router.post('/crm/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
-    return res.status(400).json({ error: 'Email e senha obrigatórios' });
+    return res.status(400).json({ error: 'Email e senha obrigatorios' });
 
   try {
     const { rows } = await pool.query(
@@ -20,12 +20,20 @@ router.post('/crm/login', async (req, res) => {
     );
     const user = rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash)))
-      return res.status(401).json({ error: 'Email ou senha inválidos' });
+      return res.status(401).json({ error: 'Email ou senha invalidos' });
 
-    const token = sign({ id: user.id, role: user.role, type: 'crm', est_id: user.est_id || null });
+    const token = sign({
+      id: user.id, role: user.role, type: 'crm',
+      est_id: user.est_id || null,
+      est_ids: user.est_ids || [],
+    });
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, est_id: user.est_id || null },
+      user: {
+        id: user.id, name: user.name, email: user.email, role: user.role,
+        est_id: user.est_id || null,
+        est_ids: user.est_ids || [],
+      },
     });
   } catch (err) {
     console.error(err);
@@ -33,11 +41,11 @@ router.post('/crm/login', async (req, res) => {
   }
 });
 
-// ── Public Login ─────────────────────────────────────────────────
+// Public Login
 router.post('/public/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
-    return res.status(400).json({ error: 'Email e senha obrigatórios' });
+    return res.status(400).json({ error: 'Email e senha obrigatorios' });
 
   try {
     const { rows } = await pool.query(
@@ -45,7 +53,7 @@ router.post('/public/login', async (req, res) => {
     );
     const user = rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash)))
-      return res.status(401).json({ error: 'Email ou senha inválidos' });
+      return res.status(401).json({ error: 'Email ou senha invalidos' });
 
     const token = sign({ id: user.id, type: 'public' });
     res.json({
@@ -57,11 +65,11 @@ router.post('/public/login', async (req, res) => {
   }
 });
 
-// ── Public Register ───────────────────────────────────────────────
+// Public Register
 router.post('/public/register', async (req, res) => {
   const { name, cpf, email, password } = req.body;
   if (!name || !email || !password)
-    return res.status(400).json({ error: 'Campos obrigatórios faltando' });
+    return res.status(400).json({ error: 'Campos obrigatorios faltando' });
   if (password.length < 6)
     return res.status(400).json({ error: 'Senha deve ter ao menos 6 caracteres' });
 
@@ -70,7 +78,7 @@ router.post('/public/register', async (req, res) => {
       'SELECT id FROM public_users WHERE email = $1', [email.toLowerCase()]
     );
     if (exists.rows.length)
-      return res.status(409).json({ error: 'Email já cadastrado' });
+      return res.status(409).json({ error: 'Email ja cadastrado' });
 
     const hash = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
@@ -86,10 +94,10 @@ router.post('/public/register', async (req, res) => {
   }
 });
 
-// ── Forgot Password ──────────────────────────────────────────────
+// Forgot Password
 router.post('/forgot-password', async (req, res) => {
   const { email, type = 'public' } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email obrigatório' });
+  if (!email) return res.status(400).json({ error: 'Email obrigatorio' });
 
   try {
     const table = type === 'crm' ? 'crm_users' : 'public_users';
@@ -116,11 +124,11 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// ── Reset Password ───────────────────────────────────────────────
+// Reset Password
 router.post('/reset-password', async (req, res) => {
   const { token, password, type = 'public' } = req.body;
   if (!token || !password)
-    return res.status(400).json({ error: 'Token e senha obrigatórios' });
+    return res.status(400).json({ error: 'Token e senha obrigatorios' });
   if (password.length < 6)
     return res.status(400).json({ error: 'Senha deve ter ao menos 6 caracteres' });
 
@@ -131,7 +139,7 @@ router.post('/reset-password', async (req, res) => {
       [token]
     );
     if (!rows.length)
-      return res.status(400).json({ error: 'Token inválido ou expirado' });
+      return res.status(400).json({ error: 'Token invalido ou expirado' });
 
     const hash = await bcrypt.hash(password, 10);
     await pool.query(
@@ -144,19 +152,29 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-// ── Me ───────────────────────────────────────────────────────────
+// Me
 router.get('/me', async (req, res) => {
   const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: 'Não autenticado' });
+  if (!header) return res.status(401).json({ error: 'Nao autenticado' });
   try {
     const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET);
-    const table = payload.type === 'crm' ? 'crm_users' : 'public_users';
-    const cols  = payload.type === 'crm' ? 'id,name,email,role,est_id' : 'id,name,email,cpf';
-    const { rows } = await pool.query(`SELECT ${cols} FROM ${table} WHERE id = $1`, [payload.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+    let rows;
+    if (payload.type === 'crm') {
+      const r = await pool.query(
+        `SELECT id, name, email, role, est_id, COALESCE(est_ids, '{}') AS est_ids
+         FROM crm_users WHERE id = $1`, [payload.id]
+      );
+      rows = r.rows;
+    } else {
+      const r = await pool.query(
+        `SELECT id, name, email, cpf FROM public_users WHERE id = $1`, [payload.id]
+      );
+      rows = r.rows;
+    }
+    if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado' });
     res.json({ user: rows[0], type: payload.type });
   } catch {
-    res.status(401).json({ error: 'Token inválido' });
+    res.status(401).json({ error: 'Token invalido' });
   }
 });
 
