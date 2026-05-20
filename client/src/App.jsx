@@ -643,4 +643,29 @@ export default function App(){
       'crm-users':        <CRMUsers showToast={showToast}/>,
       'crm-reservations': <CRMReservations showToast={showToast}/>,
     };
-    return<><Toast toast={toast}/><CRMLayout crmUser={crmUser} page={page} navigate={
+    return<><Toast toast={toast}/><CRMLayout crmUser={crmUser} page={page} navigate={navigate} onLogout={crmLogout}>{pages[page]||pages['crm-dashboard']}</CRMLayout></>;
+  }
+
+  const mktPage=()=>{
+    switch(page){
+      case 'est-detail':
+        return<EstDetail estId={pageArg} points={points} navigate={navigate} publicUser={publicUser} onReserve={handleReserve}/>;
+      case 'my-reservations':
+        return publicUser
+          ?<MyReservations publicUser={publicUser} navigate={navigate} showToast={showToast}/>
+          :<div className="max-w-md mx-auto text-center py-24 px-4"><p className="text-5xl mb-4">🔐</p><p className="text-gray-600 mb-5">Você precisa estar logado para ver suas reservas.</p><Btn onClick={()=>{setAuthMode('login');setShowAuth(true);}}>Entrar na minha conta</Btn></div>;
+      case 'public-auth':
+        return<div className="min-h-[60vh] flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-lg p-6 w-full max-w-sm"><button onClick={()=>navigate('mkt-home')} className="text-sm text-gray-400 hover:text-gray-600 mb-4 block">← Voltar</button><AuthModal open={true} onClose={()=>navigate('mkt-home')} onLogin={pubLogin} onRegister={pubRegister} initialMode={pageArg||'login'}/></div></div>;
+      default:
+        return<MktHome establishments={establishments} points={points} navigate={navigate}/>;
+    }
+  };
+
+  return<div className="min-h-screen bg-gray-50">
+    <Toast toast={toast}/>
+    <MktHeader publicUser={publicUser} page={page} navigate={navigate} onLogout={pubLogout}/>
+    {mktPage()}
+    <AuthModal open={showAuth} onClose={(a)=>{setShowAuth(false);setPendRes(null);if(a==='forgot')navigate('password-recovery');}} onLogin={pubLogin} onRegister={pubRegister} initialMode={authMode}/>
+    <ResConfirmModal open={!!confRes&&!!publicUser} data={confRes} publicUser={publicUser} onConfirm={confirmRes} onClose={()=>setConfRes(null)} loading={confLoading}/>
+  </div>;
+}
