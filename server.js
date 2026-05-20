@@ -25,6 +25,8 @@ app.use('/api/reservations',   require('./routes/reservations'));
 app.use('/api/dashboard',      require('./routes/dashboard'));
 app.use('/api/professores',    require('./routes/professores'));
 app.use('/api/planos',         require('./routes/planos'));
+app.use('/api/bar',            require('./routes/bar'));
+app.use('/api/manutencao',     require('./routes/manutencao'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));

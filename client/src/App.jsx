@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   authApi, estApi, pointApi, userApi, resApi, dashboardApi,
-  professorApi, planoApi,
+  professorApi, planoApi, barApi, manutencaoApi, dashClienteApi,
   saveToken, clearToken,
 } from './api';
 
@@ -398,10 +398,49 @@ function CRMDashboard(){
   const [data,setData]=useState(null);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('today');
+  const [clienteSearch,setClienteSearch]=useState('');
+  const [clienteQuery,setClienteQuery]=useState('');
+  const [clienteData,setClienteData]=useState(null);
+  const [clienteLoading,setClienteLoading]=useState(false);
 
   useEffect(()=>{
     dashboardApi.get().then(setData).catch(()=>{}).finally(()=>setLoading(false));
   },[]);
+
+  const buscarCliente=async()=>{
+    if(!clienteSearch.trim())return;
+    setClienteLoading(true);setClienteQuery(clienteSearch);setClienteData(null);
+    try{const d=await dashClienteApi.get(clienteSearch.trim());setClienteData(d);}
+    catch(e){alert('Erro ao buscar cliente');}
+    finally{setClienteLoading(false);}
+  };
+
+  const exportPDF=()=>{
+    const el=document.getElementById('cliente-pdf-area');
+    if(!el)return;
+    const win=window.open('','_blank');
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Resumo — ${clienteQuery}</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:32px;color:#111;max-width:900px;margin:auto;}
+      h1{color:#059669;margin-bottom:4px;}
+      h2{color:#374151;font-size:16px;margin:24px 0 8px;}
+      .badge{display:inline-block;background:#d1fae5;color:#065f46;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;margin-left:8px;}
+      table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;}
+      th{background:#f0fdf4;color:#065f46;text-align:left;padding:6px 10px;border-bottom:2px solid #d1fae5;}
+      td{padding:6px 10px;border-bottom:1px solid #f3f4f6;}
+      .total-box{background:#f0fdf4;border-radius:12px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:24px;}
+      .total-box span{color:#059669;font-size:22px;font-weight:900;}
+      .sub{display:flex;gap:24px;flex-wrap:wrap;margin-top:8px;}
+      .sub div{background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:8px 16px;text-align:center;}
+      .sub div p{margin:0;font-size:12px;color:#6b7280;}
+      .sub div strong{font-size:15px;color:#059669;}
+      .footer{margin-top:32px;font-size:11px;color:#9ca3af;text-align:center;}
+    </style></head><body>${el.innerHTML}
+    <p class="footer">P. Soluções Esportes & Reservas · pesportes.ia.br · Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+    </body></html>`);
+    win.document.close();
+    setTimeout(()=>{win.print();},400);
+  };
 
   if(loading)return<Spinner/>;
 
@@ -433,7 +472,7 @@ function CRMDashboard(){
       {label:`Faturamento ${monthLabel}`,value:fmt$(monthTotal),icon:'📈',color:'bg-purple-50'},
     ].map(c=><div key={c.label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><div className="flex items-start gap-3"><div className={`w-10 h-10 ${c.color} rounded-xl flex items-center justify-center text-xl shrink-0`}>{c.icon}</div><div className="min-w-0"><p className="text-xs text-gray-400 mb-0.5 leading-tight">{c.label}</p><p className="text-lg font-black text-gray-800 truncate">{c.value}</p></div></div></div>)}</div>
 
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
       <div className="border-b border-gray-100 px-5 pt-4"><nav className="flex gap-1">{[
         {key:'today',label:`Hoje — ${fmtDate(TODAY)}`},
         {key:'month',label:`Mês — ${monthLabel}`},
@@ -445,10 +484,91 @@ function CRMDashboard(){
         {tab==='pay'&&<DashTable rows={data?.monthByPay} cols={payCols} emptyMsg="Nenhuma reserva no mês"/>}
       </div>
     </div>
+
+    {/* Resumo por Aluno/Cliente */}
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <h2 className="font-bold text-gray-800 mb-4">🔍 Resumo por Aluno / Cliente</h2>
+      <div className="flex gap-2 mb-5">
+        <input value={clienteSearch} onChange={e=>setClienteSearch(e.target.value)} onKeyDown={e=>e.key==='Enter'&&buscarCliente()} placeholder="Buscar por nome do cliente ou aluno..." className="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+        <Btn onClick={buscarCliente} disabled={clienteLoading}>{clienteLoading?'Buscando...':'Buscar'}</Btn>
+        {clienteData&&<Btn variant="secondary" onClick={exportPDF}>📄 Exportar PDF</Btn>}
+      </div>
+
+      {clienteLoading&&<Spinner text="Buscando dados do cliente..."/>}
+
+      {clienteData&&!clienteLoading&&<div id="cliente-pdf-area">
+        <h1 style={{color:'#059669',marginBottom:'4px'}}>Resumo — {clienteData.cliente}</h1>
+
+        {/* Totais resumo */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          {[
+            {label:'Aulas',value:clienteData.totais.aulas,icon:'🎓',color:'bg-blue-50'},
+            {label:'Reservas',value:clienteData.totais.reservas,icon:'📅',color:'bg-emerald-50'},
+            {label:'Bar',value:clienteData.totais.bar,icon:'🍺',color:'bg-amber-50'},
+            {label:'Manutenção',value:clienteData.totais.manutencao,icon:'🔧',color:'bg-purple-50'},
+          ].map(c=><div key={c.label} className={`${c.color} rounded-xl p-3 text-center`}>
+            <p className="text-xl">{c.icon}</p>
+            <p className="text-xs text-gray-500">{c.label}</p>
+            <p className="font-black text-gray-800 text-sm">{fmt$(c.value)}</p>
+          </div>)}
+        </div>
+        <div className="bg-emerald-50 rounded-xl p-3 flex justify-between items-center mb-5">
+          <span className="font-bold text-emerald-800">Total Geral</span>
+          <span className="font-black text-emerald-700 text-xl">{fmt$(clienteData.totais.geral)}</span>
+        </div>
+
+        {/* Planos de Aula */}
+        {clienteData.planos.length>0&&<><h2 className="font-bold text-gray-700 mb-2">🎓 Planos de Aula ({clienteData.planos.length})</h2>
+        <div className="overflow-x-auto mb-5"><table className="w-full text-sm"><thead className="bg-gray-50"><tr>{['Plano','Professor','Horário','Recorrência','Início','Valor','Status'].map(h=><th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>)}</tr></thead>
+        <tbody className="divide-y divide-gray-50">{clienteData.planos.map(p=><tr key={p.id}>
+          <td className="px-3 py-2 font-medium">{TIPO_PLANO_LABEL[p.tipo_plano]||p.tipo_plano}</td>
+          <td className="px-3 py-2">{p.professor_nome||'—'}</td>
+          <td className="px-3 py-2">{p.horario_inicio&&p.horario_fim?`${p.horario_inicio}–${p.horario_fim}`:'—'}</td>
+          <td className="px-3 py-2">{RECORRENCIA_LABEL[p.recorrencia]||p.recorrencia}</td>
+          <td className="px-3 py-2">{fmtDate(p.data_inicio)}</td>
+          <td className="px-3 py-2 font-semibold text-emerald-700">{fmt$(p.valor)}</td>
+          <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${p.status==='ativo'?'bg-emerald-100 text-emerald-700':'bg-gray-100 text-gray-500'}`}>{p.status}</span></td>
+        </tr>)}</tbody></table></div></>}
+
+        {/* Reservas */}
+        {clienteData.reservas.length>0&&<><h2 className="font-bold text-gray-700 mb-2">📅 Reservas de Espaço ({clienteData.reservas.length})</h2>
+        <div className="overflow-x-auto mb-5"><table className="w-full text-sm"><thead className="bg-gray-50"><tr>{['Data','Local','Espaço','Horário','Valor','Status'].map(h=><th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>)}</tr></thead>
+        <tbody className="divide-y divide-gray-50">{clienteData.reservas.map(r=><tr key={r.id}>
+          <td className="px-3 py-2">{fmtDate(typeof r.date==='string'?r.date:r.date.split('T')[0])}</td>
+          <td className="px-3 py-2">{r.est_name}</td>
+          <td className="px-3 py-2">{r.point_name}</td>
+          <td className="px-3 py-2">{r.start_time}–{r.end_time}</td>
+          <td className="px-3 py-2 font-semibold text-emerald-700">{fmt$(r.total)}</td>
+          <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(r.status)}`}>{statusLabel(r.status)}</span></td>
+        </tr>)}</tbody></table></div></>}
+
+        {/* Bar */}
+        {clienteData.bar.length>0&&<><h2 className="font-bold text-gray-700 mb-2">🍺 Consumo de Bar ({clienteData.bar.length})</h2>
+        <div className="overflow-x-auto mb-5"><table className="w-full text-sm"><thead className="bg-gray-50"><tr>{['Data','Local','Itens','Total'].map(h=><th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>)}</tr></thead>
+        <tbody className="divide-y divide-gray-50">{clienteData.bar.map(b=><tr key={b.id}>
+          <td className="px-3 py-2">{new Date(b.created_at).toLocaleDateString('pt-BR')}</td>
+          <td className="px-3 py-2">{b.est_name||'—'}</td>
+          <td className="px-3 py-2 text-xs">{(b.itens||[]).map(i=>`${i.nome} ×${i.quantidade}`).join(', ')}</td>
+          <td className="px-3 py-2 font-semibold text-emerald-700">{fmt$(b.total)}</td>
+        </tr>)}</tbody></table></div></>}
+
+        {/* Manutenção */}
+        {clienteData.manutencao.length>0&&<><h2 className="font-bold text-gray-700 mb-2">🔧 Manutenção / Equipamentos ({clienteData.manutencao.length})</h2>
+        <div className="overflow-x-auto mb-5"><table className="w-full text-sm"><thead className="bg-gray-50"><tr>{['Data','Local','Itens','Total'].map(h=><th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>)}</tr></thead>
+        <tbody className="divide-y divide-gray-50">{clienteData.manutencao.map(m=><tr key={m.id}>
+          <td className="px-3 py-2">{new Date(m.created_at).toLocaleDateString('pt-BR')}</td>
+          <td className="px-3 py-2">{m.est_name||'—'}</td>
+          <td className="px-3 py-2 text-xs">{(m.itens||[]).map(i=>`${i.nome} ×${i.quantidade}`).join(', ')}</td>
+          <td className="px-3 py-2 font-semibold text-emerald-700">{fmt$(m.total)}</td>
+        </tr>)}</tbody></table></div></>}
+
+        {clienteData.planos.length===0&&clienteData.reservas.length===0&&clienteData.bar.length===0&&clienteData.manutencao.length===0&&
+          <div className="text-center py-8 text-gray-400"><p className="text-3xl mb-2">🔍</p><p>Nenhum registro encontrado para "<strong>{clienteData.cliente}</strong>"</p></div>}
+      </div>}
+    </div>
   </div>;
 }
 
-// ================================================================
 // CRM ESTABLISHMENT
 // ================================================================
 function CRMEstablishment({showToast}){
@@ -933,8 +1053,10 @@ function CRMReservations({showToast}){
       <h1 className="text-2xl font-black text-gray-900">Gestão de Reservas</h1>
       {resTab==='reservas'&&<Btn onClick={()=>{setShowManual(true);setMb(MBL);}}>+ Nova Reserva</Btn>}
     </div>
-    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'aulas',label:'📚 Planos de Aula'}]} active={resTab} onChange={setResTab}/>
+    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'aulas',label:'📚 Planos de Aula'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🔧 Manutenção'}]} active={resTab} onChange={setResTab}/>
     {resTab==='aulas'&&<CRMPlanosAula showToast={showToast}/>}
+    {resTab==='bar'&&<CRMBar showToast={showToast}/>}
+    {resTab==='manutencao'&&<CRMManutencao showToast={showToast}/>}
     {resTab==='reservas'&&<div>
     <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-4 items-end">
       <div><p className="text-xs text-gray-400 mb-1 font-medium">Data</p><input type="date" value={dateF} onChange={e=>{setDateF(e.target.value);setLoading(true);}} className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></div>
@@ -1017,6 +1139,183 @@ function CRMReservations({showToast}){
 }
 
 // ================================================================
+// ================================================================
+// CRM BAR
+// ================================================================
+function VendasForm({titulo,labelItem,onSave,clientes,loading}){
+  const [clienteNome,setClienteNome]=useState('');
+  const [clienteInput,setClienteInput]=useState('');
+  const [showSugg,setShowSugg]=useState(false);
+  const [itens,setItens]=useState([{nome:'',quantidade:1,valor_unitario:''}]);
+  const [obs,setObs]=useState('');
+  const [saving,setSaving]=useState(false);
+
+  const sugg=clientes.filter(c=>c.toLowerCase().includes(clienteInput.toLowerCase())&&clienteInput.length>0).slice(0,8);
+
+  const addItem=()=>setItens(p=>[...p,{nome:'',quantidade:1,valor_unitario:''}]);
+  const rmItem=(i)=>setItens(p=>p.filter((_,j)=>j!==i));
+  const updItem=(i,k,v)=>setItens(p=>p.map((it,j)=>j===i?{...it,[k]:v}:it));
+
+  const total=itens.reduce((s,i)=>s+(Number(i.quantidade)||0)*(Number(i.valor_unitario)||0),0);
+
+  const save=async()=>{
+    const nome=clienteNome||clienteInput;
+    if(!nome){alert('Selecione ou informe o cliente');return;}
+    if(!itens[0].nome){alert('Informe ao menos um item');return;}
+    setSaving(true);
+    try{
+      await onSave({cliente_nome:nome,itens:itens.map(i=>({...i,quantidade:Number(i.quantidade),valor_unitario:Number(i.valor_unitario)})),observacoes:obs});
+      setClienteNome('');setClienteInput('');setItens([{nome:'',quantidade:1,valor_unitario:''}]);setObs('');
+    }finally{setSaving(false);}
+  };
+
+  if(loading)return<Spinner/>;
+  return<div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 max-w-2xl">
+    <h2 className="font-bold text-gray-700">{titulo}</h2>
+
+    {/* Cliente */}
+    <div className="relative">
+      <label className="block text-sm font-medium text-gray-700 mb-1">Cliente / Aluno <span className="text-red-500">*</span></label>
+      <input value={clienteNome||clienteInput} onChange={e=>{setClienteInput(e.target.value);setClienteNome('');setShowSugg(true);}} onFocus={()=>setShowSugg(true)} onBlur={()=>setTimeout(()=>setShowSugg(false),150)} placeholder="Digite o nome ou selecione..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+      {showSugg&&sugg.length>0&&<div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-40 overflow-y-auto">{sugg.map(c=><div key={c} onMouseDown={()=>{setClienteNome(c);setClienteInput(c);setShowSugg(false);}} className="px-3 py-2 text-sm hover:bg-emerald-50 cursor-pointer">{c}</div>)}</div>}
+    </div>
+
+    {/* Itens */}
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="text-sm font-medium text-gray-700">{labelItem}</label>
+        <button onClick={addItem} className="text-xs text-emerald-600 hover:underline font-medium">+ Adicionar item</button>
+      </div>
+      <div className="space-y-2">
+        {itens.map((it,i)=><div key={i} className="flex gap-2 items-center">
+          <input value={it.nome} onChange={e=>updItem(i,'nome',e.target.value)} placeholder="Nome do item" className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+          <input type="number" value={it.quantidade} onChange={e=>updItem(i,'quantidade',e.target.value)} min="1" placeholder="Qtd" className="w-16 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center"/>
+          <input type="number" value={it.valor_unitario} onChange={e=>updItem(i,'valor_unitario',e.target.value)} min="0" step="0.01" placeholder="R$/un" className="w-24 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+          <span className="text-xs font-semibold text-gray-700 w-20 text-right">{fmt$((Number(it.quantidade)||0)*(Number(it.valor_unitario)||0))}</span>
+          {itens.length>1&&<button onClick={()=>rmItem(i)} className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>}
+        </div>)}
+      </div>
+      <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+        <span className="text-sm font-bold text-gray-700">Total</span>
+        <span className="text-lg font-black text-emerald-700">{fmt$(total)}</span>
+      </div>
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+      <textarea value={obs} onChange={e=>setObs(e.target.value)} rows={2} placeholder="Opcional..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"/>
+    </div>
+
+    <Btn onClick={save} disabled={saving} className="w-full">{saving?'Salvando...':'💾 Registrar'}</Btn>
+  </div>;
+}
+
+function VendasList({rows,onDelete,tipo}){
+  if(!rows.length)return<div className="text-center py-12 text-gray-400"><p className="text-3xl mb-2">{tipo==='bar'?'🍺':'🔧'}</p><p>Nenhum registro encontrado</p></div>;
+  return<div className="space-y-2 mt-4">
+    {rows.map(v=><div key={v.id} className="bg-white rounded-xl border border-gray-100 p-4 flex items-start justify-between gap-3 shadow-sm">
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-bold text-gray-800">{v.cliente_nome}</span>
+          {v.est_name&&<span className="text-xs text-gray-400">• {v.est_name}</span>}
+          <span className="text-xs text-gray-400 ml-auto">{new Date(v.created_at).toLocaleDateString('pt-BR')}</span>
+        </div>
+        <div className="text-xs text-gray-500 space-y-0.5">
+          {(v.itens||[]).map((it,i)=><p key={i}>{it.nome} × {it.quantidade} = {fmt$(it.quantidade*it.valor_unitario)}</p>)}
+        </div>
+        <p className="text-sm font-bold text-emerald-700 mt-1">Total: {fmt$(v.total)}</p>
+        {v.observacoes&&<p className="text-xs text-gray-400 mt-0.5 italic">{v.observacoes}</p>}
+      </div>
+      <Btn variant="danger" size="sm" onClick={()=>onDelete(v.id)}>Excluir</Btn>
+    </div>)}
+  </div>;
+}
+
+function CRMBar({showToast}){
+  const [ests,setEsts]=useState([]);
+  const [estId,setEstId]=useState('');
+  const [clientes,setClientes]=useState([]);
+  const [vendas,setVendas]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [tab,setTab]=useState('novo');
+
+  const load=()=>{
+    Promise.all([barApi.list(estId?{estId}:{}),estApi.list(),barApi.clientes()])
+      .then(([v,e,c])=>{setVendas(v);setEsts(e);setClientes(c);})
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{load();},[estId]);
+
+  const save=async(data)=>{
+    try{await barApi.create({...data,est_id:estId||null});showToast('Venda registrada!','success');setTab('historico');load();}
+    catch(e){showToast(e.message,'error');}
+  };
+  const del=async(id)=>{
+    try{await barApi.remove(id);showToast('Excluído','info');load();}
+    catch(e){showToast(e.message,'error');}
+  };
+
+  return<div>
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+        <button onClick={()=>setTab('novo')} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${tab==='novo'?'bg-white shadow text-emerald-700':'text-gray-500'}`}>+ Nova Venda</button>
+        <button onClick={()=>setTab('historico')} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${tab==='historico'?'bg-white shadow text-emerald-700':'text-gray-500'}`}>Histórico</button>
+      </div>
+      <select value={estId} onChange={e=>setEstId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+        <option value="">Todos os estabelecimentos</option>
+        {ests.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+      </select>
+    </div>
+    {tab==='novo'&&<VendasForm titulo="Registrar Consumo de Bar" labelItem="Bebidas / Itens" onSave={save} clientes={clientes} loading={loading}/>}
+    {tab==='historico'&&(loading?<Spinner/>:<VendasList rows={vendas} onDelete={del} tipo="bar"/>)}
+  </div>;
+}
+
+// ================================================================
+// CRM MANUTENÇÃO
+// ================================================================
+function CRMManutencao({showToast}){
+  const [ests,setEsts]=useState([]);
+  const [estId,setEstId]=useState('');
+  const [clientes,setClientes]=useState([]);
+  const [vendas,setVendas]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [tab,setTab]=useState('novo');
+
+  const load=()=>{
+    Promise.all([manutencaoApi.list(estId?{estId}:{}),estApi.list(),barApi.clientes()])
+      .then(([v,e,c])=>{setVendas(v);setEsts(e);setClientes(c);})
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{load();},[estId]);
+
+  const save=async(data)=>{
+    try{await manutencaoApi.create({...data,est_id:estId||null});showToast('Registro salvo!','success');setTab('historico');load();}
+    catch(e){showToast(e.message,'error');}
+  };
+  const del=async(id)=>{
+    try{await manutencaoApi.remove(id);showToast('Excluído','info');load();}
+    catch(e){showToast(e.message,'error');}
+  };
+
+  return<div>
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+        <button onClick={()=>setTab('novo')} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${tab==='novo'?'bg-white shadow text-emerald-700':'text-gray-500'}`}>+ Novo Registro</button>
+        <button onClick={()=>setTab('historico')} className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${tab==='historico'?'bg-white shadow text-emerald-700':'text-gray-500'}`}>Histórico</button>
+      </div>
+      <select value={estId} onChange={e=>setEstId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+        <option value="">Todos os estabelecimentos</option>
+        {ests.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+      </select>
+    </div>
+    {tab==='novo'&&<VendasForm titulo="Registrar Manutenção / Equipamento" labelItem="Equipamentos / Serviços" onSave={save} clientes={clientes} loading={loading}/>}
+    {tab==='historico'&&(loading?<Spinner/>:<VendasList rows={vendas} onDelete={del} tipo="manutencao"/>)}
+  </div>;
+}
+
 // CRM PROFESSORS
 // ================================================================
 function CRMProfessors({crmUser,showToast}){

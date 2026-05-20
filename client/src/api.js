@@ -104,3 +104,23 @@ export const planoApi = {
   update: (id, data)     => put(`/planos/${id}`, data),
   remove: (id)           => del(`/planos/${id}`),
 };
+
+// ── Bar ───────────────────────────────────────────────────────────
+export const barApi = {
+  clientes: ()           => get('/bar/clientes'),
+  list:     (params={})  => get('/bar?' + new URLSearchParams(params).toString()),
+  create:   (data)       => post('/bar', data),
+  remove:   (id)         => del(`/bar/${id}`),
+};
+
+// ── Manutenção ────────────────────────────────────────────────────
+export const manutencaoApi = {
+  list:   (params={})  => get('/manutencao?' + new URLSearchParams(params).toString()),
+  create: (data)       => post('/manutencao', data),
+  remove: (id)         => del(`/manutencao/${id}`),
+};
+
+// ── Dashboard cliente ─────────────────────────────────────────────
+export const dashClienteApi = {
+  get: (nome) => get(`/dashboard/cliente?nome=${encodeURIComponent(nome)}`),
+};
