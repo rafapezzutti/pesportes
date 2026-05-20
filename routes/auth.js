@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const jwt    = require('jsonwebtoken');
 const crypto = require('crypto');
-const pool = require('../db/pool');
+const pool   = require('../db/pool');
 const { sendPasswordResetEmail } = require('../services/email');
 
 const sign = (payload) =>
@@ -22,10 +22,11 @@ router.post('/crm/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password_hash)))
       return res.status(401).json({ error: 'Email ou senha inválidos' });
 
-    const token = sign({ id: user.id, role: user.role, type: 'crm' });
+    // est_id incluído no token para filtragem server-side de managers/simples
+    const token = sign({ id: user.id, role: user.role, type: 'crm', est_id: user.est_id || null });
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, est_id: user.est_id || null },
     });
   } catch (err) {
     console.error(err);
@@ -88,7 +89,7 @@ router.post('/public/register', async (req, res) => {
 
 // ── Forgot Password ──────────────────────────────────────────────
 router.post('/forgot-password', async (req, res) => {
-  const { email, type = 'public' } = req.body; // type: 'public' | 'crm'
+  const { email, type = 'public' } = req.body;
   if (!email) return res.status(400).json({ error: 'Email obrigatório' });
 
   try {
@@ -97,12 +98,11 @@ router.post('/forgot-password', async (req, res) => {
       `SELECT id, name, email FROM ${table} WHERE email = $1`,
       [email.toLowerCase()]
     );
-    // Retorna sempre 200 para não revelar se o email existe
     if (!rows.length) return res.json({ message: 'Se o email existir, um link foi enviado.' });
 
     const user = rows[0];
     const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 30 * 60 * 1000); // 30min
+    const expires = new Date(Date.now() + 30 * 60 * 1000);
 
     await pool.query(
       `UPDATE ${table} SET reset_token = $1, reset_expires = $2 WHERE id = $3`,
@@ -111,7 +111,6 @@ router.post('/forgot-password', async (req, res) => {
 
     const resetLink = `${process.env.FRONTEND_URL || 'https://pesportes.ia.br'}/reset-password?token=${token}&type=${type}`;
     await sendPasswordResetEmail(user.email, user.name, resetLink);
-
     res.json({ message: 'Se o email existir, um link foi enviado.' });
   } catch (err) {
     res.status(500).json({ error: 'Erro interno' });
@@ -146,20 +145,14 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-// ── Me (perfil do usuário logado) ───────────────────────────────
+// ── Me ───────────────────────────────────────────────────────────
 router.get('/me', async (req, res) => {
   const header = req.headers.authorization;
   if (!header) return res.status(401).json({ error: 'Não autenticado' });
   try {
     const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET);
     const table = payload.type === 'crm' ? 'crm_users' : 'public_users';
-    const cols  = payload.type === 'crm' ? 'id,name,email,role' : 'id,name,email,cpf';
+    const cols  = payload.type === 'crm' ? 'id,name,email,role,est_id' : 'id,name,email,cpf';
     const { rows } = await pool.query(`SELECT ${cols} FROM ${table} WHERE id = $1`, [payload.id]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
-    res.json({ user: rows[0], type: payload.type });
-  } catch {
-    res.status(401).json({ error: 'Token inválido' });
-  }
-});
-
-module.exports = router;
+    res.json({ user: rows[0], type: payload.typ

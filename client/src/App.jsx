@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  authApi, estApi, pointApi, userApi, resApi,
+  authApi, estApi, pointApi, userApi, resApi, dashboardApi,
   saveToken, clearToken,
 } from './api';
 
@@ -216,10 +216,23 @@ function AuthModal({open,onClose,onLogin,onRegister,initialMode='login'}){
 // ================================================================
 // RESERVATION CONFIRM MODAL
 // ================================================================
+const PAY_OPTS=[{value:'pix',label:'💠 Pix'},{value:'credito',label:'💳 Crédito'},{value:'debito',label:'🏦 Débito'},{value:'dinheiro',label:'💵 Dinheiro'}];
+
 function ResConfirmModal({open,data:rd,publicUser,onConfirm,onClose,loading}){
+  const [pm,setPm]=useState('pix');
   if(!rd)return null;
   const{pt,est,date,startT,endT,hours,total}=rd;
-  return<Modal open={open} onClose={onClose} title="Confirmar Reserva"><div className="space-y-4"><div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 space-y-2 text-sm">{[['Estabelecimento',est.name],['Espaço',pt.name],['Tipo',pt.type],['Data',fmtDate(date)],['Horário',`${startT} – ${endT}`],['Duração',`${hours}h`]].map(([k,v])=><div key={k} className="flex justify-between"><span className="text-gray-500">{k}</span><span className="font-medium text-gray-800">{v}</span></div>)}<div className="flex justify-between text-emerald-700 font-bold border-t border-emerald-200 pt-2 mt-1"><span>Valor total</span><span>{fmt$(total)}</span></div></div><div className="text-xs text-gray-500 space-y-1"><p>💳 Pagamento exclusivamente no local do estabelecimento.</p><p>📧 Confirmação será enviada para <strong>{publicUser?.email}</strong></p></div><div className="flex gap-3"><Btn variant="secondary" onClick={onClose} className="flex-1">Cancelar</Btn><Btn onClick={onConfirm} className="flex-1" disabled={loading}>{loading?'Confirmando...':'✅ Confirmar Reserva'}</Btn></div></div></Modal>;
+  return<Modal open={open} onClose={onClose} title="Confirmar Reserva"><div className="space-y-4">
+    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 space-y-2 text-sm">
+      {[['Estabelecimento',est.name],['Espaço',pt.name],['Tipo',pt.type],['Data',fmtDate(date)],['Horário',`${startT} – ${endT}`],['Duração',`${hours}h`]].map(([k,v])=><div key={k} className="flex justify-between"><span className="text-gray-500">{k}</span><span className="font-medium text-gray-800">{v}</span></div>)}
+      <div className="flex justify-between text-emerald-700 font-bold border-t border-emerald-200 pt-2 mt-1"><span>Valor total</span><span>{fmt$(total)}</span></div>
+    </div>
+    <Field label="Forma de pagamento" required>
+      <Sel value={pm} onChange={e=>setPm(e.target.value)} options={PAY_OPTS}/>
+    </Field>
+    <div className="text-xs text-gray-500 space-y-1"><p>💳 Pagamento exclusivamente no local do estabelecimento.</p><p>📧 Confirmação será enviada para <strong>{publicUser?.email}</strong></p></div>
+    <div className="flex gap-3"><Btn variant="secondary" onClick={onClose} className="flex-1">Cancelar</Btn><Btn onClick={()=>onConfirm(pm)} className="flex-1" disabled={loading}>{loading?'Confirmando...':'✅ Confirmar Reserva'}</Btn></div>
+  </div></Modal>;
 }
 
 // ================================================================
@@ -320,25 +333,80 @@ function CRMLogin({onLogin,navigate}){
 function CRMLayout({crmUser,page,navigate,onLogout,children}){
   const menu=[
     {key:'crm-dashboard',    label:'Dashboard',      icon:'📊',roles:['admin','manager']},
-    {key:'crm-reservations', label:'Reservas',       icon:'📅',roles:['admin','manager']},
+    {key:'crm-reservations', label:'Reservas',       icon:'📅',roles:['admin','manager','simples']},
     {key:'crm-establishment',label:'Estabelecimento',icon:'🏢',roles:['admin']},
     {key:'crm-points',       label:'Pontos',         icon:'📍',roles:['admin']},
     {key:'crm-users',        label:'Usuários',       icon:'👥',roles:['admin']},
   ].filter(m=>m.roles.includes(crmUser.role));
-  return<div className="min-h-screen bg-gray-100 flex"><aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-0.5">{menu.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</nav><div className="p-3 border-t border-gray-100 space-y-2"><div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{crmUser.role==='admin'?'Administrador':'Gerente'}</p></div><Btn variant="ghost" size="sm" onClick={onLogout} className="w-full text-gray-500">Sair do CRM</Btn></div></aside><main className="flex-1 overflow-auto">{children}</main></div>;
+  const roleLabel={admin:'Administrador',manager:'Gerente',simples:'Usuário Simples'};
+  return<div className="min-h-screen bg-gray-100 flex"><aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-0.5">{menu.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</nav><div className="p-3 border-t border-gray-100 space-y-2"><div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{roleLabel[crmUser.role]||crmUser.role}</p></div><Btn variant="ghost" size="sm" onClick={onLogout} className="w-full text-gray-500">Sair do CRM</Btn></div></aside><main className="flex-1 overflow-auto">{children}</main></div>;
 }
 
 // ================================================================
 // CRM DASHBOARD
 // ================================================================
+const PAY_LABEL={'pix':'Pix','credito':'Crédito','debito':'Débito','dinheiro':'Dinheiro'};
+const PAY_ICON={'pix':'💠','credito':'💳','debito':'🏦','dinheiro':'💵'};
+
+function DashTable({rows,cols,emptyMsg}){
+  if(!rows||rows.length===0)return<div className="text-center py-10 text-gray-400"><p className="text-3xl mb-2">📭</p><p className="text-sm">{emptyMsg||'Sem dados'}</p></div>;
+  const totCount=rows.reduce((a,r)=>a+Number(r.count),0);
+  const totVal=rows.reduce((a,r)=>a+Number(r.total),0);
+  return<div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-gray-100">{cols.map(c=><th key={c.key} className={`px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide ${c.right?'text-right':'text-left'}`}>{c.label}</th>)}</tr></thead><tbody className="divide-y divide-gray-50">{rows.map((r,i)=><tr key={i} className="hover:bg-gray-50">{cols.map(c=><td key={c.key} className={`px-3 py-2.5 ${c.right?'text-right font-medium':''} ${c.bold?'font-semibold text-gray-800':'text-gray-600'}`}>{c.fmt?c.fmt(r[c.key]):r[c.key]}</td>)}</tr>)}</tbody><tfoot><tr className="border-t-2 border-gray-200 bg-gray-50"><td colSpan={cols.length-2} className="px-3 py-2 text-xs font-bold text-gray-500 uppercase">Total</td><td className="px-3 py-2 text-right font-bold text-gray-800">{totCount}</td><td className="px-3 py-2 text-right font-bold text-emerald-700">{fmt$(totVal)}</td></tr></tfoot></table></div>;
+}
+
 function CRMDashboard(){
-  const [reservations,setReservations]=useState([]);
+  const [data,setData]=useState(null);
   const [loading,setLoading]=useState(true);
-  useEffect(()=>{resApi.list({date:TODAY}).then(setReservations).catch(()=>{}).finally(()=>setLoading(false));},[]);
+  const [tab,setTab]=useState('today');
+
+  useEffect(()=>{
+    dashboardApi.get().then(setData).catch(()=>{}).finally(()=>setLoading(false));
+  },[]);
+
   if(loading)return<Spinner/>;
-  const todayRes=reservations.filter(r=>r.status==='confirmed');
-  const confirmed=reservations.filter(r=>r.status==='confirmed').length;
-  return<div className="p-6"><h1 className="text-2xl font-black text-gray-900 mb-6">Dashboard</h1><div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">{[{label:'Reservas hoje',value:todayRes.length,icon:'📅'},{label:'Confirmadas hoje',value:confirmed,icon:'✅'},{label:'Data',value:fmtDate(TODAY),icon:'📆'},{label:'Sistema',value:'Online ✅',icon:'🌐'}].map(c=><div key={c.label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><div className="flex items-start gap-3"><div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-xl shrink-0">{c.icon}</div><div className="min-w-0"><p className="text-xs text-gray-400 mb-0.5">{c.label}</p><p className="text-xl font-black text-gray-800 truncate">{c.value}</p></div></div></div>)}</div><div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"><h2 className="font-bold text-gray-800 mb-4">Agenda de Hoje — {fmtDate(TODAY)}</h2>{todayRes.length===0?<div className="text-center py-10 text-gray-400"><p className="text-3xl mb-2">📭</p><p>Nenhuma reserva para hoje</p></div>:<div className="space-y-2">{todayRes.sort((a,b)=>a.start_time.localeCompare(b.start_time)).map(r=><div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl text-sm"><div><p className="font-semibold text-gray-800">{r.point_name}</p><p className="text-gray-500 text-xs">{r.start_time} – {r.end_time} • {r.user_name}</p></div><div className="text-right"><Badge color="green">Confirmada</Badge><p className="text-xs text-gray-400 mt-1">{fmt$(r.total)}</p></div></div>)}</div>}</div></div>;
+
+  const month=TODAY.slice(0,7).split('-');
+  const monthLabel=`${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][Number(month[1])-1]}/${month[0]}`;
+
+  const pointCols=[
+    {key:'est_name',  label:'Estabelecimento', bold:true},
+    {key:'point_name',label:'Ponto',bold:true},
+    {key:'count',     label:'Reservas',right:true},
+    {key:'total',     label:'Valor',right:true,fmt:fmt$},
+  ];
+  const payCols=[
+    {key:'payment_method',label:'Forma de Pagamento',bold:true,fmt:v=>`${PAY_ICON[v]||'💰'} ${PAY_LABEL[v]||v}`},
+    {key:'count',label:'Reservas',right:true},
+    {key:'total',label:'Valor',right:true,fmt:fmt$},
+  ];
+
+  const todayTotal=data?.today?.reduce((a,r)=>a+Number(r.total),0)||0;
+  const todayCount=data?.today?.reduce((a,r)=>a+Number(r.count),0)||0;
+  const monthTotal=data?.monthByPoint?.reduce((a,r)=>a+Number(r.total),0)||0;
+  const monthCount=data?.monthByPoint?.reduce((a,r)=>a+Number(r.count),0)||0;
+
+  return<div className="p-6 max-w-5xl"><h1 className="text-2xl font-black text-gray-900 mb-2">Dashboard</h1><p className="text-sm text-gray-400 mb-6">{fmtDate(TODAY)}</p>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">{[
+      {label:'Reservas hoje',value:todayCount,icon:'📅',color:'bg-emerald-50'},
+      {label:'Faturamento hoje',value:fmt$(todayTotal),icon:'💰',color:'bg-blue-50'},
+      {label:`Reservas em ${monthLabel}`,value:monthCount,icon:'📆',color:'bg-amber-50'},
+      {label:`Faturamento ${monthLabel}`,value:fmt$(monthTotal),icon:'📈',color:'bg-purple-50'},
+    ].map(c=><div key={c.label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><div className="flex items-start gap-3"><div className={`w-10 h-10 ${c.color} rounded-xl flex items-center justify-center text-xl shrink-0`}>{c.icon}</div><div className="min-w-0"><p className="text-xs text-gray-400 mb-0.5 leading-tight">{c.label}</p><p className="text-lg font-black text-gray-800 truncate">{c.value}</p></div></div></div>)}</div>
+
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="border-b border-gray-100 px-5 pt-4"><nav className="flex gap-1">{[
+        {key:'today',label:`Hoje — ${fmtDate(TODAY)}`},
+        {key:'month',label:`Mês — ${monthLabel}`},
+        {key:'pay',  label:'Por Pagamento'},
+      ].map(t=><button key={t.key} onClick={()=>setTab(t.key)} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab===t.key?'border-emerald-600 text-emerald-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>{t.label}</button>)}</nav></div>
+      <div className="p-5">
+        {tab==='today'&&<DashTable rows={data?.today} cols={pointCols} emptyMsg="Nenhuma reserva confirmada hoje"/>}
+        {tab==='month'&&<DashTable rows={data?.monthByPoint} cols={pointCols} emptyMsg="Nenhuma reserva no mês"/>}
+        {tab==='pay'&&<DashTable rows={data?.monthByPay} cols={payCols} emptyMsg="Nenhuma reserva no mês"/>}
+      </div>
+    </div>
+  </div>;
 }
 
 // ================================================================
@@ -445,28 +513,45 @@ function CRMPoints({crmUser,showToast}){
 // ================================================================
 // CRM USERS
 // ================================================================
+const ROLE_OPTS=[{value:'admin',label:'Administrador — acesso total'},{value:'manager',label:'Gerente — dashboard + reservas do est.'},{value:'simples',label:'Usuário Simples — somente reservas'}];
+const ROLE_BADGE={admin:'blue',manager:'green',simples:'gray'};
+const ROLE_NAME={admin:'Administrador',manager:'Gerente',simples:'Simples'};
+
 function CRMUsers({showToast}){
   const [users,setUsers]=useState([]);
+  const [ests,setEsts]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
   const [editU,setEditU]=useState(null);
-  const [f,setF]=useState({name:'',email:'',password:'',pw2:'',role:'manager'});
+  const [f,setF]=useState({name:'',email:'',password:'',pw2:'',role:'manager',est_id:''});
   const [err,setErr]=useState({});
   const [delU,setDelU]=useState(null);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
+  const needsEst=f.role!=='admin';
 
-  const load=()=>{userApi.list().then(setUsers).catch(()=>{}).finally(()=>setLoading(false));};
+  const load=()=>{
+    Promise.all([userApi.list(),estApi.list()]).then(([u,e])=>{setUsers(u);setEsts(e);}).catch(()=>{}).finally(()=>setLoading(false));
+  };
   useEffect(()=>{load();},[]);
 
-  const openNew=()=>{setF({name:'',email:'',password:'',pw2:'',role:'manager'});setEditU(null);setErr({});setShowForm(true);};
-  const openEdit=(u)=>{setF({name:u.name,email:u.email,password:'',pw2:'',role:u.role});setEditU(u);setErr({});setShowForm(true);};
+  const openNew=()=>{setF({name:'',email:'',password:'',pw2:'',role:'manager',est_id:ests[0]?.id||''});setEditU(null);setErr({});setShowForm(true);};
+  const openEdit=(u)=>{setF({name:u.name,email:u.email,password:'',pw2:'',role:u.role,est_id:u.est_id||''});setEditU(u);setErr({});setShowForm(true);};
 
-  const validate=()=>{const e={};if(!f.name)e.name='Obrigatório';if(!f.email)e.email='Obrigatório';if(!editU&&!f.password)e.password='Obrigatório';if(f.password&&f.password.length<6)e.password='Mínimo 6 caracteres';if(f.password&&f.password!==f.pw2)e.pw2='Senhas não coincidem';setErr(e);return!Object.keys(e).length;};
+  const validate=()=>{
+    const e={};
+    if(!f.name)e.name='Obrigatório';
+    if(!f.email)e.email='Obrigatório';
+    if(!editU&&!f.password)e.password='Obrigatório';
+    if(f.password&&f.password.length<6)e.password='Mínimo 6 caracteres';
+    if(f.password&&f.password!==f.pw2)e.pw2='Senhas não coincidem';
+    if(needsEst&&!f.est_id)e.est_id='Selecione um estabelecimento';
+    setErr(e);return!Object.keys(e).length;
+  };
 
   const save=async()=>{
     if(!validate())return;
     try{
-      const payload={name:f.name,email:f.email,role:f.role,...(f.password?{password:f.password}:{})};
+      const payload={name:f.name,email:f.email,role:f.role,est_id:needsEst?f.est_id:null,...(f.password?{password:f.password}:{})};
       if(editU){await userApi.update(editU.id,payload);}else{await userApi.create({...payload,password:f.password});}
       showToast('Usuário salvo!','success');setShowForm(false);load();
     }catch(e){showToast(e.message,'error');}
@@ -479,7 +564,29 @@ function CRMUsers({showToast}){
 
   if(loading)return<Spinner/>;
 
-  return<div className="p-6"><div className="flex items-center justify-between mb-6"><h1 className="text-2xl font-black text-gray-900">Usuários do Sistema</h1><Btn onClick={openNew}>+ Novo Usuário</Btn></div><div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><table className="w-full text-sm"><thead className="bg-gray-50 border-b border-gray-100"><tr>{['Nome','Email','Perfil','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr></thead><tbody className="divide-y divide-gray-50">{users.map(u=><tr key={u.id} className="hover:bg-gray-50"><td className="px-4 py-3 font-semibold text-gray-800">{u.name}</td><td className="px-4 py-3 text-gray-500">{u.email}</td><td className="px-4 py-3"><Badge color={u.role==='admin'?'blue':'gray'}>{u.role==='admin'?'Administrador':'Gerente'}</Badge></td><td className="px-4 py-3"><div className="flex gap-2 justify-end"><Btn variant="secondary" size="sm" onClick={()=>openEdit(u)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelU(u)}>Excluir</Btn></div></td></tr>)}</tbody></table>{users.length===0&&<div className="text-center py-12 text-gray-400">Nenhum usuário</div>}</div><Modal open={showForm} onClose={()=>setShowForm(false)} title={editU?'Editar Usuário':'Novo Usuário'}><div className="space-y-3"><Field label="Nome" required><Inp value={f.name} onChange={e=>upd('name',e.target.value)}/>{err.name&&<p className="text-xs text-red-500">{err.name}</p>}</Field><Field label="Email" required><Inp type="email" value={f.email} onChange={e=>upd('email',e.target.value)}/>{err.email&&<p className="text-xs text-red-500">{err.email}</p>}</Field><Field label="Perfil"><Sel value={f.role} onChange={e=>upd('role',e.target.value)} options={[{value:'admin',label:'Administrador'},{value:'manager',label:'Gerente'}]}/></Field><Field label={editU?'Nova senha (vazio = manter)':'Senha'} required={!editU}><Inp type="password" value={f.password} onChange={e=>upd('password',e.target.value)}/>{err.password&&<p className="text-xs text-red-500">{err.password}</p>}</Field>{f.password&&<Field label="Confirmar senha" required><Inp type="password" value={f.pw2} onChange={e=>upd('pw2',e.target.value)}/>{err.pw2&&<p className="text-xs text-red-500">{err.pw2}</p>}</Field>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn><Btn className="flex-1" onClick={save}>Salvar</Btn></div></div></Modal><Modal open={!!delU} onClose={()=>setDelU(null)} title="Excluir Usuário"><p className="text-sm text-gray-600 mb-5">Excluir <strong>{delU?.name}</strong>?</p><div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelU(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={()=>del(delU.id)}>Excluir</Btn></div></Modal></div>;
+  return<div className="p-6"><div className="flex items-center justify-between mb-6"><h1 className="text-2xl font-black text-gray-900">Usuários do Sistema</h1><Btn onClick={openNew}>+ Novo Usuário</Btn></div>
+  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <table className="w-full text-sm"><thead className="bg-gray-50 border-b border-gray-100"><tr>{['Nome','Email','Perfil','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr></thead>
+    <tbody className="divide-y divide-gray-50">{users.map(u=><tr key={u.id} className="hover:bg-gray-50">
+      <td className="px-4 py-3 font-semibold text-gray-800">{u.name}</td>
+      <td className="px-4 py-3 text-gray-500">{u.email}</td>
+      <td className="px-4 py-3"><Badge color={ROLE_BADGE[u.role]||'gray'}>{ROLE_NAME[u.role]||u.role}</Badge></td>
+      <td className="px-4 py-3 text-gray-500 text-xs">{u.est_name||<span className="italic text-gray-300">—</span>}</td>
+      <td className="px-4 py-3"><div className="flex gap-2 justify-end"><Btn variant="secondary" size="sm" onClick={()=>openEdit(u)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelU(u)}>Excluir</Btn></div></td>
+    </tr>)}</tbody></table>
+    {users.length===0&&<div className="text-center py-12 text-gray-400">Nenhum usuário</div>}
+  </div>
+  <Modal open={showForm} onClose={()=>setShowForm(false)} title={editU?'Editar Usuário':'Novo Usuário'}><div className="space-y-3">
+    <Field label="Nome" required><Inp value={f.name} onChange={e=>upd('name',e.target.value)}/>{err.name&&<p className="text-xs text-red-500">{err.name}</p>}</Field>
+    <Field label="Email" required><Inp type="email" value={f.email} onChange={e=>upd('email',e.target.value)}/>{err.email&&<p className="text-xs text-red-500">{err.email}</p>}</Field>
+    <Field label="Perfil"><Sel value={f.role} onChange={e=>{upd('role',e.target.value);if(e.target.value==='admin')upd('est_id','');}} options={ROLE_OPTS}/></Field>
+    {needsEst&&<Field label="Estabelecimento" required><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>{err.est_id&&<p className="text-xs text-red-500">{err.est_id}</p>}</Field>}
+    <Field label={editU?'Nova senha (vazio = manter)':'Senha'} required={!editU}><Inp type="password" value={f.password} onChange={e=>upd('password',e.target.value)}/>{err.password&&<p className="text-xs text-red-500">{err.password}</p>}</Field>
+    {f.password&&<Field label="Confirmar senha" required><Inp type="password" value={f.pw2} onChange={e=>upd('pw2',e.target.value)}/>{err.pw2&&<p className="text-xs text-red-500">{err.pw2}</p>}</Field>}
+    <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn><Btn className="flex-1" onClick={save}>Salvar</Btn></div>
+  </div></Modal>
+  <Modal open={!!delU} onClose={()=>setDelU(null)} title="Excluir Usuário"><p className="text-sm text-gray-600 mb-5">Excluir <strong>{delU?.name}</strong>?</p><div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelU(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={()=>del(delU.id)}>Excluir</Btn></div></Modal>
+  </div>;
 }
 
 // ================================================================
@@ -591,7 +698,7 @@ export default function App(){
   const crmLogin=async(email,pw)=>{
     const{token,user}=await authApi.crmLogin(email,pw);
     saveToken(token);localStorage.setItem('user',JSON.stringify(user));localStorage.setItem('userType','crm');
-    setCrmUser(user);navigate('crm-dashboard');
+    setCrmUser(user);navigate(user.role==='simples'?'crm-reservations':'crm-dashboard');
   };
   const crmLogout=()=>{
     clearToken();localStorage.removeItem('user');localStorage.removeItem('userType');
@@ -621,11 +728,11 @@ export default function App(){
     if(needAuth){setPendRes(rd);setAuthMode('login');setShowAuth(true);return;}
     setConfRes(rd);
   };
-  const confirmRes=async()=>{
+  const confirmRes=async(paymentMethod)=>{
     const{pt,est,date,startT,endT,hours,total}=confRes;
     setConfLoading(true);
     try{
-      await resApi.create({point_id:pt.id,est_id:est.id,date,start_time:startT,end_time:endT,hours,total});
+      await resApi.create({point_id:pt.id,est_id:est.id,date,start_time:startT,end_time:endT,hours,total,payment_method:paymentMethod||'dinheiro'});
       setConfRes(null);showToast('✅ Reserva confirmada! Email enviado.','success');
       navigate('my-reservations');
     }catch(e){showToast(e.message,'error');}finally{setConfLoading(false);}

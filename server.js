@@ -22,6 +22,7 @@ app.use('/api/establishments', require('./routes/establishments'));
 app.use('/api/points',         require('./routes/points'));
 app.use('/api/crm-users',      require('./routes/users'));
 app.use('/api/reservations',   require('./routes/reservations'));
+app.use('/api/dashboard',      require('./routes/dashboard'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));
@@ -76,6 +77,4 @@ cron.schedule('* * * * *', async () => {
 });
 
 // ── Start ────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`✅ Servidor rodando na porta ${PORT}`);
-});
+app.listen(PORT, () =>

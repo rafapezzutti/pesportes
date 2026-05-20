@@ -68,6 +68,11 @@ export const userApi = {
   remove: (id)        => del(`/crm-users/${id}`),
 };
 
+// ── Dashboard ─────────────────────────────────────────────────────
+export const dashboardApi = {
+  get: () => get('/dashboard'),
+};
+
 // ── Reservations ──────────────────────────────────────────────────
 export const resApi = {
   list:       (params = {})          => get('/reservations?' + new URLSearchParams(params).toString()),
