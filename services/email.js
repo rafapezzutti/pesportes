@@ -1,21 +1,18 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 /**
- * Transporter Nodemailer via Gmail SMTP.
- * Configure as variáveis de ambiente:
- *   GMAIL_USER     → seu email Gmail (ex.: sistema@gmail.com)
- *   GMAIL_PASS     → Senha de App do Google (não a senha normal!)
- *     Para criar: myaccount.google.com → Segurança → Senhas de app
+ * Serviço de e-mail usando Resend.com
+ * Configure a variável de ambiente:
+ *   RESEND_API_KEY  → chave de API do Resend (https://resend.com/api-keys)
+ *   RESEND_FROM     → remetente verificado, ex.: "P. Soluções <noreply@pesportes.ia.br>"
+ *                     Se não configurado, usa o domínio sandbox do Resend (só envia ao próprio email)
  */
-function createTransporter() {
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_PASS,
-    },
-  });
+
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
 }
+
+const FROM = process.env.RESEND_FROM || 'P. Soluções Esportes <onboarding@resend.dev>';
 
 function fmtDate(d) {
   const [y, m, dd] = d.split('-');
@@ -47,7 +44,7 @@ function baseTemplate(title, body) {
   .total .value { color:#059669; font-size:18px; font-weight:800; }
   .alert { background:#fffbeb; border-left:4px solid #f59e0b; padding:12px 16px; border-radius:4px; font-size:13px; color:#92400e; margin:16px 0; }
   .footer { padding:16px 28px; background:#f9fafb; text-align:center; font-size:12px; color:#9ca3af; }
-  .btn { display:inline-block; background:#059669; color:#fff; text-decoration:none; padding:12px 28px; border-radius:8px; font-weight:700; margin:16px 0; }
+  .btn { display:inline-block; background:#059669; color:#fff !important; text-decoration:none; padding:12px 28px; border-radius:8px; font-weight:700; margin:16px 0; }
 </style></head><body>
 <div class="box">
   <div class="header">
@@ -76,37 +73,41 @@ function reservationRows(res) {
   `;
 }
 
+// ── Helpers de envio ─────────────────────────────────────────────
+
+async function send({ to, subject, html }) {
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`[EMAIL SIMULADO] Para: ${to} | Assunto: ${subject}`);
+    return;
+  }
+  const resend = getResend();
+  const { error } = await resend.emails.send({ from: FROM, to, subject, html });
+  if (error) throw new Error(error.message);
+}
+
 // ── Funções de envio ─────────────────────────────────────────────
 
 async function sendConfirmationEmail(res, userEmail) {
-  if (!process.env.GMAIL_USER) {
-    console.log(`[EMAIL] Confirmação simulada para ${userEmail}`);
-    return;
-  }
+  if (!userEmail) return;
   const html = baseTemplate('Reserva Confirmada ✅', `
     <p>Olá, <strong>${res.user_name}</strong>! Sua reserva foi confirmada com sucesso.</p>
     ${reservationRows(res)}
   `);
-  await createTransporter().sendMail({
-    from: `"P. Soluções Esportes" <${process.env.GMAIL_USER}>`,
+  await send({
     to: userEmail,
-    subject: `✅ Reserva confirmada — ${res.point_name} em ${fmtDate(res.date)}`,
+    subject: `✅ Reserva confirmada — ${res.point_name} em ${fmtDate(typeof res.date === 'string' ? res.date : res.date.toISOString().split('T')[0])}`,
     html,
   });
 }
 
 async function sendCancellationEmail(res, userEmail) {
-  if (!process.env.GMAIL_USER) {
-    console.log(`[EMAIL] Cancelamento simulado para ${userEmail}`);
-    return;
-  }
+  if (!userEmail) return;
   const html = baseTemplate('Reserva Cancelada', `
     <p>Olá, <strong>${res.user_name}</strong>. Sua reserva foi cancelada.</p>
     ${reservationRows(res)}
     <p style="color:#6b7280;font-size:13px">O horário voltou a ficar disponível para novas reservas.</p>
   `);
-  await createTransporter().sendMail({
-    from: `"P. Soluções Esportes" <${process.env.GMAIL_USER}>`,
+  await send({
     to: userEmail,
     subject: `Reserva cancelada — ${res.point_name}`,
     html,
@@ -114,28 +115,21 @@ async function sendCancellationEmail(res, userEmail) {
 }
 
 async function sendRescheduleEmail(res, userEmail) {
-  if (!process.env.GMAIL_USER) {
-    console.log(`[EMAIL] Remarcação simulada para ${userEmail}`);
-    return;
-  }
+  if (!userEmail) return;
   const html = baseTemplate('Reserva Remarcada 📅', `
     <p>Olá, <strong>${res.user_name}</strong>. Sua reserva foi remarcada.</p>
     <p><strong>Novos dados:</strong></p>
     ${reservationRows(res)}
   `);
-  await createTransporter().sendMail({
-    from: `"P. Soluções Esportes" <${process.env.GMAIL_USER}>`,
+  await send({
     to: userEmail,
-    subject: `Reserva remarcada — ${res.point_name} em ${fmtDate(res.date)}`,
+    subject: `Reserva remarcada — ${res.point_name} em ${fmtDate(typeof res.date === 'string' ? res.date : res.date.toISOString().split('T')[0])}`,
     html,
   });
 }
 
 async function sendReminderEmail(res, type) {
-  if (!process.env.GMAIL_USER) {
-    console.log(`[EMAIL] Lembrete ${type} simulado para ${res.user_email}`);
-    return;
-  }
+  if (!res.user_email) return;
   const isPayment = type === '15min';
   const title = isPayment
     ? '⚠️ Lembrete de Pagamento — 15 minutos!'
@@ -151,31 +145,22 @@ async function sendReminderEmail(res, type) {
     ${reservationRows(res)}
   `);
 
-  await createTransporter().sendMail({
-    from: `"P. Soluções Esportes" <${process.env.GMAIL_USER}>`,
-    to: res.user_email,
-    subject: title,
-    html,
-  });
+  await send({ to: res.user_email, subject: title, html });
 }
 
 async function sendPasswordResetEmail(email, name, resetLink) {
-  if (!process.env.GMAIL_USER) {
-    console.log(`[EMAIL] Reset simulado para ${email}: ${resetLink}`);
-    return;
-  }
   const html = baseTemplate('Redefinição de Senha 🔑', `
     <p>Olá, <strong>${name}</strong>!</p>
-    <p>Recebemos uma solicitação para redefinir a senha da sua conta.</p>
-    <p style="text-align:center">
-      <a href="${resetLink}" class="btn">Redefinir Minha Senha</a>
+    <p>Recebemos uma solicitação para redefinir a senha da sua conta em <strong>P. Soluções Esportes &amp; Reservas</strong>.</p>
+    <p style="text-align:center;margin:24px 0">
+      <a href="${resetLink}" class="btn">🔑 Redefinir Minha Senha</a>
     </p>
-    <p style="color:#6b7280;font-size:13px">O link expira em <strong>30 minutos</strong>. Se não foi você, ignore este email.</p>
+    <p style="color:#6b7280;font-size:13px">⏱️ O link expira em <strong>30 minutos</strong>.</p>
+    <p style="color:#6b7280;font-size:13px">Se você não solicitou a redefinição de senha, ignore este e-mail — sua senha permanece a mesma.</p>
   `);
-  await createTransporter().sendMail({
-    from: `"P. Soluções Esportes" <${process.env.GMAIL_USER}>`,
+  await send({
     to: email,
-    subject: 'Redefinição de senha — P. Soluções Esportes',
+    subject: '🔑 Redefinição de senha — P. Soluções Esportes',
     html,
   });
 }

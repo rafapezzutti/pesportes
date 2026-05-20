@@ -23,6 +23,8 @@ app.use('/api/points',         require('./routes/points'));
 app.use('/api/crm-users',      require('./routes/users'));
 app.use('/api/reservations',   require('./routes/reservations'));
 app.use('/api/dashboard',      require('./routes/dashboard'));
+app.use('/api/professores',    require('./routes/professores'));
+app.use('/api/planos',         require('./routes/planos'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));

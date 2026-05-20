@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   authApi, estApi, pointApi, userApi, resApi, dashboardApi,
+  professorApi, planoApi,
   saveToken, clearToken,
 } from './api';
 
@@ -24,6 +25,21 @@ const DEFAULT_HOURS = {
   dom:{open:false,start:'09:00',end:'18:00'},
 };
 const TODAY = new Date().toISOString().split('T')[0];
+
+const TIPO_PLANO_OPTS = [
+  {value:'avulso',     label:'Aula Avulsa'},
+  {value:'mensal',     label:'Plano Mensal'},
+  {value:'trimestral', label:'Plano Trimestral'},
+  {value:'semestral',  label:'Plano Semestral'},
+];
+const RECORRENCIA_OPTS = [
+  {value:'nenhuma',   label:'Sem recorrência'},
+  {value:'semanal',   label:'Semanal (toda semana)'},
+  {value:'quinzenal', label:'Quinzenal (a cada 2 semanas)'},
+  {value:'mensal',    label:'Mensal (1x por mês)'},
+];
+const TIPO_PLANO_LABEL = {avulso:'Avulso',mensal:'Mensal',trimestral:'Trimestral',semestral:'Semestral'};
+const RECORRENCIA_LABEL = {nenhuma:'Sem recorrência',semanal:'Semanal',quinzenal:'Quinzenal',mensal:'1x/mês'};
 
 // ================================================================
 // UTILITIES
@@ -301,15 +317,36 @@ function MyReservations({publicUser,navigate,showToast}){
 // ================================================================
 // PASSWORD RECOVERY
 // ================================================================
-function PasswordRecovery({navigate}){
+function PasswordRecovery({navigate,type='public'}){
   const [step,setStep]=useState(1);
   const [email,setEmail]=useState('');
   const [loading,setLoading]=useState(false);
   const send=async()=>{
     setLoading(true);
-    try{await authApi.forgotPassword(email,'public');setStep(2);}catch{setStep(2);}finally{setLoading(false);}
+    try{await authApi.forgotPassword(email,type);setStep(2);}catch{setStep(2);}finally{setLoading(false);}
   };
-  return<div className="min-h-screen bg-gray-100 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm"><div className="text-center mb-6"><div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3"><span className="text-2xl">🔑</span></div><h1 className="text-xl font-bold text-gray-800">Recuperar Senha</h1></div>{step===1?<div className="space-y-4"><p className="text-sm text-gray-500 text-center">Informe seu email cadastrado.</p><Field label="Email"><Inp type="email" value={email} onChange={e=>setEmail(e.target.value)}/></Field><Btn className="w-full" onClick={send} disabled={!email||loading}>{loading?'Enviando...':'Enviar Link'}</Btn></div>:<div className="text-center space-y-3"><p className="text-5xl">📬</p><p className="text-sm text-gray-700 font-medium">Email enviado!</p><p className="text-xs text-gray-500">Link enviado para <strong>{email}</strong>. Expira em 30 minutos.</p></div>}<button onClick={()=>navigate('mkt-home')} className="text-sm text-emerald-600 hover:underline mt-5 block text-center w-full">← Voltar ao início</button></div></div>;
+  return<div className="min-h-screen bg-gray-100 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm"><div className="text-center mb-6"><div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3"><span className="text-2xl">🔑</span></div><h1 className="text-xl font-bold text-gray-800">Recuperar Senha</h1></div>{step===1?<div className="space-y-4"><p className="text-sm text-gray-500 text-center">Informe seu email cadastrado.</p><Field label="Email"><Inp type="email" value={email} onChange={e=>setEmail(e.target.value)}/></Field><Btn className="w-full" onClick={send} disabled={!email||loading}>{loading?'Enviando...':'Enviar Link'}</Btn></div>:<div className="text-center space-y-3"><p className="text-5xl">📬</p><p className="text-sm text-gray-700 font-medium">Email enviado!</p><p className="text-xs text-gray-500">Link enviado para <strong>{email}</strong>. Expira em 30 minutos.</p></div>}<button onClick={()=>navigate(type==='crm'?'crm-login':'mkt-home')} className="text-sm text-emerald-600 hover:underline mt-5 block text-center w-full">{type==='crm'?'← Voltar ao CRM':'← Voltar ao início'}</button></div></div>;
+}
+
+// ================================================================
+// RESET DE SENHA (link do email)
+// ================================================================
+function ResetPassword({token,type='public',navigate,showToast}){
+  const [pw,setPw]=useState('');
+  const [pw2,setPw2]=useState('');
+  const [loading,setLoading]=useState(false);
+  const [done,setDone]=useState(false);
+  const match=pw&&pw2&&pw===pw2;
+  const handle=async()=>{
+    if(!match)return;
+    if(pw.length<6){showToast('Senha deve ter ao menos 6 caracteres','error');return;}
+    setLoading(true);
+    try{
+      await authApi.resetPassword(token,pw,type);
+      setDone(true);
+    }catch(e){showToast(e.message||'Token inválido ou expirado','error');}finally{setLoading(false);}
+  };
+  return<div className="min-h-screen bg-gray-100 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm"><div className="text-center mb-6"><div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3"><span className="text-2xl">🔑</span></div><h1 className="text-xl font-bold text-gray-800">Nova Senha</h1><p className="text-xs text-gray-400 mt-1">{type==='crm'?'Conta CRM':'Conta Marketplace'}</p></div>{done?<div className="text-center space-y-3"><p className="text-5xl">✅</p><p className="text-sm font-semibold text-gray-800">Senha redefinida com sucesso!</p><Btn className="w-full mt-4" onClick={()=>navigate(type==='crm'?'crm-login':'mkt-home')}>{type==='crm'?'Ir para o CRM':'Ir para o Marketplace'}</Btn></div>:<div className="space-y-4"><Field label="Nova senha" required><Inp type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Mínimo 6 caracteres"/></Field><Field label="Confirmar senha" required><Inp type="password" value={pw2} onChange={e=>setPw2(e.target.value)}/></Field>{pw&&pw2&&!match&&<p className="text-xs text-red-500">As senhas não coincidem</p>}<Btn className="w-full" onClick={handle} disabled={!match||loading}>{loading?'Salvando...':'Salvar Nova Senha'}</Btn></div>}</div></div>;
 }
 
 // ================================================================
@@ -324,7 +361,7 @@ function CRMLogin({onLogin,navigate}){
     setLoading(true);setErr('');
     try{await onLogin(email,pw);}catch(e){setErr(e.message);}finally{setLoading(false);}
   };
-  return<div className="min-h-screen bg-gray-900 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm"><div className="text-center mb-7"><div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg"><span className="text-white font-black text-2xl">P</span></div><h1 className="text-xl font-black text-gray-800">P. Soluções</h1><p className="text-sm text-gray-400">Sistema de Gestão — CRM</p></div><div className="space-y-3"><Field label="Email"><Inp type="email" value={email} onChange={e=>setEmail(e.target.value)}/></Field><Field label="Senha"><Inp type="password" value={pw} onChange={e=>setPw(e.target.value)}/></Field>{err&&<p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{err}</p>}<Btn className="w-full" size="lg" onClick={handle} disabled={loading}>{loading?'Entrando...':'Entrar no CRM'}</Btn><button onClick={()=>navigate('password-recovery')} className="text-xs text-emerald-600 hover:underline w-full text-center">Esqueci minha senha</button></div><div className="text-center mt-4"><button onClick={()=>navigate('mkt-home')} className="text-xs text-gray-400 hover:text-gray-600">← Voltar ao Marketplace</button></div></div></div>;
+  return<div className="min-h-screen bg-gray-900 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm"><div className="text-center mb-7"><div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg"><span className="text-white font-black text-2xl">P</span></div><h1 className="text-xl font-black text-gray-800">P. Soluções</h1><p className="text-sm text-gray-400">Sistema de Gestão — CRM</p></div><div className="space-y-3"><Field label="Email"><Inp type="email" value={email} onChange={e=>setEmail(e.target.value)}/></Field><Field label="Senha"><Inp type="password" value={pw} onChange={e=>setPw(e.target.value)}/></Field>{err&&<p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{err}</p>}<Btn className="w-full" size="lg" onClick={handle} disabled={loading}>{loading?'Entrando...':'Entrar no CRM'}</Btn><button onClick={()=>navigate('password-recovery','crm')} className="text-xs text-emerald-600 hover:underline w-full text-center">Esqueci minha senha</button></div><div className="text-center mt-4"><button onClick={()=>navigate('mkt-home')} className="text-xs text-gray-400 hover:text-gray-600">← Voltar ao Marketplace</button></div></div></div>;
 }
 
 // ================================================================
@@ -337,7 +374,8 @@ function CRMLayout({crmUser,page,navigate,onLogout,children}){
     {key:'crm-establishment',label:'Estabelecimentos',icon:'🏢',roles:['admin','manager']},
     {key:'crm-points',       label:'Pontos',         icon:'📍',roles:['admin','manager']},
     {key:'crm-users',        label:'Usuários',       icon:'👥',roles:['admin','manager']},
-    {key:'crm-unimidia',     label:'Quero Divulgar', icon:'📺',roles:['admin','manager']},
+    {key:'crm-professors',   label:'Professores',     icon:'🎓',roles:['admin','manager']},
+    {key:'crm-unimidia',    label:'Quero Divulgar',  icon:'📺',roles:['admin','manager']},
   ].filter(m=>m.roles.includes(crmUser.role));
   const roleLabel={admin:'Administrador',manager:'Gerente',simples:'Usuário Simples'};
   return<div className="min-h-screen bg-gray-100 flex"><aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-0.5">{menu.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</nav><div className="p-3 border-t border-gray-100 space-y-2"><div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{roleLabel[crmUser.role]||crmUser.role}</p></div><Btn variant="ghost" size="sm" onClick={onLogout} className="w-full text-gray-500">Sair do CRM</Btn></div></aside><main className="flex-1 overflow-auto">{children}</main></div>;
@@ -414,7 +452,7 @@ function CRMDashboard(){
 // CRM ESTABLISHMENT
 // ================================================================
 function CRMEstablishment({showToast}){
-  const BLANK={name:'',responsible:'',cpf_cnpj:'',phone:'',email:'',unimidia:'nao',street:'',number:'',complement:'',cep:'',city:'',state:'',photos:[],main_photo:'',operating_hours:{...DEFAULT_HOURS}};
+  const BLANK={name:'',responsible:'',cpf_cnpj:'',phone:'',email:'',unimidia:'nao',aulas:false,street:'',number:'',complement:'',cep:'',city:'',state:'',photos:[],main_photo:'',operating_hours:{...DEFAULT_HOURS}};
   const [tab,setTab]=useState('consulta');
   const [ests,setEsts]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -432,8 +470,8 @@ function CRMEstablishment({showToast}){
   const openNew=()=>{setEditId(null);setForm(BLANK);setTab('cadastro');};
   const openEdit=async(e)=>{
     setEditId(e.id);
-    setForm({...BLANK,name:e.name||'',phone:e.phone||'',street:e.street||'',number:e.number||'',complement:e.complement||'',cep:e.cep||'',city:e.city||'',state:e.state||'',photos:e.photos||[],main_photo:e.main_photo||'',operating_hours:e.operating_hours||{...DEFAULT_HOURS}});
-    try{const full=await estApi.getFull(e.id);setForm(f=>({...f,responsible:full.responsible||'',cpf_cnpj:full.cpf_cnpj||'',email:full.email||'',unimidia:full.unimidia_divulgacao?'sim':'nao'}));}catch{}
+    setForm({...BLANK,name:e.name||'',phone:e.phone||'',street:e.street||'',number:e.number||'',complement:e.complement||'',cep:e.cep||'',city:e.city||'',state:e.state||'',photos:e.photos||[],main_photo:e.main_photo||'',operating_hours:e.operating_hours||{...DEFAULT_HOURS},aulas:!!e.aulas});
+    try{const full=await estApi.getFull(e.id);setForm(f=>({...f,responsible:full.responsible||'',cpf_cnpj:full.cpf_cnpj||'',email:full.email||'',unimidia:full.unimidia_divulgacao?'sim':'nao',aulas:!!full.aulas}));}catch{}
     setTab('cadastro');
   };
 
@@ -457,7 +495,7 @@ function CRMEstablishment({showToast}){
     if(!form.name||!form.responsible||!form.phone){showToast('Preencha os campos obrigatórios','error');return;}
     setSaving(true);
     try{
-      const payload={...form,unimidia_divulgacao:form.unimidia==='sim'};
+      const payload={...form,unimidia_divulgacao:form.unimidia==='sim',aulas:!!form.aulas};
       if(editId){await estApi.update(editId,payload);}else{await estApi.create(payload);}
       showToast('Estabelecimento salvo!','success');
       loadList();
@@ -502,7 +540,9 @@ function CRMEstablishment({showToast}){
 
     {tab==='cadastro'&&<div>
       {editId&&<p className="text-xs text-emerald-600 font-medium mb-4">✏️ Editando estabelecimento existente — <button className="underline" onClick={openNew}>ou criar novo</button></p>}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4"><h2 className="font-bold text-gray-700">Dados Gerais</h2><Field label="Nome do Local" badge="pub" required><Inp value={form.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Responsável" badge="int" required><Inp value={form.responsible} onChange={e=>upd('responsible',e.target.value)}/></Field><Field label="CPF / CNPJ" badge="int"><Inp value={form.cpf_cnpj} onChange={e=>upd('cpf_cnpj',e.target.value)}/></Field><Field label="Telefone" badge="pub" required><Inp value={form.phone} onChange={e=>upd('phone',e.target.value)} placeholder="(00) 00000-0000"/></Field><Field label="Email" badge="int"><Inp type="email" value={form.email} onChange={e=>upd('email',e.target.value)}/></Field><Field label="Divulgação via Unimídia"><Sel value={form.unimidia} onChange={e=>upd('unimidia',e.target.value)} options={[{value:'nao',label:'Não'},{value:'sim',label:'Sim — quero divulgar via Unimídia'}]}/></Field></div><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Endereço <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><Field label="CEP" help={cepLoading?'Buscando endereço...':''}><Inp value={form.cep} onChange={e=>handleCEP(e.target.value)} placeholder="00000-000"/></Field><Field label="Rua"><Inp value={form.street} onChange={e=>upd('street',e.target.value)}/></Field><div className="grid grid-cols-2 gap-3"><Field label="Número"><Inp value={form.number} onChange={e=>upd('number',e.target.value)}/></Field><Field label="Complemento"><Inp value={form.complement} onChange={e=>upd('complement',e.target.value)}/></Field></div><div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Field label="Cidade"><Inp value={form.city} onChange={e=>upd('city',e.target.value)}/></Field></div><Field label="UF"><Inp value={form.state} onChange={e=>upd('state',e.target.value.toUpperCase().slice(0,2))} placeholder="SP"/></Field></div></div></div><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Fotos <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><label className={`flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors ${uploading?'border-emerald-300 bg-emerald-50':'border-gray-300 hover:border-emerald-400 hover:bg-emerald-50'}`}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={addPhotosFromFiles} disabled={uploading}/><span className="text-3xl">{uploading?'⏳':'📷'}</span><div className="text-center"><p className="text-sm font-medium text-gray-700">{uploading?'Processando...':'Clique para adicionar fotos'}</p><p className="text-xs text-gray-400">JPEG · PNG · WebP · máx. 8MB por foto · múltiplos arquivos</p></div></label>{form.photos.length===0&&<p className="text-xs text-gray-400 text-center py-1">Nenhuma foto adicionada</p>}<div className="grid grid-cols-2 gap-2">{form.photos.map((ph,i)=><div key={i} className={`relative rounded-xl overflow-hidden border-2 ${form.main_photo===ph?'border-emerald-500':'border-transparent'}`}><img src={ph} alt="" className="w-full h-28 object-cover" onError={e=>e.target.style.display='none'}/><div className="absolute bottom-0 left-0 right-0 flex gap-1 p-1.5"><button onClick={()=>upd('main_photo',ph)} className="flex-1 text-xs text-white bg-emerald-600/90 rounded-lg py-1">{form.main_photo===ph?'★ Principal':'★'}</button><button onClick={()=>rmPhoto(ph)} className="text-xs text-white bg-red-600/90 rounded-lg px-2 py-1">✕</button></div></div>)}</div></div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h2 className="font-bold text-gray-700 mb-1">Horário de Funcionamento <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><p className="text-xs text-gray-400 mb-3">Padrão herdado por todos os pontos</p><HoursEditor value={form.operating_hours} onChange={v=>upd('operating_hours',v)}/></div></div></div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4"><h2 className="font-bold text-gray-700">Dados Gerais</h2><Field label="Nome do Local" badge="pub" required><Inp value={form.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Responsável" badge="int" required><Inp value={form.responsible} onChange={e=>upd('responsible',e.target.value)}/></Field><Field label="CPF / CNPJ" badge="int"><Inp value={form.cpf_cnpj} onChange={e=>upd('cpf_cnpj',e.target.value)}/></Field><Field label="Telefone" badge="pub" required><Inp value={form.phone} onChange={e=>upd('phone',e.target.value)} placeholder="(00) 00000-0000"/></Field><Field label="Email" badge="int"><Inp type="email" value={form.email} onChange={e=>upd('email',e.target.value)}/></Field><Field label="Divulgação via Unimídia"><Sel value={form.unimidia} onChange={e=>upd('unimidia',e.target.value)} options={[{value:'nao',label:'Não'},{value:'sim',label:'Sim — quero divulgar via Unimídia'}]}/></Field>
+<Field label="Aulas" help="Habilita cadastro de professores e planos de aula para este estabelecimento"><label className="flex items-center gap-3 cursor-pointer mt-1"><input type="checkbox" checked={!!form.aulas} onChange={e=>upd('aulas',e.target.checked)} className="w-5 h-5 accent-emerald-600 rounded"/><span className="text-sm text-gray-700">{form.aulas?'Sim — este estabelecimento oferece aulas':'Não'}</span></label></Field>
+</div><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Endereço <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><Field label="CEP" help={cepLoading?'Buscando endereço...':''}><Inp value={form.cep} onChange={e=>handleCEP(e.target.value)} placeholder="00000-000"/></Field><Field label="Rua"><Inp value={form.street} onChange={e=>upd('street',e.target.value)}/></Field><div className="grid grid-cols-2 gap-3"><Field label="Número"><Inp value={form.number} onChange={e=>upd('number',e.target.value)}/></Field><Field label="Complemento"><Inp value={form.complement} onChange={e=>upd('complement',e.target.value)}/></Field></div><div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Field label="Cidade"><Inp value={form.city} onChange={e=>upd('city',e.target.value)}/></Field></div><Field label="UF"><Inp value={form.state} onChange={e=>upd('state',e.target.value.toUpperCase().slice(0,2))} placeholder="SP"/></Field></div></div></div><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Fotos <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><label className={`flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors ${uploading?'border-emerald-300 bg-emerald-50':'border-gray-300 hover:border-emerald-400 hover:bg-emerald-50'}`}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={addPhotosFromFiles} disabled={uploading}/><span className="text-3xl">{uploading?'⏳':'📷'}</span><div className="text-center"><p className="text-sm font-medium text-gray-700">{uploading?'Processando...':'Clique para adicionar fotos'}</p><p className="text-xs text-gray-400">JPEG · PNG · WebP · máx. 8MB por foto · múltiplos arquivos</p></div></label>{form.photos.length===0&&<p className="text-xs text-gray-400 text-center py-1">Nenhuma foto adicionada</p>}<div className="grid grid-cols-2 gap-2">{form.photos.map((ph,i)=><div key={i} className={`relative rounded-xl overflow-hidden border-2 ${form.main_photo===ph?'border-emerald-500':'border-transparent'}`}><img src={ph} alt="" className="w-full h-28 object-cover" onError={e=>e.target.style.display='none'}/><div className="absolute bottom-0 left-0 right-0 flex gap-1 p-1.5"><button onClick={()=>upd('main_photo',ph)} className="flex-1 text-xs text-white bg-emerald-600/90 rounded-lg py-1">{form.main_photo===ph?'★ Principal':'★'}</button><button onClick={()=>rmPhoto(ph)} className="text-xs text-white bg-red-600/90 rounded-lg px-2 py-1">✕</button></div></div>)}</div></div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h2 className="font-bold text-gray-700 mb-1">Horário de Funcionamento <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><p className="text-xs text-gray-400 mb-3">Padrão herdado por todos os pontos</p><HoursEditor value={form.operating_hours} onChange={v=>upd('operating_hours',v)}/></div></div></div>
     </div>}
   </div>;
 }
@@ -638,6 +678,145 @@ function CRMUsers({crmUser,showToast}){
 }
 
 // ================================================================
+// CRM PLANOS DE AULA (aba dentro de Reservas)
+// ================================================================
+function CRMPlanosAula({showToast}){
+  const [planos,setPlanos]=useState([]);
+  const [profs,setProfs]=useState([]);
+  const [ests,setEsts]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [showForm,setShowForm]=useState(false);
+  const [editPl,setEditPl]=useState(null);
+  const [delPl,setDelPl]=useState(null);
+  const BLANK_PL={est_id:'',professor_id:'',nome_aluno:'',telefone_aluno:'',email_aluno:'',tipo_plano:'avulso',valor:'',recorrencia:'nenhuma',dias_semana:[],horario_inicio:'',horario_fim:'',data_inicio:TODAY,data_fim:'',observacoes:''};
+  const [f,setF]=useState(BLANK_PL);
+  const upd=(k,v)=>setF(p=>({...p,[k]:v}));
+
+  const load=()=>{
+    Promise.all([planoApi.list(),professorApi.list(),estApi.list()])
+      .then(([pl,pr,e])=>{setPlanos(pl);setProfs(pr);setEsts(e);})
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{load();},[]);
+
+  const openNew=()=>{setF(BLANK_PL);setEditPl(null);setShowForm(true);};
+  const openEdit=(pl)=>{
+    setF({est_id:pl.est_id||'',professor_id:pl.professor_id||'',nome_aluno:pl.nome_aluno||'',telefone_aluno:pl.telefone_aluno||'',email_aluno:pl.email_aluno||'',tipo_plano:pl.tipo_plano||'avulso',valor:pl.valor||'',recorrencia:pl.recorrencia||'nenhuma',dias_semana:pl.dias_semana||[],horario_inicio:pl.horario_inicio||'',horario_fim:pl.horario_fim||'',data_inicio:pl.data_inicio?pl.data_inicio.split('T')[0]:TODAY,data_fim:pl.data_fim?pl.data_fim.split('T')[0]:'',observacoes:pl.observacoes||''});
+    setEditPl(pl);setShowForm(true);
+  };
+
+  const toggleDia=(d)=>setF(p=>({...p,dias_semana:p.dias_semana.includes(d)?p.dias_semana.filter(x=>x!==d):[...p.dias_semana,d]}));
+
+  const save=async()=>{
+    if(!f.nome_aluno){showToast('Nome do aluno é obrigatório','error');return;}
+    if(!f.tipo_plano){showToast('Tipo de plano é obrigatório','error');return;}
+    try{
+      const payload={...f,professor_id:f.professor_id||null,est_id:f.est_id||null,valor:parseFloat(f.valor)||0,data_fim:f.data_fim||null};
+      if(editPl){await planoApi.update(editPl.id,payload);}else{await planoApi.create(payload);}
+      showToast('Plano salvo!','success');setShowForm(false);load();
+    }catch(e){showToast(e.message,'error');}
+  };
+
+  const cancel=async(pl)=>{
+    try{await planoApi.update(pl.id,{...pl,status:'cancelado',professor_id:pl.professor_id||null,est_id:pl.est_id||null,dias_semana:pl.dias_semana||[]});showToast('Plano cancelado','info');load();}
+    catch(e){showToast(e.message,'error');}
+  };
+
+  const STATUS_COLOR={ativo:'bg-emerald-100 text-emerald-700',cancelado:'bg-red-100 text-red-700',concluido:'bg-gray-100 text-gray-600'};
+  const STATUS_LABEL={ativo:'Ativo',cancelado:'Cancelado',concluido:'Concluído'};
+
+  if(loading)return<Spinner/>;
+
+  return<div>
+    <div className="flex items-center justify-between mb-5">
+      <p className="text-sm text-gray-500">{planos.length} plano{planos.length!==1?'s':''} cadastrado{planos.length!==1?'s':''}</p>
+      <Btn onClick={openNew}>+ Novo Plano / Aula</Btn>
+    </div>
+
+    {planos.length===0
+      ?<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">📚</p><p>Nenhum plano de aula cadastrado</p></div>
+      :<div className="space-y-3">
+        {planos.map(pl=><div key={pl.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 className="font-bold text-gray-800">{pl.nome_aluno}</h3>
+                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${STATUS_COLOR[pl.status]||'bg-gray-100'}`}>{STATUS_LABEL[pl.status]||pl.status}</span>
+                <span className="text-xs bg-blue-100 text-blue-700 font-medium px-2 py-0.5 rounded-full">{TIPO_PLANO_LABEL[pl.tipo_plano]||pl.tipo_plano}</span>
+              </div>
+              <div className="text-sm text-gray-500 space-y-0.5">
+                {pl.professor_nome&&<p>🎓 Prof. {pl.professor_nome}</p>}
+                {pl.est_name&&<p>🏢 {pl.est_name}</p>}
+                {pl.telefone_aluno&&<p>📞 {pl.telefone_aluno}</p>}
+                {(pl.horario_inicio||pl.horario_fim)&&<p>⏰ {pl.horario_inicio}{pl.horario_fim?` – ${pl.horario_fim}`:''}</p>}
+                {pl.recorrencia&&pl.recorrencia!=='nenhuma'&&<p>🔁 {RECORRENCIA_LABEL[pl.recorrencia]||pl.recorrencia}{pl.dias_semana?.length?` (${pl.dias_semana.map(d=>d.charAt(0).toUpperCase()+d.slice(1)).join(', ')})`:''}</p>}
+                <p>📅 {fmtDate(pl.data_inicio)}{pl.data_fim?` até ${fmtDate(pl.data_fim)}`:''}</p>
+                <p className="font-semibold text-emerald-700">💰 {fmt$(pl.valor)}</p>
+              </div>
+            </div>
+            {pl.status==='ativo'&&<div className="flex gap-2 shrink-0">
+              <Btn variant="secondary" size="sm" onClick={()=>openEdit(pl)}>Editar</Btn>
+              <Btn variant="danger" size="sm" onClick={()=>setDelPl(pl)}>Cancelar</Btn>
+            </div>}
+          </div>
+        </div>)}
+      </div>
+    }
+
+    {/* Modal Novo/Editar Plano */}
+    <Modal open={showForm} onClose={()=>setShowForm(false)} title={editPl?'Editar Plano de Aula':'Novo Plano / Aula'} maxW="max-w-xl">
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Estabelecimento"><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/></Field>
+          <Field label="Professor"><Sel value={f.professor_id} onChange={e=>upd('professor_id',e.target.value)} options={profs.map(p=>({value:p.id,label:p.nome}))} placeholder="Selecione..."/></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Nome do Aluno" required><Inp value={f.nome_aluno} onChange={e=>upd('nome_aluno',e.target.value)} placeholder="Nome completo"/></Field>
+          <Field label="Telefone do Aluno"><Inp value={f.telefone_aluno} onChange={e=>upd('telefone_aluno',e.target.value)} placeholder="(00) 00000-0000"/></Field>
+        </div>
+        <Field label="Email do Aluno"><Inp type="email" value={f.email_aluno} onChange={e=>upd('email_aluno',e.target.value)} placeholder="aluno@email.com"/></Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Tipo de Plano" required><Sel value={f.tipo_plano} onChange={e=>upd('tipo_plano',e.target.value)} options={TIPO_PLANO_OPTS}/></Field>
+          <Field label="Valor (R$)" required help="Informe o valor total do plano"><Inp type="number" value={f.valor} onChange={e=>upd('valor',e.target.value)} placeholder="Ex: 350.00"/></Field>
+        </div>
+
+        <Field label="Recorrência"><Sel value={f.recorrencia} onChange={e=>upd('recorrencia',e.target.value)} options={RECORRENCIA_OPTS}/></Field>
+
+        {f.recorrencia!=='nenhuma'&&<Field label="Dias da semana">
+          <div className="flex flex-wrap gap-2 mt-1">
+            {DAYS.map(d=><button key={d.key} type="button" onClick={()=>toggleDia(d.key)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${f.dias_semana.includes(d.key)?'bg-emerald-600 text-white border-emerald-600':'border-gray-300 text-gray-600 hover:border-emerald-400'}`}>{d.label}</button>)}
+          </div>
+        </Field>}
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Horário início"><input type="time" value={f.horario_inicio} onChange={e=>upd('horario_inicio',e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></Field>
+          <Field label="Horário fim"><input type="time" value={f.horario_fim} onChange={e=>upd('horario_fim',e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Data início"><input type="date" value={f.data_inicio} onChange={e=>upd('data_inicio',e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></Field>
+          <Field label="Data fim (opcional)"><input type="date" value={f.data_fim} onChange={e=>upd('data_fim',e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></Field>
+        </div>
+
+        <Field label="Observações"><textarea value={f.observacoes} onChange={e=>upd('observacoes',e.target.value)} rows={2} placeholder="Detalhes adicionais..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"/></Field>
+
+        <div className="flex gap-3 pt-1">
+          <Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn>
+          <Btn className="flex-1" onClick={save}>Salvar Plano</Btn>
+        </div>
+      </div>
+    </Modal>
+
+    <Modal open={!!delPl} onClose={()=>setDelPl(null)} title="Cancelar Plano">
+      <p className="text-sm text-gray-600 mb-5">Cancelar o plano de <strong>{delPl?.nome_aluno}</strong>?</p>
+      <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelPl(null)}>Voltar</Btn><Btn variant="danger" className="flex-1" onClick={()=>{cancel(delPl);setDelPl(null);}}>Confirmar Cancelamento</Btn></div>
+    </Modal>
+  </div>;
+}
+
+// ================================================================
 // CRM RESERVATIONS
 // ================================================================
 function CRMReservations({showToast}){
@@ -747,11 +926,16 @@ function CRMReservations({showToast}){
   const mbPt=mbPoints.find(p=>String(p.id)===String(mb.pointId));
   const mbTotal=mbPt&&mb.slots.length?mbPt.price_per_hour*mb.slots.length:0;
 
+  const [resTab,setResTab]=useState('reservas');
+
   return<div className="p-6">
-    <div className="flex items-center justify-between mb-6">
+    <div className="flex items-center justify-between mb-4">
       <h1 className="text-2xl font-black text-gray-900">Gestão de Reservas</h1>
-      <Btn onClick={()=>{setShowManual(true);setMb(MBL);}}>+ Nova Reserva</Btn>
+      {resTab==='reservas'&&<Btn onClick={()=>{setShowManual(true);setMb(MBL);}}>+ Nova Reserva</Btn>}
     </div>
+    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'aulas',label:'📚 Planos de Aula'}]} active={resTab} onChange={setResTab}/>
+    {resTab==='aulas'&&<CRMPlanosAula showToast={showToast}/>}
+    {resTab==='reservas'&&<div>
     <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-4 items-end">
       <div><p className="text-xs text-gray-400 mb-1 font-medium">Data</p><input type="date" value={dateF} onChange={e=>{setDateF(e.target.value);setLoading(true);}} className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></div>
       <div><p className="text-xs text-gray-400 mb-1 font-medium">Status</p><Sel value={statusF} onChange={e=>{setStatusF(e.target.value);setLoading(true);}} options={[{value:'confirmed',label:'Confirmada'},{value:'cancelled',label:'Cancelada'},{value:'completed',label:'Concluída'}]} placeholder="Todos"/></div>
@@ -828,17 +1012,109 @@ function CRMReservations({showToast}){
         </div>
       </div>
     </Modal>
+  </div>}
   </div>;
 }
+
 // ================================================================
-// CRM UNIMIDIA
+// CRM PROFESSORS
 // ================================================================
-const UNIMIDIA_MOCK=[
-  {id:1,titulo:'TV Sport — Rede de Bares Esportivos',tipo:'Televisão',locais:'São Paulo / Campinas / Santos',publico:'Torcedores e fãs de esportes',alcance:'~12.000 pessoas/semana',preco:'A consultar'},
-  {id:2,titulo:'Painéis LED — Academias Parceiras',tipo:'Painel Digital',locais:'Grande São Paulo',publico:'Praticantes de esportes e fitness',alcance:'~8.500 pessoas/semana',preco:'A consultar'},
-  {id:3,titulo:'Mídia Indoor — Estádios e Ginásios',tipo:'Telão / Display',locais:'Diversas cidades',publico:'Atletas, torcedores e familiares',alcance:'~25.000 pessoas/semana',preco:'A consultar'},
-  {id:4,titulo:'Rádio Esportiva Digital',tipo:'Áudio / Streaming',locais:'Online — cobertura nacional',publico:'Ouvintes de conteúdo esportivo',alcance:'~50.000 pessoas/semana',preco:'A consultar'},
-];
+function CRMProfessors({crmUser,showToast}){
+  const [profs,setProfs]=useState([]);
+  const [ests,setEsts]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [showForm,setShowForm]=useState(false);
+  const [editP,setEditP]=useState(null);
+  const BLANK_P={est_id:'',nome:'',cpf:'',data_nascimento:'',email:'',telefone:'',valor_hora_avulso:''};
+  const [f,setF]=useState(BLANK_P);
+  const [delP,setDelP]=useState(null);
+  const upd=(k,v)=>setF(p=>({...p,[k]:v}));
+
+  const load=()=>{
+    Promise.all([professorApi.list(),estApi.list()])
+      .then(([p,e])=>{setProfs(p);setEsts(e);})
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{load();},[]);
+
+  const openNew=()=>{setF(BLANK_P);setEditP(null);setShowForm(true);};
+  const openEdit=(p)=>{
+    setF({est_id:p.est_id||'',nome:p.nome||'',cpf:p.cpf||'',data_nascimento:p.data_nascimento?p.data_nascimento.split('T')[0]:'',email:p.email||'',telefone:p.telefone||'',valor_hora_avulso:p.valor_hora_avulso||''});
+    setEditP(p);setShowForm(true);
+  };
+
+  const save=async()=>{
+    if(!f.nome){showToast('Nome é obrigatório','error');return;}
+    try{
+      const payload={...f,est_id:f.est_id||null,data_nascimento:f.data_nascimento||null,valor_hora_avulso:parseFloat(f.valor_hora_avulso)||0};
+      if(editP){await professorApi.update(editP.id,payload);}else{await professorApi.create(payload);}
+      showToast('Professor salvo!','success');setShowForm(false);load();
+    }catch(e){showToast(e.message,'error');}
+  };
+
+  const del=async(id)=>{
+    try{await professorApi.remove(id);showToast('Professor excluído','info');setDelP(null);load();}
+    catch(e){showToast(e.message,'error');}
+  };
+
+  if(loading)return<Spinner/>;
+
+  return<div className="p-6 max-w-5xl">
+    <div className="flex items-center justify-between mb-6">
+      <h1 className="text-2xl font-black text-gray-900">Professores</h1>
+      <Btn onClick={openNew}>+ Novo Professor</Btn>
+    </div>
+
+    {profs.length===0
+      ?<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎓</p><p className="text-lg">Nenhum professor cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro professor</Btn></div>
+      :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>{['Nome','CPF','Telefone','Email','Valor/h Avulso','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {profs.map(p=><tr key={p.id} className="hover:bg-gray-50">
+              <td className="px-4 py-3 font-semibold text-gray-800">{p.nome}</td>
+              <td className="px-4 py-3 text-gray-500">{p.cpf||'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{p.telefone||'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{p.email||'—'}</td>
+              <td className="px-4 py-3 text-gray-700 font-medium">{p.valor_hora_avulso?fmt$(p.valor_hora_avulso)+'/h':'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{p.est_name||'—'}</td>
+              <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end"><Btn variant="secondary" size="sm" onClick={()=>openEdit(p)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelP(p)}>Excluir</Btn></div></td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <Modal open={showForm} onClose={()=>setShowForm(false)} title={editP?'Editar Professor':'Novo Professor'}>
+      <div className="space-y-3">
+        <Field label="Estabelecimento"><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione (opcional)"/></Field>
+        <Field label="Nome do Professor" required><Inp value={f.nome} onChange={e=>upd('nome',e.target.value)} placeholder="Nome completo"/></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="CPF"><Inp value={f.cpf} onChange={e=>upd('cpf',e.target.value)} placeholder="000.000.000-00"/></Field>
+          <Field label="Data de Nascimento"><Inp type="date" value={f.data_nascimento} onChange={e=>upd('data_nascimento',e.target.value)}/></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Email"><Inp type="email" value={f.email} onChange={e=>upd('email',e.target.value)} placeholder="prof@email.com"/></Field>
+          <Field label="Telefone"><Inp value={f.telefone} onChange={e=>upd('telefone',e.target.value)} placeholder="(00) 00000-0000"/></Field>
+        </div>
+        <Field label="Valor por hora (aula avulsa)" help="Usado como referência para planos avulsos"><Inp type="number" value={f.valor_hora_avulso} onChange={e=>upd('valor_hora_avulso',e.target.value)} placeholder="Ex: 80.00"/></Field>
+        <div className="flex gap-3 pt-1">
+          <Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn>
+          <Btn className="flex-1" onClick={save}>Salvar</Btn>
+        </div>
+      </div>
+    </Modal>
+
+    <Modal open={!!delP} onClose={()=>setDelP(null)} title="Excluir Professor">
+      <p className="text-sm text-gray-600 mb-5">Excluir o professor <strong>{delP?.nome}</strong>?</p>
+      <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelP(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={()=>del(delP.id)}>Excluir</Btn></div>
+    </Modal>
+  </div>;
+}
+
 function CRMUnimidia({crmUser,showToast}){
   const [ests,setEsts]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -908,6 +1184,8 @@ export default function App(){
   const [pendRes,setPendRes]=useState(null);
   const [confRes,setConfRes]=useState(null);
   const [confLoading,setConfLoading]=useState(false);
+  const [resetToken,setResetToken]=useState(null);
+  const [resetType,setResetType]=useState('public');
 
   const showToast=useCallback((message,type='success')=>{
     setToast({message,type});
@@ -918,6 +1196,7 @@ export default function App(){
     setPage(pg);setPageArg(arg);window.scrollTo(0,0);
     if(pg==='crm-login'||pg.startsWith('crm-'))setView('crm');
     else if(pg==='password-recovery')setView('password-recovery');
+    else if(pg==='reset-password')setView('reset-password');
     else setView('marketplace');
   };
 
@@ -928,7 +1207,7 @@ export default function App(){
   },[]);
   useEffect(()=>{loadMkt();},[loadMkt]);
 
-  // Restaura sessão do localStorage
+  // Restaura sessão e detecta link de reset na URL
   useEffect(()=>{
     const token=localStorage.getItem('token');
     const savedUser=localStorage.getItem('user');
@@ -939,6 +1218,17 @@ export default function App(){
         if(savedType==='crm')setCrmUser(u);
         else setPublicUser(u);
       }catch{}
+    }
+    // Detecta ?token=...&type=... na URL (link de reset de senha enviado por email)
+    const params=new URLSearchParams(window.location.search);
+    const urlToken=params.get('token');
+    const urlType=params.get('type')||'public';
+    if(urlToken){
+      setResetToken(urlToken);
+      setResetType(urlType);
+      setView('reset-password');
+      // Limpa os params da URL sem recarregar a página
+      window.history.replaceState({},'',window.location.pathname);
     }
   },[]);
 
@@ -987,7 +1277,8 @@ export default function App(){
   };
 
   // ── RENDER ──
-  if(view==='password-recovery')return<><Toast toast={toast}/><PasswordRecovery navigate={navigate}/></>;
+  if(view==='reset-password')return<><Toast toast={toast}/><ResetPassword token={resetToken} type={resetType} navigate={navigate} showToast={showToast}/></>;
+  if(view==='password-recovery')return<><Toast toast={toast}/><PasswordRecovery navigate={navigate} type={pageArg||'public'}/></>;
 
   if(view==='crm'){
     if(!crmUser)return<><Toast toast={toast}/><CRMLogin onLogin={crmLogin} navigate={navigate}/></>;
@@ -997,6 +1288,7 @@ export default function App(){
       'crm-points':       <CRMPoints crmUser={crmUser} showToast={showToast}/>,
       'crm-users':        <CRMUsers crmUser={crmUser} showToast={showToast}/>,
       'crm-reservations': <CRMReservations showToast={showToast}/>,
+      'crm-professors':   <CRMProfessors crmUser={crmUser} showToast={showToast}/>,
       'crm-unimidia':     <CRMUnimidia crmUser={crmUser} showToast={showToast}/>,
     };
     return<><Toast toast={toast}/><CRMLayout crmUser={crmUser} page={page} navigate={navigate} onLogout={crmLogout}>{pages[page]||pages['crm-dashboard']}</CRMLayout></>;

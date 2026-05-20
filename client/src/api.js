@@ -86,3 +86,21 @@ export const resApi = {
 // ── Token helpers ─────────────────────────────────────────────────
 export function saveToken(token) { localStorage.setItem('token', token); }
 export function clearToken()     { localStorage.removeItem('token'); }
+
+// ── Professores ───────────────────────────────────────────────────
+export const professorApi = {
+  list:   (estId)     => get(`/professores${estId ? `?estId=${estId}` : ''}`),
+  get:    (id)        => get(`/professores/${id}`),
+  create: (data)      => post('/professores', data),
+  update: (id, data)  => put(`/professores/${id}`, data),
+  remove: (id)        => del(`/professores/${id}`),
+};
+
+// ── Planos de Aula ────────────────────────────────────────────────
+export const planoApi = {
+  list:   (params = {}) => get('/planos?' + new URLSearchParams(params).toString()),
+  get:    (id)           => get(`/planos/${id}`),
+  create: (data)         => post('/planos', data),
+  update: (id, data)     => put(`/planos/${id}`, data),
+  remove: (id)           => del(`/planos/${id}`),
+};

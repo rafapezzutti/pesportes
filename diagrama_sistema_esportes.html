@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P. Soluções para Esportes & Reservas — Diagrama do Sistema</title>
+<style>
+  h2.sr-only { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f4f7f4;
+    color: #1a2e1a;
+    padding: 20px;
+    font-size: 13px;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo-text-top { font-size: 14px; font-weight: 800; color: #2e7d32; line-height: 1.1; letter-spacing: 0.5px; }
+  .logo-text-bot { font-size: 10px; font-weight: 700; color: #f57c00; letter-spacing: 0.5px; }
+  .header h1 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a2e1a;
+    border-left: 1px solid #ddd;
+    padding-left: 12px;
+  }
+  .header-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    font-size: 10px;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+  }
+  .badge-green { background: #e8f5e9; color: #2e7d32; }
+  .badge-orange { background: #fff3e0; color: #e65100; }
+  .badge-date  { background: #f0f0f0; color: #666; }
+
+  .meta-bar {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 14px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    color: #555;
+  }
+  .meta-item strong { color: #1a2e1a; font-weight: 700; }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #555;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+  }
+
+  .diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .layer {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .layer-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: #999;
+    padding-left: 4px;
+    margin-bottom: 2px;
+  }
+  .layer-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .card {
+    flex: 1;
+    min-width: 120px;
+    border-radius: 8px;
+    padding: 11px 13px;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    transition: box-shadow .15s, border-color .15s, transform .1s;
+    position: relative;
+  }
+  .card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,.13);
+    border-color: #2e7d3266;
+    transform: translateY(-1px);
+  }
+  .card.active {
+    border-color: #2e7d32;
+    box-shadow: 0 0 0 3px #2e7d3222;
+  }
+  .card-icon { font-size: 17px; margin-bottom: 3px; }
+  .card-title { font-weight: 700; font-size: 11.5px; margin-bottom: 2px; }
+  .card-sub { font-size: 10px; color: #777; line-height: 1.4; }
+
+  .c-ui    { background: #e8f5e9; border-color: #a5d6a7; }
+  .c-api   { background: #e3f2fd; border-color: #90caf9; }
+  .c-mod   { background: #fff8e1; border-color: #ffe082; }
+  .c-data  { background: #f3e8ff; border-color: #d7b6f9; }
+  .c-ext   { background: #fce8e8; border-color: #f5b8b8; }
+  .c-infra { background: #f0f0f0; border-color: #d0d0d0; }
+
+  .v-connector {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    height: 28px;
+  }
+  .v-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 11px;
+    color: #bbb;
+  }
+  .v-arrow span { font-size: 14px; line-height: 1; }
+  .v-arrow small { font-size: 9px; letter-spacing: .3px; }
+
+  .detail-panel {
+    margin-top: 14px;
+    background: #fff;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 16px;
+    transition: opacity .2s;
+    min-height: 80px;
+  }
+  .detail-panel.hidden { display: none; }
+  .detail-title {
+    font-weight: 700;
+    font-size: 13px;
+    color: #1a2e1a;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 24px;
+  }
+  @media (max-width: 600px) {
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+  .detail-section h4 {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+  .detail-section ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .detail-section li {
+    font-size: 11px;
+    color: #333;
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  .detail-section li::before { content: '·'; color: #2e7d32; font-weight: 700; flex-shrink: 0; }
+  .detail-hint { font-size: 10px; color: #aaa; margin-top: 10px; }
+
+  .roles-bar {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 14px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .roles-bar-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: #999;
+    margin-right: 4px;
+  }
+  .role-badge {
+    font-size: 10px;
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .role-admin   { background: #fce8e8; color: #c62828; border: 1px solid #ef9a9a; }
+  .role-manager { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+  .role-simples { background: #fff8e1; color: #e65100; border: 1px solid #ffe082; }
+  .role-publico { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+
+  .footer {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid #e5e5e5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 10px;
+    color: #aaa;
+  }
+</style>
+</head>
+<body>
+<h2 class="sr-only">Diagrama de arquitetura do sistema P. Soluções para Esportes e Reservas — cobrindo marketplace público React, CRM Node.js/Express, módulos de reservas, banco PostgreSQL no Neon e infraestrutura Render.com.</h2>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo-wrap">
+      <svg width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Campo de futebol estilizado -->
+        <rect x="10" y="20" width="80" height="60" rx="8" fill="#2e7d32"/>
+        <rect x="10" y="20" width="80" height="60" rx="8" fill="none" stroke="#a5d6a7" stroke-width="4"/>
+        <line x1="50" y1="20" x2="50" y2="80" stroke="#a5d6a7" stroke-width="2.5"/>
+        <circle cx="50" cy="50" r="12" stroke="#a5d6a7" stroke-width="2.5" fill="none"/>
+        <circle cx="50" cy="50" r="3" fill="#f57c00"/>
+        <rect x="10" y="36" width="16" height="28" rx="2" fill="none" stroke="#a5d6a7" stroke-width="2"/>
+        <rect x="74" y="36" width="16" height="28" rx="2" fill="none" stroke="#a5d6a7" stroke-width="2"/>
+      </svg>
+      <div>
+        <div class="logo-text-top">P. Soluções</div>
+        <div class="logo-text-bot">para Esportes</div>
+      </div>
+    </div>
+    <h1>Diagrama do Sistema — CRM Esportes & Reservas</h1>
+  </div>
+  <div class="header-badges">
+    <span class="badge badge-green">v1.0</span>
+    <span class="badge badge-orange">Arquitetura</span>
+    <span class="badge badge-date">Mai 2026</span>
+  </div>
+</div>
+
+<!-- META -->
+<div class="meta-bar">
+  <div class="meta-item"><strong>Repositório:</strong> github.com/rafapezzutti/pesportes-app</div>
+  <div class="meta-item"><strong>Frontend:</strong> pesportes-app.onrender.com · pesportes.ia.br</div>
+  <div class="meta-item"><strong>Backend:</strong> API embutida (monorepo) · Express serve Vite dist/</div>
+  <div class="meta-item"><strong>Banco:</strong> PostgreSQL — Neon.tech</div>
+  <div class="meta-item"><strong>Responsável:</strong> rafael.pezzutti@gmail.com</div>
+</div>
+
+<!-- ROLES -->
+<div class="roles-bar">
+  <span class="roles-bar-label">Perfis de Acesso</span>
+  <span class="role-badge role-admin">👑 Admin — acesso total ao sistema</span>
+  <span class="role-badge role-manager">🏟️ Gerente — múltiplos estabelecimentos</span>
+  <span class="role-badge role-simples">👤 Simples — um estabelecimento</span>
+  <span class="role-badge role-publico">🌐 Público — marketplace + reservas</span>
+</div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#a5d6a7"></div>Interface / Usuário</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#90caf9"></div>API / Backend</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffe082"></div>Módulos de Negócio</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d7b6f9"></div>Dados / Persistência</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f5b8b8"></div>Integrações / Deploy</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d0d0d0"></div>Infraestrutura / DevOps</div>
+</div>
+
+<!-- DIAGRAM -->
+<div class="diagram">
+
+  <!-- LAYER 1: UI -->
+  <div class="layer">
+    <div class="layer-label">Camada 1 — Interface do Usuário (React 18 + Vite · SPA única)</div>
+    <div class="layer-row">
+      <div class="card c-ui" onclick="showDetail('marketplace')" id="card-marketplace">
+        <div class="card-icon">🏟️</div>
+        <div class="card-title">Marketplace Público</div>
+        <div class="card-sub">Busca de est. · Reservas · pesportes.ia.br</div>
+      </div>
+      <div class="card c-ui" onclick="showDetail('crm-ui')" id="card-crm-ui">
+        <div class="card-icon">🗂️</div>
+        <div class="card-title">CRM (Painel Interno)</div>
+        <div class="card-sub">Admin · Gerente · Simples · sidebar roles</div>
+      </div>
+      <div class="card c-ui" onclick="showDetail('login-ui')" id="card-login-ui">
+        <div class="card-icon">🔑</div>
+        <div class="card-title">Login Dual</div>
+        <div class="card-sub">Público (público_users) · CRM (crm_users)</div>
+      </div>
+      <div class="card c-ui" onclick="showDetail('state-ui')" id="card-state-ui">
+        <div class="card-icon">⚛️</div>
+        <div class="card-title">Estado & Roteamento</div>
+        <div class="card-sub">useState · JWT localStorage · fetch API</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="v-connector">
+    <div class="v-arrow"><span>↕</span><small>HTTPS / REST</small></div>
+    <div class="v-arrow"><span>↕</span><small>Bearer Token (JWT)</small></div>
+    <div class="v-arrow"><span>↕</span><small>JSON</small></div>
+  </div>
+
+  <!-- LAYER 2: API -->
+  <div class="layer">
+    <div class="layer-label">Camada 2 — API Backend (Node.js + Express · Monorepo)</div>
+    <div class="layer-row">
+      <div class="card c-api" onclick="showDetail('express')" id="card-express">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">Express Server</div>
+        <div class="card-sub">Serve Vite dist/ + API /api/* · monorepo</div>
+      </div>
+      <div class="card c-api" onclick="showDetail('auth-mid')" id="card-auth-mid">
+        <div class="card-icon">🔐</div>
+        <div class="card-title">Auth & Middleware</div>
+        <div class="card-sub">auth · adminOnly · adminOrManager · crmOnly · anyAuth</div>
+      </div>
+      <div class="card c-api" onclick="showDetail('rotas')" id="card-rotas">
+        <div class="card-icon">🔀</div>
+        <div class="card-title">Rotas da API</div>
+        <div class="card-sub">/auth · /establishments · /points · /reservations · /crm-users · /dashboard</div>
+      </div>
+      <div class="card c-api" onclick="showDetail('email')" id="card-email">
+        <div class="card-icon">📧</div>
+        <div class="card-title">Serviço de E-mail</div>
+        <div class="card-sub">Nodemailer · confirmação · cancelamento · reagendamento</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="v-connector">
+    <div class="v-arrow"><span>↕</span><small>Lógica de Negócio · Filtro por Estabelecimento</small></div>
+  </div>
+
+  <!-- LAYER 3: Business Modules -->
+  <div class="layer">
+    <div class="layer-label">Camada 3 — Módulos de Negócio</div>
+    <div class="layer-row">
+      <div class="card c-mod" onclick="showDetail('dashboard')" id="card-dashboard">
+        <div class="card-icon">📊</div>
+        <div class="card-title">Dashboard CRM</div>
+        <div class="card-sub">KPIs · reservas do dia · receita</div>
+      </div>
+      <div class="card c-mod" onclick="showDetail('estabelecimentos')" id="card-estabelecimentos">
+        <div class="card-icon">🏟️</div>
+        <div class="card-title">Estabelecimentos</div>
+        <div class="card-sub">Fotos · horários · Unimídia · CRUD</div>
+      </div>
+      <div class="card c-mod" onclick="showDetail('pontos')" id="card-pontos">
+        <div class="card-icon">⚽</div>
+        <div class="card-title">Pontos (Quadras)</div>
+        <div class="card-sub">Quadras/salas · preço/hora · disponibilidade</div>
+      </div>
+      <div class="card c-mod" onclick="showDetail('reservas')" id="card-reservas">
+        <div class="card-icon">📅</div>
+        <div class="card-title">Reservas</div>
+        <div class="card-sub">Pública · Manual CRM · conflito · status</div>
+      </div>
+      <div class="card c-mod" onclick="showDetail('usuarios-crm')" id="card-usuarios-crm">
+        <div class="card-icon">👥</div>
+        <div class="card-title">Usuários CRM</div>
+        <div class="card-sub">Admin/Gerente/Simples · multi-estabelecimento</div>
+      </div>
+      <div class="card c-mod" onclick="showDetail('unimidia')" id="card-unimidia">
+        <div class="card-icon">📺</div>
+        <div class="card-title">Quero Divulgar</div>
+        <div class="card-sub">Unimídia · espaços de mídia · futuro API</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="v-connector">
+    <div class="v-arrow"><span>↕</span><small>pg (node-postgres) · SQL</small></div>
+    <div class="v-arrow"><span>↔</span><small>node-cron</small></div>
+  </div>
+
+  <!-- LAYER 4: Data -->
+  <div class="layer">
+    <div class="layer-label">Camada 4 — Persistência de Dados & Jobs</div>
+    <div class="layer-row">
+      <div class="card c-data" onclick="showDetail('postgres')" id="card-postgres">
+        <div class="card-icon">🗄️</div>
+        <div class="card-title">PostgreSQL — Neon.tech</div>
+        <div class="card-sub">Banco serverless na nuvem · SSL</div>
+      </div>
+      <div class="card c-data" onclick="showDetail('tabelas')" id="card-tabelas">
+        <div class="card-icon">📑</div>
+        <div class="card-title">Esquema de Tabelas</div>
+        <div class="card-sub">establishments · points · reservations · crm_users · public_users</div>
+      </div>
+      <div class="card c-data" onclick="showDetail('cron')" id="card-cron">
+        <div class="card-icon">⏰</div>
+        <div class="card-title">Cron Jobs</div>
+        <div class="card-sub">node-cron · lembretes 24h antes · e-mail automático</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="v-connector">
+    <div class="v-arrow"><span>↔</span><small>Deploy · DNS · CI/CD</small></div>
+  </div>
+
+  <!-- LAYER 5: Infra -->
+  <div class="layer">
+    <div class="layer-label">Camada 5 — Infraestrutura & DevOps</div>
+    <div class="layer-row">
+      <div class="card c-ext" onclick="showDetail('render')" id="card-render">
+        <div class="card-icon">🚀</div>
+        <div class="card-title">Render.com</div>
+        <div class="card-sub">Web Service · frontend + backend (monorepo)</div>
+      </div>
+      <div class="card c-ext" onclick="showDetail('github')" id="card-github">
+        <div class="card-icon">🐙</div>
+        <div class="card-title">GitHub</div>
+        <div class="card-sub">rafapezzutti/pesportes-app · deploy automático</div>
+      </div>
+      <div class="card c-ext" onclick="showDetail('dominio')" id="card-dominio">
+        <div class="card-icon">🌍</div>
+        <div class="card-title">Domínio & DNS</div>
+        <div class="card-sub">pesportes.ia.br · Registro.br · CNAME</div>
+      </div>
+      <div class="card c-infra" onclick="showDetail('envvars')" id="card-envvars">
+        <div class="card-icon">🔧</div>
+        <div class="card-title">Configuração & Segurança</div>
+        <div class="card-sub">Env vars · JWT_SECRET · DATABASE_URL · SMTP · CORS</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="detail-panel hidden" id="detail-panel">
+  <div class="detail-title" id="detail-title"></div>
+  <div class="detail-grid" id="detail-grid"></div>
+  <div class="detail-hint">Clique em outro componente para explorar · Clique novamente para fechar</div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <span>P. Soluções para Esportes & Reservas · Diagrama de Arquitetura do Sistema</span>
+  <span>Gerado em Mai/2026 · rafael.pezzutti@gmail.com</span>
+</div>
+
+<script>
+const details = {
+  marketplace: {
+    icon: '🏟️', title: 'Marketplace Público — Interface do Usuário Final',
+    sections: [
+      { h: 'Funcionalidades', items: [
+        'Listagem de estabelecimentos esportivos com fotos e info',
+        'Visualização de quadras/pontos disponíveis por estabelecimento',
+        'Seleção de horário e criação de reserva online',
+        'Cancelamento e reagendamento de reservas próprias',
+        'Histórico de reservas do usuário logado'
+      ]},
+      { h: 'Fluxo do Usuário Público', items: [
+        'Acessa pesportes.ia.br (sem login para visualizar)',
+        'Cria conta ou faz login em public_users',
+        'Seleciona estabelecimento → quadra → data/hora',
+        'Confirma reserva → recebe e-mail de confirmação',
+        'Pode cancelar até 2h antes do horário'
+      ]},
+      { h: 'Telas Principais', items: [
+        'Home: listagem e busca de estabelecimentos',
+        'Página do estabelecimento: pontos e horários',
+        'Modal de reserva: calendário + seleção de hora',
+        'Painel "Minhas Reservas": histórico e ações',
+        'Perfil: dados cadastrais do usuário público'
+      ]},
+      { h: 'Tecnologia', items: [
+        'React 18 SPA (Vite) — arquivo único App.jsx',
+        'Sem React Router — navegação por estado (page)',
+        'fetch() nativo para chamadas à API /api/*',
+        'JWT em localStorage (pesportes_token / pesportes_user)'
+      ]}
+    ]
+  },
+  'crm-ui': {
+    icon: '🗂️', title: 'CRM — Painel Interno de Gestão',
+    sections: [
+      { h: 'Estrutura do Menu (por role)', items: [
+        '📊 Dashboard — todos os roles CRM',
+        '🏟️ Estabelecimentos — admin e gerente',
+        '⚽ Pontos — admin e gerente',
+        '📅 Reservas — todos (filtradas por acesso)',
+        '👥 Usuários CRM — admin e gerente',
+        '📺 Quero Divulgar — admin e gerente',
+        '👤 Usuários Públicos — admin apenas'
+      ]},
+      { h: 'Controle de Acesso por Role', items: [
+        'Admin: acesso irrestrito a todos os módulos',
+        'Gerente: vê e edita apenas seus est. (est_ids[])',
+        'Simples: acesso restrito ao seu est_id único',
+        'Menus e botões condicionais por role no JSX'
+      ]},
+      { h: 'UI / Componentes', items: [
+        'Sidebar fixa com avatar e role do usuário',
+        'Modais de criação/edição (BLANK + openEdit)',
+        'Tabelas com busca e filtro inline',
+        'Toast de feedback (sucesso / erro)',
+        'Campos Sel, Field, Inp reutilizáveis'
+      ]},
+      { h: 'Auditoria', items: [
+        'CRM completamente separado do marketplace',
+        'Token CRM ≠ token público (tabelas distintas)',
+        'Todas as ações passam por middleware de auth',
+        'Gerente não acessa dados de outros gerentes'
+      ]}
+    ]
+  },
+  'login-ui': {
+    icon: '🔑', title: 'Login Dual — Público e CRM',
+    sections: [
+      { h: 'Usuário Público (public_users)', items: [
+        'Cadastro com nome, e-mail e senha',
+        'Login via POST /api/public-auth/login',
+        'JWT com type:"public", id do usuário',
+        'Token salvo em localStorage (pesportes_token)',
+        'Acesso às reservas próprias via user_id'
+      ]},
+      { h: 'Usuário CRM (crm_users)', items: [
+        'Login via POST /api/auth/login',
+        'JWT com type:"crm", role, est_id, est_ids[]',
+        'Role determina permissões e filtros automáticos',
+        'Admin: acesso total; Gerente: multi-est; Simples: 1 est'
+      ]},
+      { h: 'Segurança', items: [
+        'Senhas hasheadas com bcryptjs (salt rounds 10)',
+        'JWT com JWT_SECRET (env var, nunca em código)',
+        'Logout limpa token e user do localStorage',
+        'Token inválido → 401 → redirect para login'
+      ]},
+      { h: 'Diferenças entre os dois fluxos', items: [
+        'public_users: clientes finais que fazem reservas',
+        'crm_users: equipe interna de gestão dos espaços',
+        'anyAuth middleware aceita ambos os tokens',
+        'Reservas manuais (CRM) não exigem public_user'
+      ]}
+    ]
+  },
+  'state-ui': {
+    icon: '⚛️', title: 'Estado React & Comunicação com API',
+    sections: [
+      { h: 'Gerenciamento de Estado', items: [
+        'useState para dados locais de componentes',
+        'Sem Redux ou Context API — estado prop-drilling controlado',
+        'crmUser e publicUser no App principal',
+        'page (string) controla qual tela exibir'
+      ]},
+      { h: 'Comunicação com Backend', items: [
+        'fetch() nativo com headers Authorization: Bearer <token>',
+        'Respostas JSON parseadas em cada chamada',
+        'Erros exibidos via showToast() com mensagem do backend',
+        'Base URL: /api/* (relativo, mesma origem monorepo)'
+      ]},
+      { h: 'Persistência Local', items: [
+        'pesportes_token — JWT do usuário logado',
+        'pesportes_user — dados básicos do usuário',
+        'Removidos no logout (localStorage.clear parcial)',
+        'Re-hidratação automática no carregamento da SPA'
+      ]},
+      { h: 'Auditoria', items: [
+        'SPA única (App.jsx) — todo o frontend em um arquivo',
+        'Vite build gera dist/ servido pelo Express',
+        'Rewrite SPA: qualquer rota → index.html no Render',
+        'VITE_API_URL não utilizado (monorepo — relativo /api)'
+      ]}
+    ]
+  },
+  express: {
+    icon: '⚡', title: 'Express Server — API + Frontend Monorepo',
+    sections: [
+      { h: 'Arquitetura Monorepo', items: [
+        'Node.js + Express no diretório raiz',
+        'Serve client/dist/ como arquivos estáticos (frontend)',
+        'API em /api/* com middlewares e rotas',
+        'Comando de start: node index.js (ou server.js)',
+        'Build: npm run build dentro de client/ (Vite)'
+      ]},
+      { h: 'Configuração', items: [
+        'CORS configurado com FRONTEND_URL env var',
+        'express.json() para parsing do body',
+        'Serve index.html para todas as rotas (SPA fallback)',
+        'Porta via PORT env var (Render injeta automaticamente)'
+      ]},
+      { h: 'Estrutura de Arquivos', items: [
+        'routes/ — rotas por domínio (auth, establishments, ...)',
+        'middleware/auth.js — verificação JWT e roles',
+        'db/pool.js — pool de conexão PostgreSQL (pg)',
+        'services/email.js — envio de e-mails (Nodemailer)',
+        'client/ — frontend React (Vite SPA)'
+      ]},
+      { h: 'Auditoria', items: [
+        'Deploy automático via GitHub push na main',
+        'Logs de runtime disponíveis no painel Render',
+        'Sem separação frontend/backend em hosts distintos',
+        'DATABASE_URL e JWT_SECRET via env vars do Render'
+      ]}
+    ]
+  },
+  'auth-mid': {
+    icon: '🔐', title: 'Auth & Middlewares de Autorização',
+    sections: [
+      { h: 'Middlewares Disponíveis', items: [
+        'auth — verifica JWT Bearer (crm_users)',
+        'adminOnly — bloqueia se role !== admin',
+        'adminOrManager — permite admin e manager',
+        'crmOnly — qualquer usuário CRM autenticado',
+        'anyAuth — aceita token público OU CRM'
+      ]},
+      { h: 'Fluxo de Verificação JWT', items: [
+        'Extrai token do header Authorization: Bearer <token>',
+        'Verifica assinatura com jwt.verify(token, JWT_SECRET)',
+        'Popula req.user com id, role, type, est_id, est_ids',
+        'Token inválido ou expirado → 401 Unauthorized'
+      ]},
+      { h: 'Controle de Acesso por Role (CRM)', items: [
+        'admin: acessa todos os dados sem filtro',
+        'manager: filtrado por est_ids[] (array PostgreSQL)',
+        'simples: filtrado por est_id único',
+        'Filtro aplicado automaticamente nas queries SQL'
+      ]},
+      { h: 'Auditoria', items: [
+        'Stateless JWT — sem estado de sessão no servidor',
+        'bcryptjs para hash de senhas (nunca em texto plano)',
+        'est_ids[] no JWT atualizado no próximo login',
+        'Middleware separado por responsabilidade (princípio SRP)'
+      ]}
+    ]
+  },
+  rotas: {
+    icon: '🔀', title: 'Rotas da API REST',
+    sections: [
+      { h: 'Autenticação', items: [
+        'POST /api/auth/login — login CRM (crm_users)',
+        'GET /api/auth/me — dados do usuário CRM logado',
+        'POST /api/public-auth/login — login público',
+        'POST /api/public-auth/register — cadastro público',
+        'GET /api/public-auth/me — dados do usuário público'
+      ]},
+      { h: 'Core do Negócio', items: [
+        'GET/POST/PUT /api/establishments — estabelecimentos',
+        'GET/POST/PUT/DELETE /api/points — quadras/pontos',
+        'GET/POST /api/reservations — reservas (pública)',
+        'POST /api/reservations/manual — reserva sem cadastro',
+        'PATCH /api/reservations/:id/cancel|reschedule — ações'
+      ]},
+      { h: 'Administração', items: [
+        'GET/POST/PUT/DELETE /api/crm-users — usuários do CRM',
+        'GET /api/public-users — usuários públicos (admin)',
+        'GET /api/dashboard — KPIs do dia'
+      ]},
+      { h: 'Regras de Filtro', items: [
+        'Simples: queries filtradas por est_id fixo',
+        'Gerente: queries com = ANY($n) no est_ids[]',
+        'Admin: sem filtro — vê tudo',
+        'Público: vê apenas suas próprias reservas'
+      ]}
+    ]
+  },
+  email: {
+    icon: '📧', title: 'Serviço de E-mail — Nodemailer',
+    sections: [
+      { h: 'Tipos de E-mail Enviados', items: [
+        'Confirmação de reserva — ao criar nova reserva pública',
+        'Cancelamento — ao cancelar (público ou CRM)',
+        'Reagendamento — ao alterar data/hora da reserva',
+        'Lembrete 24h antes — via node-cron (automático)'
+      ]},
+      { h: 'Configuração', items: [
+        'Nodemailer com SMTP (Gmail ou provedor configurado)',
+        'Credenciais via env vars (SMTP_USER, SMTP_PASS)',
+        'Template HTML com dados da reserva embutidos',
+        'Envio assíncrono com .catch(console.error) — não bloqueia'
+      ]},
+      { h: 'Dados do E-mail', items: [
+        'Nome e e-mail do cliente (público ou manual)',
+        'Estabelecimento, quadra, data e horário',
+        'Endereço completo do estabelecimento',
+        'Telefone de contato do estabelecimento'
+      ]},
+      { h: 'Reservas Manuais', items: [
+        'CRM pode criar reserva sem usuário público cadastrado',
+        'Campos client_name, client_phone, client_email na tabela',
+        'E-mail enviado se client_email informado',
+        'user_email = COALESCE(public_user.email, client_email, "")'
+      ]}
+    ]
+  },
+  dashboard: {
+    icon: '📊', title: 'Módulo: Dashboard CRM',
+    sections: [
+      { h: 'KPIs Exibidos', items: [
+        'Total de reservas do dia (por est. do usuário)',
+        'Receita estimada do dia (soma de totais)',
+        'Reservas confirmadas vs. pendentes',
+        'Últimas reservas em tempo real'
+      ]},
+      { h: 'Filtro por Role', items: [
+        'Admin: KPIs de todos os estabelecimentos',
+        'Gerente: KPIs dos seus est. (est_ids[] = ANY)',
+        'Simples: KPIs do seu único est. (est_id)',
+        'Dados carregados via GET /api/dashboard'
+      ]},
+      { h: 'Ações Rápidas', items: [
+        'Atalho para criar nova reserva manual',
+        'Atalho para ver reservas de hoje',
+        'Link para gestão do(s) estabelecimento(s)',
+        'Indicadores de ocupação das quadras'
+      ]},
+      { h: 'Auditoria', items: [
+        'Dados sempre filtrados pelo est. ativo do usuário',
+        'Nenhum dado cross-gerente exibido',
+        'Query dinâmica com estClause no backend',
+        'Atualiza ao recarregar ou trocar de aba'
+      ]}
+    ]
+  },
+  estabelecimentos: {
+    icon: '🏟️', title: 'Módulo: Estabelecimentos',
+    sections: [
+      { h: 'Campos do Cadastro', items: [
+        'Nome, responsável, CPF/CNPJ',
+        'Endereço completo (rua, número, CEP, cidade, estado)',
+        'Telefone, e-mail',
+        'Fotos (array de URLs) + foto principal',
+        'Horário de funcionamento (JSON por dia da semana)',
+        'Divulgação via Unimídia (sim/não)'
+      ]},
+      { h: 'Lógica de Acesso', items: [
+        'Admin: cria e edita qualquer estabelecimento',
+        'Gerente: cria novos (auto-vinculado ao est_ids[])',
+        'Auto-vinculação: array_append(est_ids, novo_id)',
+        'Simples: não pode criar/editar estabelecimentos'
+      ]},
+      { h: 'Unimídia — Divulgação', items: [
+        'Campo unimidia_divulgacao BOOLEAN na tabela',
+        'Dropdown "Sim / Não" no formulário CRM',
+        'Exibido na aba "Quero Divulgar" se ativo',
+        'Integração com API Unimídia prevista (futuro)'
+      ]},
+      { h: 'Auditoria', items: [
+        'Gerente vê apenas seus est. (est_ids[])',
+        'PUT protegido — adminOrManager middleware',
+        'Fotos armazenadas como array de URLs',
+        'operating_hours salvo como JSON stringificado'
+      ]}
+    ]
+  },
+  pontos: {
+    icon: '⚽', title: 'Módulo: Pontos (Quadras & Espaços)',
+    sections: [
+      { h: 'O que é um Ponto', items: [
+        'Quadra, sala, campo, piscina — qualquer espaço reservável',
+        'Vinculado a um estabelecimento (est_id FK)',
+        'Tem nome, descrição, preço por hora',
+        'Pode ter fotos e tipo de esporte'
+      ]},
+      { h: 'Gestão', items: [
+        'Criação e edição via CRM (admin ou gerente dono)',
+        'Listagem por estabelecimento (GET /api/points?est_id=)',
+        'Desativação lógica (sem exclusão com reservas ativas)',
+        'Preço por hora usado para calcular total da reserva'
+      ]},
+      { h: 'Disponibilidade', items: [
+        'Verificação de conflito antes de criar reserva',
+        'Query: start_time < end_novo AND end_time > start_novo',
+        'Status != cancelled não conta como conflito',
+        'Horário disponível exibido no marketplace'
+      ]},
+      { h: 'Auditoria', items: [
+        'Ponto sempre vinculado a um estabelecimento',
+        'Gerente acessa apenas pontos dos seus est.',
+        'Reservas bloqueiam o ponto no horário',
+        'price_per_hour * hours = total da reserva'
+      ]}
+    ]
+  },
+  reservas: {
+    icon: '📅', title: 'Módulo: Reservas',
+    sections: [
+      { h: 'Tipos de Reserva', items: [
+        'Pública: usuário cadastrado no marketplace (POST /api/reservations)',
+        'Manual CRM: cliente sem cadastro (POST /api/reservations/manual)',
+        'Manual exige client_name e client_phone obrigatórios',
+        'Manual pode ter client_email opcional (para e-mail)'
+      ]},
+      { h: 'Ciclo de Vida', items: [
+        'Status: pending → confirmed → completed / cancelled',
+        'Cancelamento: público até 2h antes; CRM sem restrição',
+        'Reagendamento: verificação de conflito no novo horário',
+        'E-mails automáticos em cada transição de status'
+      ]},
+      { h: 'Campos Principais', items: [
+        'point_id, est_id, user_id (nullable), date, start/end_time',
+        'hours, total (calculado), payment_method',
+        'client_name, client_phone, client_email (reservas manuais)',
+        'status: pending | confirmed | completed | cancelled'
+      ]},
+      { h: 'Filtros por Role', items: [
+        'Público: vê apenas suas reservas (user_id = req.user.id)',
+        'Simples CRM: reservas do seu est. (est_id = X)',
+        'Gerente CRM: reservas dos seus est. (est_id = ANY([]))',
+        'Admin: todas as reservas sem filtro'
+      ]}
+    ]
+  },
+  'usuarios-crm': {
+    icon: '👥', title: 'Módulo: Usuários CRM',
+    sections: [
+      { h: 'Roles e Hierarquia', items: [
+        'admin: acesso total; pode criar qualquer role',
+        'manager: gerencia múltiplos est. (est_ids INTEGER[])',
+        'simples: vinculado a um único est. (est_id INTEGER)',
+        'Admin cria gerentes/admins; Gerente cria apenas simples'
+      ]},
+      { h: 'Multi-Estabelecimento (Gerente)', items: [
+        'est_ids: INTEGER[] DEFAULT \'{}\' na tabela crm_users',
+        'Checkboxes no formulário de criação/edição',
+        'est_ids opcional ao criar gerente (cria est. depois)',
+        'Auto-vinculação: ao criar est., gerente é adicionado ao array'
+      ]},
+      { h: 'Operações', items: [
+        'Criação: POST /api/crm-users (admin ou gerente)',
+        'Edição: PUT /api/crm-users/:id (admin apenas)',
+        'Exclusão: DELETE /api/crm-users/:id (admin, exceto auto)',
+        'Senha hasheada; troca opcional na edição (campo vazio = manter)'
+      ]},
+      { h: 'JWT do Usuário CRM', items: [
+        'Payload: { id, role, type:"crm", est_id, est_ids[] }',
+        'est_ids[] incluído no token para filtros sem nova query',
+        'Token atualizado no próximo login após mudança de est_ids',
+        'Expiração configurável via JWT_SECRET + expiresIn'
+      ]}
+    ]
+  },
+  unimidia: {
+    icon: '📺', title: 'Módulo: Quero Divulgar (Unimídia)',
+    sections: [
+      { h: 'Funcionalidade Atual', items: [
+        'Aba "📺 Quero Divulgar" visível para admin e gerente',
+        'Exibe status de divulgação dos estabelecimentos do usuário',
+        'Lista espaços de mídia disponíveis (mock — 4 cards)',
+        'Botão "Solicitar Proposta" em cada espaço de mídia'
+      ]},
+      { h: 'Espaços de Mídia (Mock)', items: [
+        'TV Sport — Rede de Bares Esportivos (Televisão)',
+        'Painéis LED — Academias Parceiras (Painel Digital)',
+        'Mídia Indoor — Estádios e Ginásios (Telão / Display)',
+        'Rádio Esportiva Digital (Áudio / Streaming)'
+      ]},
+      { h: 'Integração com Estabelecimentos', items: [
+        'Campo unimidia_divulgacao no cadastro do estabelecimento',
+        'Módulo verifica quais est. do gerente estão opt-in',
+        'Aviso se nenhum estabelecimento optou pela divulgação',
+        'Opt-in via dropdown "Sim" no formulário do estabelecimento'
+      ]},
+      { h: 'Roadmap — Integração Real', items: [
+        'API Unimídia a ser desenvolvida (em negociação)',
+        'Substituir UNIMIDIA_MOCK[] por chamada à API real',
+        'Autenticação OAuth ou API Key com a Unimídia',
+        'Contratação de espaço de mídia direto pela plataforma'
+      ]}
+    ]
+  },
+  postgres: {
+    icon: '🗄️', title: 'Banco de Dados — PostgreSQL no Neon.tech',
+    sections: [
+      { h: 'Provedor', items: [
+        'Neon.tech — PostgreSQL serverless',
+        'Conexão via DATABASE_URL (env var no Render)',
+        'Pool de conexões com node-postgres (pg)',
+        'SSL obrigatório (rejectUnauthorized: false)'
+      ]},
+      { h: 'Características', items: [
+        'Banco serverless com auto-scaling',
+        'Branching para ambientes de dev/prod',
+        'Backups automáticos pela plataforma',
+        'Sem custo de instância ociosa (serverless)'
+      ]},
+      { h: 'Migrações', items: [
+        'Scripts SQL manuais em db/migrate_*.sql',
+        'Executados no SQL Editor do Neon',
+        'Sem ORM — SQL puro via pool.query()',
+        'ALTER TABLE com IF NOT EXISTS para segurança'
+      ]},
+      { h: 'Auditoria', items: [
+        'Credenciais apenas em variáveis de ambiente',
+        'Conexão criptografada (TLS/SSL)',
+        'Query logging disponível no painel Neon',
+        'DATABASE_URL gerenciada no Render (nunca em código)'
+      ]}
+    ]
+  },
+  tabelas: {
+    icon: '📑', title: 'Esquema do Banco de Dados',
+    sections: [
+      { h: 'Tabelas de Usuários', items: [
+        'crm_users — equipe interna (admin/manager/simples)',
+        '  └ id, name, email, password_hash, role, est_id, est_ids[], created_at',
+        'public_users — clientes do marketplace',
+        '  └ id, name, email, password_hash, created_at'
+      ]},
+      { h: 'Tabelas de Negócio', items: [
+        'establishments — espaços esportivos',
+        '  └ id, name, responsible, cpf_cnpj, address, phone, email,',
+        '    photos[], main_photo, operating_hours (JSON), unimidia_divulgacao',
+        'points — quadras/salas por estabelecimento',
+        '  └ id, est_id (FK), name, description, price_per_hour, photos[]'
+      ]},
+      { h: 'Tabela de Reservas', items: [
+        'reservations — todas as reservas do sistema',
+        '  └ id, point_id (FK), est_id (FK), user_id (FK nullable)',
+        '  └ date, start_time, end_time, hours, total',
+        '  └ payment_method, status (pending/confirmed/completed/cancelled)',
+        '  └ client_name, client_phone, client_email (reservas manuais)'
+      ]},
+      { h: 'Auditoria e Relacionamentos', items: [
+        'created_at / updated_at nas tabelas principais',
+        'est_ids INTEGER[] em crm_users para multi-estabelecimento',
+        'user_id nullable em reservations (reservas manuais)',
+        'COALESCE(pu.name, r.client_name) nas queries de listagem'
+      ]}
+    ]
+  },
+  cron: {
+    icon: '⏰', title: 'Cron Jobs — Automações com node-cron',
+    sections: [
+      { h: 'Jobs Configurados', items: [
+        'Lembrete 24h antes: e-mail para cliente com detalhes da reserva',
+        'Execução a cada minuto (verificação incremental)',
+        'Filtra reservas com date = amanhã e status != cancelled',
+        'Envia e-mail via sendReminderEmail() do service'
+      ]},
+      { h: 'Funcionamento', items: [
+        'node-cron schedule("* * * * *", callback)',
+        'Query: reservations com data = NOW() + 1 dia',
+        'Evita reenvio com coluna reminder_sent (boolean)',
+        'Assíncrono — falha no e-mail não afeta o sistema'
+      ]},
+      { h: 'E-mail de Lembrete', items: [
+        'Contém: estabelecimento, quadra, data, horário',
+        'Link de cancelamento ou reagendamento',
+        'Endereço completo para facilitar o deslocamento',
+        'Envia para user_email (público) ou client_email (manual)'
+      ]},
+      { h: 'Auditoria', items: [
+        'Job inicia junto com o servidor Express',
+        'Logs de envio no console do Render',
+        'Falhas de SMTP logadas mas não retentadas',
+        'Sem job scheduler externo — integrado ao processo Node'
+      ]}
+    ]
+  },
+  render: {
+    icon: '🚀', title: 'Render.com — Hospedagem',
+    sections: [
+      { h: 'Web Service (Monorepo)', items: [
+        'Serviço único: pesportes-app (Web Service Node)',
+        'Build Command: npm install && npm run build',
+        'Start Command: node index.js (ou server.js)',
+        'Build instala deps e executa Vite build no client/'
+      ]},
+      { h: 'Servindo Frontend + Backend', items: [
+        'Express serve client/dist/ como arquivos estáticos',
+        'Regra SPA: rota não-API → client/dist/index.html',
+        'API em /api/* roteada pelo Express normalmente',
+        'Sem necessidade de Static Site separado'
+      ]},
+      { h: 'Configurações Críticas', items: [
+        'DATABASE_URL — conexão Neon PostgreSQL',
+        'JWT_SECRET — assinatura dos tokens',
+        'FRONTEND_URL — origem CORS permitida',
+        'SMTP_USER / SMTP_PASS — credenciais de e-mail',
+        'Auto-deploy vinculado ao GitHub main branch'
+      ]},
+      { h: 'Auditoria', items: [
+        'Logs de deploy e runtime no painel Render',
+        'Histórico de builds disponível (rollback manual)',
+        'HTTPS provisionado automaticamente pelo Render',
+        'Plano free: pode adormecer após 15 min de inatividade'
+      ]}
+    ]
+  },
+  github: {
+    icon: '🐙', title: 'GitHub — Repositório & CI/CD',
+    sections: [
+      { h: 'Repositório', items: [
+        'github.com/rafapezzutti/pesportes-app',
+        'Monorepo: raiz (Node/Express) + client/ (React/Vite)',
+        'Branch principal: main',
+        'Push na main → deploy automático no Render'
+      ]},
+      { h: 'Estrutura de Arquivos', items: [
+        'routes/ — módulos da API por domínio',
+        'middleware/ — auth, roles',
+        'db/ — pool, migrações SQL',
+        'services/ — email.js',
+        'client/src/App.jsx — frontend completo (SPA)',
+        'client/dist/ — build gerado (não commitado)'
+      ]},
+      { h: 'Fluxo de Deploy', items: [
+        'git push origin main',
+        'Render detecta mudança e inicia novo build',
+        'npm install → npm run build (Vite) → node index.js',
+        'Zero downtime deploy (blue/green no Render)'
+      ]},
+      { h: 'Auditoria', items: [
+        'Histórico completo de commits e autores',
+        'Nenhuma credencial sensível no repositório',
+        '.gitignore inclui .env e node_modules',
+        'db/migrate_*.sql versionados para rastreabilidade'
+      ]}
+    ]
+  },
+  dominio: {
+    icon: '🌍', title: 'Domínio & DNS — pesportes.ia.br',
+    sections: [
+      { h: 'Domínio', items: [
+        'pesportes.ia.br registrado no Registro.br',
+        'Proprietário: rafael.pezzutti@gmail.com',
+        'TLD: .ia.br (Internet Avançada do Brasil)'
+      ]},
+      { h: 'Configuração DNS', items: [
+        'CNAME @ → pesportes-app.onrender.com',
+        'Configurado via painel Registro.br',
+        'Propagação DNS: até 24-48h após configuração',
+        'Verificar domínio no painel Render após propagação'
+      ]},
+      { h: 'URLs do Sistema', items: [
+        'Frontend: pesportes-app.onrender.com',
+        'Domínio customizado: pesportes.ia.br',
+        'Backend na mesma URL (monorepo) — /api/*',
+        'FRONTEND_URL=https://pesportes.ia.br no Render'
+      ]},
+      { h: 'Auditoria', items: [
+        'TLS/HTTPS provisionado automaticamente pelo Render',
+        'Renovação automática de certificado SSL',
+        'Sem subdomínio separado para API (monorepo)',
+        'DNS propagation check: whatsmydns.net'
+      ]}
+    ]
+  },
+  envvars: {
+    icon: '🔧', title: 'Configuração, Variáveis de Ambiente & Segurança',
+    sections: [
+      { h: 'Variáveis de Ambiente (Render)', items: [
+        'DATABASE_URL — conexão PostgreSQL Neon (SSL)',
+        'JWT_SECRET — chave de assinatura dos JWTs',
+        'FRONTEND_URL — origem permitida no CORS',
+        'SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS — e-mail',
+        'PORT — porta do servidor (injetada pelo Render)'
+      ]},
+      { h: 'Segurança Geral', items: [
+        'Nenhuma credencial no código-fonte (GitHub)',
+        'Senhas com bcryptjs (hash + salt rounds 10)',
+        'JWT stateless com expiração configurável',
+        'CORS restrito ao domínio do frontend (FRONTEND_URL)'
+      ]},
+      { h: 'Autenticação Dupla', items: [
+        'JWT type:"public" — marketplace (public_users)',
+        'JWT type:"crm" — equipe interna (crm_users)',
+        'anyAuth aceita os dois tipos (ex: GET /reservations)',
+        'crmOnly bloqueia tokens de tipo "public"'
+      ]},
+      { h: 'Auditoria', items: [
+        'Variáveis gerenciadas exclusivamente no painel Render',
+        'Rotação de JWT_SECRET invalida todas as sessões ativas',
+        'DATABASE_URL nunca logada nem exposta em respostas',
+        'SMTP_PASS nunca retornada em endpoints da API'
+      ]}
+    ]
+  }
+};
+
+let activeCard = null;
+
+function showDetail(id) {
+  const panel = document.getElementById('detail-panel');
+  const titleEl = document.getElementById('detail-title');
+  const gridEl = document.getElementById('detail-grid');
+  const cardEl = document.getElementById('card-' + id);
+
+  if (activeCard) {
+    document.getElementById('card-' + activeCard)?.classList.remove('active');
+    if (activeCard === id) {
+      panel.classList.add('hidden');
+      activeCard = null;
+      return;
+    }
+  }
+
+  activeCard = id;
+  cardEl.classList.add('active');
+
+  const d = details[id];
+  if (!d) return;
+
+  titleEl.innerHTML = d.icon + ' ' + d.title;
+  gridEl.innerHTML = d.sections.map(s => `
+    <div class="detail-section">
+      <h4>${s.h}</h4>
+      <ul>${s.items.map(i => `<li>${i}</li>`).join('')}</ul>
+    </div>
+  `).join('');
+
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+</body>
+</html>
