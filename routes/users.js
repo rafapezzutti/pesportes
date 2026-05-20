@@ -1,12 +1,10 @@
 const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const pool   = require('../db/pool');
-const { auth, adminOnly } = require('../middleware/auth');
-
-router.use(auth, adminOnly);
+const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 
 // ── GET /api/crm-users ───────────────────────────────────────────
-router.get('/', async (req, res) => {
+router.get('/', auth, adminOrManager, async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT cu.id, cu.name, cu.email, cu.role, cu.est_id,
@@ -22,14 +20,20 @@ router.get('/', async (req, res) => {
 });
 
 // ── POST /api/crm-users ──────────────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', auth, adminOrManager, async (req, res) => {
   const { name, email, password, role, est_id } = req.body;
   if (!name || !email || !password)
     return res.status(400).json({ error: 'name, email e password obrigatórios' });
   if (password.length < 6)
     return res.status(400).json({ error: 'Senha mínima: 6 caracteres' });
-  if (!['admin', 'manager', 'simples'].includes(role))
-    return res.status(400).json({ error: 'Role inválido' });
+
+  // Gerente só pode criar usuário simples
+  const allowedRoles = req.user.role === 'admin'
+    ? ['admin', 'manager', 'simples']
+    : ['simples'];
+  if (!allowedRoles.includes(role))
+    return res.status(403).json({ error: 'Você só pode criar usuários do tipo Simples' });
+
   if (role !== 'admin' && !est_id)
     return res.status(400).json({ error: 'Gerentes e usuários simples precisam de um estabelecimento' });
 
@@ -49,8 +53,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ── PUT /api/crm-users/:id ───────────────────────────────────────
-router.put('/:id', async (req, res) => {
+// ── PUT /api/crm-users/:id — somente admin ───────────────────────
+router.put('/:id', auth, adminOnly, async (req, res) => {
   const { name, email, password, role, est_id } = req.body;
   if (!['admin', 'manager', 'simples'].includes(role))
     return res.status(400).json({ error: 'Role inválido' });
@@ -80,8 +84,8 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// ── DELETE /api/crm-users/:id ────────────────────────────────────
-router.delete('/:id', async (req, res) => {
+// ── DELETE /api/crm-users/:id — somente admin ───────────────────
+router.delete('/:id', auth, adminOnly, async (req, res) => {
   try {
     if (Number(req.params.id) === req.user.id)
       return res.status(400).json({ error: 'Você não pode excluir sua própria conta' });

@@ -51,4 +51,11 @@ function anyAuth(req, res, next) {
   }
 }
 
-module.exports = { auth, crmOnly, adminOnly, anyAuth };
+/** Admin ou Gerente */
+function adminOrManager(req, res, next) {
+  if (req.user?.type !== 'crm' || !['admin','manager'].includes(req.user?.role))
+    return res.status(403).json({ error: 'Acesso restrito a Administradores e Gerentes' });
+  next();
+}
+
+module.exports = { auth, crmOnly, adminOnly, adminOrManager, anyAuth };

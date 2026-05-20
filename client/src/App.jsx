@@ -87,7 +87,7 @@ function Inp({value,onChange,placeholder,type='text',className='',disabled=false
 }
 
 function Sel({value,onChange,options,placeholder}){
-  return<select value={value} onChange={onChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">{placeholder&&<option value="">{placeholder}</option>}{options.map(o=>{const v=typeof o==='string'?o:o.value;const l=typeof o==='string'?o:o.label;return<option key={v} value={v}>{l}</option>;})}</select>;
+  return<select value={value} onChange={onChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">{placeholder&&<option value="">{placeholder}</option>}{options.map(o=>{const v=typeof o==='string'?o:o.value;const l=typeof o==='string'?o:o.label;return<option key={v} value={v}>{l}</option>;})}</select>;
 }
 
 function Modal({open,onClose,title,children,maxW='max-w-lg'}){
@@ -334,9 +334,9 @@ function CRMLayout({crmUser,page,navigate,onLogout,children}){
   const menu=[
     {key:'crm-dashboard',    label:'Dashboard',      icon:'📊',roles:['admin','manager']},
     {key:'crm-reservations', label:'Reservas',       icon:'📅',roles:['admin','manager','simples']},
-    {key:'crm-establishment',label:'Estabelecimento',icon:'🏢',roles:['admin']},
-    {key:'crm-points',       label:'Pontos',         icon:'📍',roles:['admin']},
-    {key:'crm-users',        label:'Usuários',       icon:'👥',roles:['admin']},
+    {key:'crm-establishment',label:'Estabelecimentos',icon:'🏢',roles:['admin','manager']},
+    {key:'crm-points',       label:'Pontos',         icon:'📍',roles:['admin','manager']},
+    {key:'crm-users',        label:'Usuários',       icon:'👥',roles:['admin','manager']},
   ].filter(m=>m.roles.includes(crmUser.role));
   const roleLabel={admin:'Administrador',manager:'Gerente',simples:'Usuário Simples'};
   return<div className="min-h-screen bg-gray-100 flex"><aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-0.5">{menu.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</nav><div className="p-3 border-t border-gray-100 space-y-2"><div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{roleLabel[crmUser.role]||crmUser.role}</p></div><Btn variant="ghost" size="sm" onClick={onLogout} className="w-full text-gray-500">Sair do CRM</Btn></div></aside><main className="flex-1 overflow-auto">{children}</main></div>;
@@ -509,13 +509,16 @@ function CRMPoints({crmUser,showToast}){
   const [points,setPoints]=useState([]);
   const [ests,setEsts]=useState([]);
   const [loading,setLoading]=useState(true);
+  const [estSearch,setEstSearch]=useState('');
   const [showForm,setShowForm]=useState(false);
   const [editPt,setEditPt]=useState(null);
   const [f,setF]=useState({est_id:'',type:'',name:'',price_per_hour:'',custom_hours:null});
   const [customH,setCustomH]=useState(false);
   const [delPt,setDelPt]=useState(null);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
-  const isAdmin=crmUser.role==='admin';
+  const isAdmin=crmUser?.role==='admin';
+  const isManager=crmUser?.role==='manager';
+  const canEdit=isAdmin||isManager;
 
   const load=()=>{
     Promise.all([pointApi.list(),estApi.list()]).then(([p,e])=>{setPoints(p);setEsts(e);}).catch(()=>{}).finally(()=>setLoading(false));
@@ -542,7 +545,8 @@ function CRMPoints({crmUser,showToast}){
 
   if(loading)return<Spinner/>;
 
-  return<div className="p-6"><div className="flex items-center justify-between mb-6"><h1 className="text-2xl font-black text-gray-900">Pontos / Espaços</h1>{isAdmin&&<Btn onClick={openNew}>+ Novo Ponto</Btn>}</div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{points.map(pt=><div key={pt.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm"><div className="flex items-start justify-between mb-2"><div className="min-w-0"><h3 className="font-bold text-gray-800 truncate">{pt.name}</h3><p className="text-xs text-gray-500 mt-0.5">{pt.type}</p></div><div className="text-right shrink-0 ml-2"><p className="text-emerald-600 font-black text-lg">{fmt$(pt.price_per_hour)}</p><p className="text-xs text-gray-400">/hora</p></div></div><p className="text-xs text-gray-400 mb-3">{pt.custom_hours?'⏰ Horário próprio':'📋 Herda do estabelecimento'}</p>{isAdmin&&<div className="flex gap-2"><Btn variant="secondary" size="sm" onClick={()=>openEdit(pt)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelPt(pt)}>Excluir</Btn></div>}</div>)}{points.length===0&&<div className="col-span-3 text-center py-16 text-gray-400"><p className="text-4xl mb-2">📍</p><p>Nenhum ponto cadastrado</p></div>}</div><Modal open={showForm} onClose={()=>setShowForm(false)} title={editPt?'Editar Ponto':'Novo Ponto'} maxW="max-w-xl"><div className="space-y-4"><Field label="Estabelecimento" required><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/></Field><Field label="Tipo de Espaço" required><Sel value={f.type} onChange={e=>upd('type',e.target.value)} options={ESTABLISHMENT_TYPES} placeholder="Selecione..."/></Field><Field label="Nome do Ponto" required><Inp value={f.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Valor por hora (R$)" required><Inp type="number" value={f.price_per_hour} onChange={e=>upd('price_per_hour',Number(e.target.value))}/></Field><div className="bg-amber-50 border border-amber-100 rounded-xl p-3"><label className="flex items-start gap-2.5 cursor-pointer"><input type="checkbox" checked={customH} onChange={e=>setCustomH(e.target.checked)} className="w-4 h-4 accent-emerald-600 mt-0.5"/><div><p className="text-sm font-medium text-gray-700">Horário próprio para este ponto</p><p className="text-xs text-gray-400">Por padrão herda do estabelecimento</p></div></label></div>{customH&&<HoursEditor value={f.custom_hours||{...DEFAULT_HOURS}} onChange={v=>upd('custom_hours',v)}/>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn><Btn className="flex-1" onClick={save}>Salvar</Btn></div></div></Modal><Modal open={!!delPt} onClose={()=>setDelPt(null)} title="Confirmar Exclusão"><p className="text-sm text-gray-600 mb-5">Excluir <strong>"{delPt?.name}"</strong>?</p><div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelPt(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={()=>del(delPt.id)}>Excluir</Btn></div></Modal></div>;
+  const filteredPts=estSearch?points.filter(pt=>(pt.est_name||'').toLowerCase().includes(estSearch.toLowerCase())):points;
+  return<div className="p-6"><div className="flex items-center justify-between mb-6"><h1 className="text-2xl font-black text-gray-900">Pontos / Espaços</h1>{canEdit&&<Btn onClick={openNew}>+ Novo Ponto</Btn>}</div><div className="bg-white rounded-2xl border border-gray-100 p-3 mb-5 flex items-center gap-2"><span className="text-gray-400">🔍</span><input value={estSearch} onChange={e=>setEstSearch(e.target.value)} placeholder="Buscar por estabelecimento..." className="flex-1 text-sm outline-none placeholder-gray-400"/>{estSearch&&<button onClick={()=>setEstSearch('')} className="text-xs text-gray-400 hover:text-gray-600">✕</button>}</div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{filteredPts.map(pt=><div key={pt.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm"><div className="flex items-start justify-between mb-2"><div className="min-w-0"><h3 className="font-bold text-gray-800 truncate">{pt.name}</h3><p className="text-xs text-gray-500 mt-0.5">{pt.type}</p></div><div className="text-right shrink-0 ml-2"><p className="text-emerald-600 font-black text-lg">{fmt$(pt.price_per_hour)}</p><p className="text-xs text-gray-400">/hora</p></div></div><p className="text-xs text-gray-400 mb-3">{pt.custom_hours?'⏰ Horário próprio':'📋 Herda do estabelecimento'}</p>{canEdit&&<div className="flex gap-2"><Btn variant="secondary" size="sm" onClick={()=>openEdit(pt)}>Editar</Btn>{isAdmin&&<Btn variant="danger" size="sm" onClick={()=>setDelPt(pt)}>Excluir</Btn>}</div>}</div>)}{points.length===0&&<div className="col-span-3 text-center py-16 text-gray-400"><p className="text-4xl mb-2">📍</p><p>Nenhum ponto cadastrado</p></div>}</div><Modal open={showForm} onClose={()=>setShowForm(false)} title={editPt?'Editar Ponto':'Novo Ponto'} maxW="max-w-xl"><div className="space-y-4"><Field label="Estabelecimento" required><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/></Field><Field label="Tipo de Espaço" required><Sel value={f.type} onChange={e=>upd('type',e.target.value)} options={ESTABLISHMENT_TYPES} placeholder="Selecione..."/></Field><Field label="Nome do Ponto" required><Inp value={f.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Valor por hora (R$)" required><Inp type="number" value={f.price_per_hour} onChange={e=>upd('price_per_hour',Number(e.target.value))}/></Field><div className="bg-amber-50 border border-amber-100 rounded-xl p-3"><label className="flex items-start gap-2.5 cursor-pointer"><input type="checkbox" checked={customH} onChange={e=>setCustomH(e.target.checked)} className="w-4 h-4 accent-emerald-600 mt-0.5"/><div><p className="text-sm font-medium text-gray-700">Horário próprio para este ponto</p><p className="text-xs text-gray-400">Por padrão herda do estabelecimento</p></div></label></div>{customH&&<HoursEditor value={f.custom_hours||{...DEFAULT_HOURS}} onChange={v=>upd('custom_hours',v)}/>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn><Btn className="flex-1" onClick={save}>Salvar</Btn></div></div></Modal><Modal open={!!delPt} onClose={()=>setDelPt(null)} title="Confirmar Exclusão"><p className="text-sm text-gray-600 mb-5">Excluir <strong>"{delPt?.name}"</strong>?</p><div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelPt(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={()=>del(delPt.id)}>Excluir</Btn></div></Modal></div>;
 }
 
 // ================================================================
@@ -552,16 +556,21 @@ const ROLE_OPTS=[{value:'admin',label:'Administrador — acesso total'},{value:'
 const ROLE_BADGE={admin:'blue',manager:'green',simples:'gray'};
 const ROLE_NAME={admin:'Administrador',manager:'Gerente',simples:'Simples'};
 
-function CRMUsers({showToast}){
+function CRMUsers({crmUser,showToast}){
   const [users,setUsers]=useState([]);
   const [ests,setEsts]=useState([]);
   const [loading,setLoading]=useState(true);
+  const [estSearch,setEstSearch]=useState('');
   const [showForm,setShowForm]=useState(false);
   const [editU,setEditU]=useState(null);
   const [f,setF]=useState({name:'',email:'',password:'',pw2:'',role:'manager',est_id:''});
   const [err,setErr]=useState({});
   const [delU,setDelU]=useState(null);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
+  const isAdmin=crmUser?.role==='admin';
+  const ROLE_OPTS=isAdmin
+    ?[{value:'admin',label:'Administrador — acesso total'},{value:'manager',label:'Gerente — vários estabelecimentos'},{value:'simples',label:'Usuário Simples — somente reservas'}]
+    :[{value:'simples',label:'Usuário Simples — somente reservas'}];
   const needsEst=f.role!=='admin';
 
   const load=()=>{
@@ -569,7 +578,7 @@ function CRMUsers({showToast}){
   };
   useEffect(()=>{load();},[]);
 
-  const openNew=()=>{setF({name:'',email:'',password:'',pw2:'',role:'manager',est_id:ests[0]?.id||''});setEditU(null);setErr({});setShowForm(true);};
+  const openNew=()=>{setF({name:'',email:'',password:'',pw2:'',role:isAdmin?'manager':'simples',est_id:ests[0]?.id||''});setEditU(null);setErr({});setShowForm(true);};
   const openEdit=(u)=>{setF({name:u.name,email:u.email,password:'',pw2:'',role:u.role,est_id:u.est_id||''});setEditU(u);setErr({});setShowForm(true);};
 
   const validate=()=>{
@@ -607,7 +616,7 @@ function CRMUsers({showToast}){
       <td className="px-4 py-3 text-gray-500">{u.email}</td>
       <td className="px-4 py-3"><Badge color={ROLE_BADGE[u.role]||'gray'}>{ROLE_NAME[u.role]||u.role}</Badge></td>
       <td className="px-4 py-3 text-gray-500 text-xs">{u.est_name||<span className="italic text-gray-300">—</span>}</td>
-      <td className="px-4 py-3"><div className="flex gap-2 justify-end"><Btn variant="secondary" size="sm" onClick={()=>openEdit(u)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelU(u)}>Excluir</Btn></div></td>
+      <td className="px-4 py-3"><div className="flex gap-2 justify-end">{isAdmin&&<><Btn variant="secondary" size="sm" onClick={()=>openEdit(u)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelU(u)}>Excluir</Btn></>}</div></td>
     </tr>)}</tbody></table>
     {users.length===0&&<div className="text-center py-12 text-gray-400">Nenhum usuário</div>}
   </div>
@@ -921,7 +930,7 @@ export default function App(){
       'crm-dashboard':    <CRMDashboard/>,
       'crm-establishment':<CRMEstablishment showToast={showToast}/>,
       'crm-points':       <CRMPoints crmUser={crmUser} showToast={showToast}/>,
-      'crm-users':        <CRMUsers showToast={showToast}/>,
+      'crm-users':        <CRMUsers crmUser={crmUser} showToast={showToast}/>,
       'crm-reservations': <CRMReservations showToast={showToast}/>,
     };
     return<><Toast toast={toast}/><CRMLayout crmUser={crmUser} page={page} navigate={navigate} onLogout={crmLogout}>{pages[page]||pages['crm-dashboard']}</CRMLayout></>;

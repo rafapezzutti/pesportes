@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const { auth, adminOnly } = require('../middleware/auth');
+const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 
 // Campos públicos (visíveis no marketplace)
 const PUBLIC_COLS = `id, name, street, number, complement, cep, city, state,
@@ -46,7 +46,7 @@ router.get('/:id/full', auth, async (req, res) => {
 });
 
 // ── POST /api/establishments — criar (admin) ─────────────────────
-router.post('/', auth, adminOnly, async (req, res) => {
+router.post('/', auth, adminOrManager, async (req, res) => {
   const {
     name, responsible, cpf_cnpj, street, number, complement,
     cep, city, state, phone, email, photos, main_photo, operating_hours
@@ -74,7 +74,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
 });
 
 // ── PUT /api/establishments/:id — atualizar (admin) ─────────────
-router.put('/:id', auth, adminOnly, async (req, res) => {
+router.put('/:id', auth, adminOrManager, async (req, res) => {
   const {
     name, responsible, cpf_cnpj, street, number, complement,
     cep, city, state, phone, email, photos, main_photo, operating_hours
