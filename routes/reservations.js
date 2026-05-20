@@ -186,3 +186,53 @@ router.patch('/:id', auth, crmOnly, async (req, res) => {
 });
 
 module.exports = router;
+
+// ── POST /api/reservations/manual — CRM cria reserva por cliente ─
+router.post('/manual', auth, crmOnly, async (req, res) => {
+  const { point_id, est_id, date, start_time, end_time, hours, payment_method, user_email } = req.body;
+  if (!point_id || !est_id || !date || !start_time || !end_time || !hours || !user_email)
+    return res.status(400).json({ error: 'Campos obrigatórios faltando' });
+
+  try {
+    // Busca usuário público pelo email
+    const { rows: userRows } = await pool.query(
+      'SELECT id, name, email FROM public_users WHERE email = $1', [user_email.toLowerCase()]
+    );
+    if (!userRows.length)
+      return res.status(404).json({ error: 'Usuário público não encontrado com esse email' });
+    const user_id = userRows[0].id;
+
+    // Verifica conflito
+    const { rows: conflicts } = await pool.query(`
+      SELECT id FROM reservations
+      WHERE point_id=$1 AND date=$2 AND status != 'cancelled'
+        AND start_time < $4 AND end_time > $3
+    `, [point_id, date, start_time, end_time]);
+    if (conflicts.length)
+      return res.status(409).json({ error: 'Horário indisponível — já existe uma reserva' });
+
+    // Calcula total
+    const { rows: ptRows } = await pool.query(
+      'SELECT price_per_hour FROM points WHERE id=$1', [point_id]
+    );
+    if (!ptRows.length) return res.status(404).json({ error: 'Ponto não encontrado' });
+    const total = ptRows[0].price_per_hour * hours;
+
+    const pm = ['pix','credito','debito','dinheiro'].includes(payment_method) ? payment_method : 'dinheiro';
+
+    const { rows } = await pool.query(`
+      INSERT INTO reservations (point_id, est_id, user_id, date, start_time, end_time, hours, total, payment_method)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [point_id, est_id, user_id, date, start_time, end_time, hours, total, pm]
+    );
+
+    const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [rows[0].id]);
+    const reservation = full[0];
+
+    sendConfirmationEmail(reservation, reservation.user_email).catch(console.error);
+    res.status(201).json(reservation);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao criar reserva manual' });
+  }
+});

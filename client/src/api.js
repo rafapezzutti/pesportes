@@ -80,6 +80,7 @@ export const resApi = {
   cancel:     (id)                   => patch(`/reservations/${id}/cancel`),
   reschedule: (id, date, s, e, h)    => patch(`/reservations/${id}/reschedule`, { date, start_time: s, end_time: e, hours: h }),
   setStatus:  (id, status)           => patch(`/reservations/${id}`, { status }),
+  manualCreate: (data)               => post('/reservations/manual', data),
 };
 
 // ── Token helpers ─────────────────────────────────────────────────

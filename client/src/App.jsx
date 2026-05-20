@@ -637,13 +637,23 @@ function CRMReservations({showToast}){
   const [newSlots,setNewSlots]=useState([]);
   const [rSlots,setRSlots]=useState([]);
 
+  // ── Nova reserva manual ──
+  const [showManual,setShowManual]=useState(false);
+  const MBL={email:'',userId:null,userName:'',estId:'',pointId:'',date:'',slots:[],pm:'dinheiro'};
+  const [mb,setMb]=useState(MBL);
+  const [mbEsts,setMbEsts]=useState([]);
+  const [mbPoints,setMbPoints]=useState([]);
+  const [mbSlots,setMbSlots]=useState([]);
+  const [mbSearching,setMbSearching]=useState(false);
+  const [mbSaving,setMbSaving]=useState(false);
+  const updMb=(k,v)=>setMb(m=>({...m,[k]:v}));
+
   const load=useCallback(()=>{
     const params={};
     if(dateF)params.date=dateF;
     if(statusF)params.status=statusF;
     resApi.list(params).then(setReservations).catch(()=>{}).finally(()=>setLoading(false));
   },[dateF,statusF]);
-
   useEffect(()=>{load();},[load]);
 
   useEffect(()=>{
@@ -651,6 +661,62 @@ function CRMReservations({showToast}){
     pointApi.slots(reschRes.point_id,newDate).then(setRSlots).catch(()=>setRSlots([]));
     setNewSlots([]);
   },[reschRes,newDate]);
+
+  // Carrega ests/points para modal manual
+  useEffect(()=>{
+    if(!showManual)return;
+    estApi.list().then(setMbEsts).catch(()=>{});
+  },[showManual]);
+  useEffect(()=>{
+    if(!mb.estId){setMbPoints([]);updMb('pointId','');return;}
+    pointApi.list(mb.estId).then(setMbPoints).catch(()=>{});
+    updMb('pointId','');
+  },[mb.estId]);
+  useEffect(()=>{
+    if(!mb.pointId||!mb.date){setMbSlots([]);updMb('slots',[]);return;}
+    pointApi.slots(mb.pointId,mb.date).then(setMbSlots).catch(()=>setMbSlots([]));
+    updMb('slots',[]);
+  },[mb.pointId,mb.date]);
+
+  const searchUser=async()=>{
+    if(!mb.email)return;
+    setMbSearching(true);
+    try{
+      // Tentamos criar reserva vazia só pra verificar — na verdade chamamos /auth/me não,
+      // usamos um endpoint de listagem de reservas do usuário. Melhor: buscamos pelo email
+      // via GET /api/reservations?userEmail — mas não existe. Usaremos manualCreate com
+      // campos vazios e capturamos o erro 404 para saber se existe.
+      // Alternativa: endpoint público de busca. Por ora usamos o fluxo de tentar criar.
+      // Simplificação: apenas validamos email no save, aqui apenas marcamos como buscado.
+      updMb('userId','?');updMb('userName',mb.email);
+    }finally{setMbSearching(false);}
+  };
+
+  const toggleMbSlot=(s)=>{
+    if(!s.available)return;
+    setMb(m=>{
+      const prev=m.slots;
+      const next=prev.includes(s.time)?prev.filter(t=>t!==s.time):[...prev,s.time].sort();
+      for(let i=1;i<next.length;i++){if(parseInt(next[i])-parseInt(next[i-1])!==1)return m;}
+      return{...m,slots:next};
+    });
+  };
+
+  const saveManual=async()=>{
+    if(!mb.email||!mb.estId||!mb.pointId||!mb.date||!mb.slots.length){showToast('Preencha todos os campos','error');return;}
+    const s=mb.slots[0];
+    const e=`${String(parseInt(mb.slots[mb.slots.length-1])+1).padStart(2,'0')}:00`;
+    setMbSaving(true);
+    try{
+      await resApi.manualCreate({
+        point_id:Number(mb.pointId),est_id:Number(mb.estId),
+        date:mb.date,start_time:s,end_time:e,hours:mb.slots.length,
+        payment_method:mb.pm,user_email:mb.email,
+      });
+      showToast('Reserva criada com sucesso!','success');
+      setShowManual(false);setMb(MBL);load();
+    }catch(err){showToast(err.message,'error');}finally{setMbSaving(false);}
+  };
 
   const toggleSlot=(s)=>{
     if(!s.available)return;
@@ -674,10 +740,91 @@ function CRMReservations({showToast}){
   };
 
   const dateStr=r=>typeof r.date==='string'?r.date:r.date.toISOString().split('T')[0];
+  const PAY_OPTS=[{value:'pix',label:'Pix'},{value:'credito',label:'Crédito'},{value:'debito',label:'Débito'},{value:'dinheiro',label:'Dinheiro'}];
 
-  return<div className="p-6"><h1 className="text-2xl font-black text-gray-900 mb-6">Gestão de Reservas</h1><div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-4 items-end"><div><p className="text-xs text-gray-400 mb-1 font-medium">Data</p><input type="date" value={dateF} onChange={e=>{setDateF(e.target.value);setLoading(true);}} className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></div><div><p className="text-xs text-gray-400 mb-1 font-medium">Status</p><Sel value={statusF} onChange={e=>{setStatusF(e.target.value);setLoading(true);}} options={[{value:'confirmed',label:'Confirmada'},{value:'cancelled',label:'Cancelada'},{value:'completed',label:'Concluída'}]} placeholder="Todos"/></div><Btn variant="secondary" size="sm" onClick={()=>{setDateF('');setStatusF('');}}>Limpar</Btn></div>{loading?<Spinner/>:<div className="space-y-3">{reservations.length===0&&<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">📭</p><p>Nenhuma reserva encontrada</p></div>}{reservations.map(r=><div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-1.5 flex-wrap"><h3 className="font-bold text-gray-800">{r.point_name}</h3><span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusColor(r.status)}`}>{statusLabel(r.status)}</span></div><div className="text-sm text-gray-500 space-y-0.5"><p>🏢 {r.est_name}</p><p>👤 {r.user_name} — {r.user_email}</p><p>📅 {fmtDate(dateStr(r))} • {r.start_time} – {r.end_time} ({r.hours}h)</p><p>💰 {fmt$(r.total)}</p></div></div>{r.status==='confirmed'&&<div className="flex gap-2 shrink-0"><Btn variant="secondary" size="sm" onClick={()=>{setReschRes(r);setNewDate('');setNewSlots([]);}}>Remarcar</Btn><Btn variant="danger" size="sm" onClick={()=>handleCancel(r.id)}>Cancelar</Btn></div>}</div></div>)}</div>}<Modal open={!!reschRes} onClose={()=>setReschRes(null)} title="Remarcar Reserva">{reschRes&&<div className="space-y-4"><div className="bg-gray-50 rounded-xl p-3 text-sm"><p className="font-semibold">{reschRes.point_name}</p><p className="text-gray-500">Atual: {fmtDate(dateStr(reschRes))} • {reschRes.start_time}–{reschRes.end_time}</p></div><Field label="Nova data"><input type="date" value={newDate} onChange={e=>{setNewDate(e.target.value);setNewSlots([]);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></Field>{newDate&&<div><p className="text-sm font-medium text-gray-700 mb-2">Novo horário</p><div className="grid grid-cols-4 gap-1.5">{rSlots.map(s=><button key={s.time} onClick={()=>toggleSlot(s)} disabled={!s.available} className={`py-2 text-xs rounded-lg border font-medium ${newSlots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'}`}>{s.time}</button>)}</div></div>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setReschRes(null)}>Cancelar</Btn><Btn className="flex-1" disabled={!newDate||!newSlots.length} onClick={handleReschedule}>Confirmar</Btn></div></div>}</Modal></div>;
+  const mbStartT=mb.slots[0]||'';
+  const mbEndT=mb.slots.length?`${String(parseInt(mb.slots[mb.slots.length-1])+1).padStart(2,'0')}:00`:'';
+  const mbPt=mbPoints.find(p=>String(p.id)===String(mb.pointId));
+  const mbTotal=mbPt&&mb.slots.length?mbPt.price_per_hour*mb.slots.length:0;
+
+  return<div className="p-6">
+    <div className="flex items-center justify-between mb-6">
+      <h1 className="text-2xl font-black text-gray-900">Gestão de Reservas</h1>
+      <Btn onClick={()=>{setShowManual(true);setMb(MBL);}}>+ Nova Reserva</Btn>
+    </div>
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-4 items-end">
+      <div><p className="text-xs text-gray-400 mb-1 font-medium">Data</p><input type="date" value={dateF} onChange={e=>{setDateF(e.target.value);setLoading(true);}} className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></div>
+      <div><p className="text-xs text-gray-400 mb-1 font-medium">Status</p><Sel value={statusF} onChange={e=>{setStatusF(e.target.value);setLoading(true);}} options={[{value:'confirmed',label:'Confirmada'},{value:'cancelled',label:'Cancelada'},{value:'completed',label:'Concluída'}]} placeholder="Todos"/></div>
+      <Btn variant="secondary" size="sm" onClick={()=>{setDateF('');setStatusF('');}}>Limpar</Btn>
+    </div>
+    {loading?<Spinner/>:<div className="space-y-3">
+      {reservations.length===0&&<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">📭</p><p>Nenhuma reserva encontrada</p></div>}
+      {reservations.map(r=><div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <h3 className="font-bold text-gray-800">{r.point_name}</h3>
+              <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusColor(r.status)}`}>{statusLabel(r.status)}</span>
+            </div>
+            <div className="text-sm text-gray-500 space-y-0.5">
+              <p>🏢 {r.est_name}</p>
+              <p>👤 {r.user_name} — {r.user_email}</p>
+              <p>📅 {fmtDate(dateStr(r))} • {r.start_time} – {r.end_time} ({r.hours}h)</p>
+              <p>💰 {fmt$(r.total)} {r.payment_method?`• ${PAY_LABEL[r.payment_method]||r.payment_method}`:''}</p>
+            </div>
+          </div>
+          {r.status==='confirmed'&&<div className="flex gap-2 shrink-0">
+            <Btn variant="secondary" size="sm" onClick={()=>{setReschRes(r);setNewDate('');setNewSlots([]);}}>Remarcar</Btn>
+            <Btn variant="danger" size="sm" onClick={()=>handleCancel(r.id)}>Cancelar</Btn>
+          </div>}
+        </div>
+      </div>)}
+    </div>}
+
+    {/* Modal Remarcar */}
+    <Modal open={!!reschRes} onClose={()=>setReschRes(null)} title="Remarcar Reserva">{reschRes&&<div className="space-y-4"><div className="bg-gray-50 rounded-xl p-3 text-sm"><p className="font-semibold">{reschRes.point_name}</p><p className="text-gray-500">Atual: {fmtDate(dateStr(reschRes))} • {reschRes.start_time}–{reschRes.end_time}</p></div><Field label="Nova data"><input type="date" value={newDate} onChange={e=>{setNewDate(e.target.value);setNewSlots([]);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></Field>{newDate&&<div><p className="text-sm font-medium text-gray-700 mb-2">Novo horário</p><div className="grid grid-cols-4 gap-1.5">{rSlots.map(s=><button key={s.time} onClick={()=>toggleSlot(s)} disabled={!s.available} className={`py-2 text-xs rounded-lg border font-medium ${newSlots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'}`}>{s.time}</button>)}</div></div>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setReschRes(null)}>Cancelar</Btn><Btn className="flex-1" disabled={!newDate||!newSlots.length} onClick={handleReschedule}>Confirmar</Btn></div></div>}</Modal>
+
+    {/* Modal Nova Reserva Manual */}
+    <Modal open={showManual} onClose={()=>setShowManual(false)} title="Nova Reserva Manual" maxW="max-w-lg">
+      <div className="space-y-4">
+        <Field label="Email do cliente" required>
+          <div className="flex gap-2">
+            <Inp value={mb.email} onChange={e=>updMb('email',e.target.value)} placeholder="email@cliente.com" className="flex-1"/>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">O cliente deve ter cadastro no Marketplace</p>
+        </Field>
+        <Field label="Estabelecimento" required>
+          <Sel value={mb.estId} onChange={e=>updMb('estId',e.target.value)} options={mbEsts.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>
+        </Field>
+        {mb.estId&&<Field label="Ponto / Espaço" required>
+          <Sel value={mb.pointId} onChange={e=>updMb('pointId',e.target.value)} options={mbPoints.map(p=>({value:p.id,label:`${p.name} — ${fmt$(p.price_per_hour)}/h`}))} placeholder="Selecione..."/>
+        </Field>}
+        {mb.pointId&&<Field label="Data" required>
+          <input type="date" value={mb.date} min={TODAY} onChange={e=>updMb('date',e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+        </Field>}
+        {mb.date&&mb.pointId&&<div>
+          <p className="text-sm font-medium text-gray-700 mb-2">Horários disponíveis</p>
+          {mbSlots.length===0?<p className="text-sm text-gray-400 text-center py-3">Nenhum horário disponível</p>
+          :<div className="grid grid-cols-4 gap-1.5">
+            {mbSlots.map(s=><button key={s.time} onClick={()=>toggleMbSlot(s)} disabled={!s.available} className={`py-2 text-xs rounded-lg border font-medium ${mb.slots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'}`}>{s.time}</button>)}
+          </div>}
+        </div>}
+        {mb.slots.length>0&&<div className="bg-emerald-50 rounded-xl p-3 text-sm space-y-1">
+          <div className="flex justify-between"><span className="text-gray-500">Período</span><span className="font-medium">{mbStartT} – {mbEndT}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Duração</span><span className="font-medium">{mb.slots.length}h</span></div>
+          <div className="flex justify-between font-bold text-emerald-700 pt-1 border-t border-emerald-100"><span>Total</span><span>{fmt$(mbTotal)}</span></div>
+        </div>}
+        <Field label="Forma de pagamento">
+          <Sel value={mb.pm} onChange={e=>updMb('pm',e.target.value)} options={PAY_OPTS}/>
+        </Field>
+        <div className="flex gap-3 pt-1">
+          <Btn variant="secondary" className="flex-1" onClick={()=>setShowManual(false)}>Cancelar</Btn>
+          <Btn className="flex-1" disabled={mbSaving||!mb.email||!mb.slots.length} onClick={saveManual}>{mbSaving?'Salvando...':'Confirmar Reserva'}</Btn>
+        </div>
+      </div>
+    </Modal>
+  </div>;
 }
-
 // ================================================================
 // MAIN APP
 // ================================================================
