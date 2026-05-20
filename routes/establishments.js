@@ -3,7 +3,7 @@ const pool = require('../db/pool');
 const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 
 const PUBLIC_COLS = `id, name, street, number, complement, cep, city, state,
-                     phone, photos, main_photo, operating_hours`;
+                     phone, photos, main_photo, operating_hours, unimidia_divulgacao`;
 
 // GET /api/establishments
 router.get('/', async (req, res) => {
@@ -49,7 +49,8 @@ router.get('/:id/full', auth, async (req, res) => {
 router.post('/', auth, adminOrManager, async (req, res) => {
   const {
     name, responsible, cpf_cnpj, street, number, complement,
-    cep, city, state, phone, email, photos, main_photo, operating_hours
+    cep, city, state, phone, email, photos, main_photo,
+    operating_hours, unimidia_divulgacao
   } = req.body;
 
   if (!name || !responsible || !phone)
@@ -59,13 +60,15 @@ router.post('/', auth, adminOrManager, async (req, res) => {
     const { rows } = await pool.query(`
       INSERT INTO establishments
         (name, responsible, cpf_cnpj, street, number, complement,
-         cep, city, state, phone, email, photos, main_photo, operating_hours)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         cep, city, state, phone, email, photos, main_photo,
+         operating_hours, unimidia_divulgacao)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       RETURNING *`,
       [name, responsible, cpf_cnpj, street, number, complement,
        cep, city, state, phone, email,
        photos || [], main_photo || null,
-       JSON.stringify(operating_hours || {})]
+       JSON.stringify(operating_hours || {}),
+       unimidia_divulgacao === true || unimidia_divulgacao === 'true']
     );
     const newEst = rows[0];
 
@@ -90,7 +93,8 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 router.put('/:id', auth, adminOrManager, async (req, res) => {
   const {
     name, responsible, cpf_cnpj, street, number, complement,
-    cep, city, state, phone, email, photos, main_photo, operating_hours
+    cep, city, state, phone, email, photos, main_photo,
+    operating_hours, unimidia_divulgacao
   } = req.body;
 
   try {
@@ -98,12 +102,14 @@ router.put('/:id', auth, adminOrManager, async (req, res) => {
       UPDATE establishments SET
         name=$1, responsible=$2, cpf_cnpj=$3, street=$4, number=$5,
         complement=$6, cep=$7, city=$8, state=$9, phone=$10, email=$11,
-        photos=$12, main_photo=$13, operating_hours=$14, updated_at=NOW()
-      WHERE id=$15 RETURNING *`,
+        photos=$12, main_photo=$13, operating_hours=$14,
+        unimidia_divulgacao=$15, updated_at=NOW()
+      WHERE id=$16 RETURNING *`,
       [name, responsible, cpf_cnpj, street, number, complement,
        cep, city, state, phone, email,
        photos || [], main_photo || null,
        JSON.stringify(operating_hours || {}),
+       unimidia_divulgacao === true || unimidia_divulgacao === 'true',
        req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Nao encontrado' });

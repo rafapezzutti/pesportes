@@ -18,3 +18,7 @@ ALTER TABLE reservations ALTER COLUMN user_id DROP NOT NULL;
 ALTER TABLE reservations ADD COLUMN IF NOT EXISTS client_name  TEXT;
 ALTER TABLE reservations ADD COLUMN IF NOT EXISTS client_phone TEXT;
 ALTER TABLE reservations ADD COLUMN IF NOT EXISTS client_email TEXT;
+
+-- Divulgacao via Unimidia
+ALTER TABLE establishments
+  ADD COLUMN IF NOT EXISTS unimidia_divulgacao BOOLEAN DEFAULT false;
