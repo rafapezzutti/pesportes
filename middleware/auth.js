@@ -1,0 +1,54 @@
+const jwt = require('jsonwebtoken');
+
+/**
+ * Middleware de autenticação JWT.
+ * Verifica o token no header Authorization: Bearer <token>
+ * e popula req.user com { id, role, type: 'crm' | 'public' }
+ */
+function auth(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token não fornecido' });
+  }
+  const token = header.slice(7);
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = payload;
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Token inválido ou expirado' });
+  }
+}
+
+/** Garante que o usuário é do CRM (admin ou manager) */
+function crmOnly(req, res, next) {
+  if (req.user?.type !== 'crm') {
+    return res.status(403).json({ error: 'Acesso restrito ao CRM' });
+  }
+  next();
+}
+
+/** Garante que o usuário é admin */
+function adminOnly(req, res, next) {
+  if (req.user?.type !== 'crm' || req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'Acesso restrito ao Administrador' });
+  }
+  next();
+}
+
+/** Aceita tanto usuários CRM quanto públicos autenticados */
+function anyAuth(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token não fornecido' });
+  }
+  const token = header.slice(7);
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+}
+
+module.exports = { auth, crmOnly, adminOnly, anyAuth };
