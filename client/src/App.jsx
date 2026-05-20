@@ -9,7 +9,7 @@ import {
 // ================================================================
 const ESTABLISHMENT_TYPES = [
   'Quadra de Tênis','Quadra de Beach','Quadra de Pickleball',
-  'Quadra de Squash','Quadra de Futebol de Salão','Campo de Futebol',
+  'Quadra de Squash','Quadra de Futebol de Salão','Quadra de Futebol Society','Campo de Futebol',
   'Salão de Festa','Churrasqueira',
 ];
 const DAYS = [
