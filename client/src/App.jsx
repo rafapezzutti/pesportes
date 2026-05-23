@@ -312,11 +312,14 @@ function PasswordRecovery({navigate,type='public'}){
   const [step,setStep]=useState(1);
   const [email,setEmail]=useState('');
   const [loading,setLoading]=useState(false);
+  const [error,setError]=useState('');
   const send=async()=>{
-    setLoading(true);
-    try{await authApi.forgotPassword(email,type);setStep(2);}catch{setStep(2);}finally{setLoading(false);}
+    setLoading(true);setError('');
+    try{await authApi.forgotPassword(email,type);setStep(2);}
+    catch(e){setError(e.message||'Erro ao enviar email. Tente novamente em alguns minutos.');}
+    finally{setLoading(false);}
   };
-  return<div className="min-h-screen bg-gray-100 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm"><div className="text-center mb-6"><div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3"><span className="text-2xl">🔑</span></div><h1 className="text-xl font-bold text-gray-800">Recuperar Senha</h1></div>{step===1?<div className="space-y-4"><p className="text-sm text-gray-500 text-center">Informe seu email cadastrado.</p><Field label="Email"><Inp type="email" value={email} onChange={e=>setEmail(e.target.value)}/></Field><Btn className="w-full" onClick={send} disabled={!email||loading}>{loading?'Enviando...':'Enviar Link'}</Btn></div>:<div className="text-center space-y-3"><p className="text-5xl">📬</p><p className="text-sm text-gray-700 font-medium">Email enviado!</p><p className="text-xs text-gray-500">Link enviado para <strong>{email}</strong>. Expira em 30 minutos.</p></div>}<button onClick={()=>navigate(type==='crm'?'crm-login':'mkt-home')} className="text-sm text-emerald-600 hover:underline mt-5 block text-center w-full">{type==='crm'?'← Voltar ao CRM':'← Voltar ao início'}</button></div></div>;
+  return<div className="min-h-screen bg-gray-100 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm"><div className="text-center mb-6"><div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3"><span className="text-2xl">🔑</span></div><h1 className="text-xl font-bold text-gray-800">Recuperar Senha</h1></div>{step===1?<div className="space-y-4"><p className="text-sm text-gray-500 text-center">Informe seu email cadastrado.</p><Field label="Email"><Inp type="email" value={email} onChange={e=>setEmail(e.target.value)}/></Field>{error&&<div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{error}</div>}<Btn className="w-full" onClick={send} disabled={!email||loading}>{loading?'Enviando...':'Enviar Link'}</Btn></div>:<div className="text-center space-y-3"><p className="text-5xl">📬</p><p className="text-sm text-gray-700 font-medium">Email enviado!</p><p className="text-xs text-gray-500">Link enviado para <strong>{email}</strong>. Expira em 30 minutos.</p></div>}<button onClick={()=>navigate(type==='crm'?'crm-login':'mkt-home')} className="text-sm text-emerald-600 hover:underline mt-5 block text-center w-full">{type==='crm'?'← Voltar ao CRM':'← Voltar ao início'}</button></div></div>;
 }
 
 // ================================================================

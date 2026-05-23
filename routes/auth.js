@@ -120,7 +120,8 @@ router.post('/forgot-password', async (req, res) => {
     await sendPasswordResetEmail(user.email, user.name, resetLink);
     res.json({ message: 'Se o email existir, um link foi enviado.' });
   } catch (err) {
-    res.status(500).json({ error: 'Erro interno' });
+    console.error('[forgot-password] Falha ao enviar email:', err);
+    res.status(500).json({ error: 'Erro ao enviar email de recuperacao' });
   }
 });
 
