@@ -1,0 +1,1 @@
+ALTER TABLE establishments ADD COLUMN IF NOT EXISTS site TEXT;
