@@ -1526,7 +1526,25 @@ export default function App(){
     else if(pg==='password-recovery')setView('password-recovery');
     else if(pg==='reset-password')setView('reset-password');
     else setView('marketplace');
+    // Atualiza URL para permitir links diretos
+    if(pg==='est-detail'&&arg){
+      window.history.pushState({pg,arg},'',`/e/${arg}`);
+    } else if(!pg.startsWith('crm-')&&pg!=='password-recovery'&&pg!=='reset-password'){
+      window.history.replaceState({pg,arg},'','/');
+    }
   };
+
+  // Suporte ao botão voltar do browser
+  useEffect(()=>{
+    const handler=(e)=>{
+      const s=e.state;
+      if(s?.pg==='est-detail'&&s?.arg){setPage('est-detail');setPageArg(s.arg);setView('marketplace');}
+      else{setPage('mkt-home');setPageArg(null);setView('marketplace');}
+      window.scrollTo(0,0);
+    };
+    window.addEventListener('popstate',handler);
+    return()=>window.removeEventListener('popstate',handler);
+  },[]);
 
   // Carrega dados do marketplace
   const loadMkt=useCallback(()=>{
@@ -1555,8 +1573,16 @@ export default function App(){
       setResetToken(urlToken);
       setResetType(urlType);
       setView('reset-password');
-      // Limpa os params da URL sem recarregar a página
       window.history.replaceState({},'',window.location.pathname);
+      return;
+    }
+    // Detecta /e/:id na URL — link direto para um estabelecimento
+    const estMatch=window.location.pathname.match(/^\/e\/(\d+)$/);
+    if(estMatch){
+      setPage('est-detail');
+      setPageArg(Number(estMatch[1]));
+      setView('marketplace');
+      window.history.replaceState({pg:'est-detail',arg:Number(estMatch[1])},'',window.location.pathname);
     }
   },[]);
 
