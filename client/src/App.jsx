@@ -1570,7 +1570,7 @@ function CRMUnimidia({crmUser,showToast}){
 // ================================================================
 // CRM PROFISSIONAIS EF (Admin)
 // ================================================================
-const BLANK_PEF={nome:'',cref:'',especialidade:'',bio:'',foto:'',foto_x:50,foto_y:30,phone:'',email:'',site:'',street:'',number:'',complement:'',cep:'',city:'',state:'',valor_hora:'',aceita_avulso:true,aceita_mensal:false,marketplace_visible:false,operating_hours:{...DEFAULT_HOURS},login_email:'',login_password:''};
+const BLANK_PEF={nome:'',cref:'',especialidade:'',bio:'',foto:'',foto_x:50,foto_y:30,phone:'',email:'',site:'',street:'',number:'',complement:'',cep:'',city:'',state:'',valor_hora:'',aceita_avulso:true,aceita_mensal:false,marketplace_visible:false,operating_hours:{...DEFAULT_HOURS},login_email:'',login_password:'',login_password2:''};
 
 function CRMProfissionaisEF({showToast}){
   const [list,setList]=useState([]);
@@ -1606,6 +1606,8 @@ function CRMProfissionaisEF({showToast}){
       if(editId){await profEfApi.update(editId,payload);showToast('Profissional atualizado!');}
       else{
         if(!form.login_email||!form.login_password){showToast('Email e senha de login são obrigatórios','error');setSaving(false);return;}
+        if(form.login_password.length<6){showToast('A senha deve ter no mínimo 6 caracteres','error');setSaving(false);return;}
+        if(form.login_password!==form.login_password2){showToast('As senhas não coincidem','error');setSaving(false);return;}
         await profEfApi.create(payload);showToast('Profissional cadastrado com login criado!');
       }
       load();setTab('lista');
@@ -1665,6 +1667,11 @@ function CRMProfissionaisEF({showToast}){
           <p className="text-xs text-gray-400">Credenciais de acesso ao CRM</p>
           <Field label="Email de login" required><Inp type="email" value={form.login_email} onChange={e=>upd('login_email',e.target.value)}/></Field>
           <Field label="Senha" required><Inp type="password" value={form.login_password} onChange={e=>upd('login_password',e.target.value)} placeholder="Mínimo 6 caracteres"/></Field>
+          <Field label="Confirmar senha" required>
+            <Inp type="password" value={form.login_password2||''} onChange={e=>upd('login_password2',e.target.value)} placeholder="Repita a senha"/>
+            {form.login_password2&&form.login_password!==form.login_password2&&<p className="text-xs text-red-500 mt-1">⚠️ As senhas não coincidem</p>}
+            {form.login_password2&&form.login_password===form.login_password2&&<p className="text-xs text-emerald-600 mt-1">✅ Senhas conferem</p>}
+          </Field>
         </div>}
       </div>
       <div className="space-y-5">
