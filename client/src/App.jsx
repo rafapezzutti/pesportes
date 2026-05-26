@@ -141,9 +141,10 @@ function MktHome({establishments,points,profissionais,navigate}){
   const [typeF,setTypeF]=useState('');
   const s=search.toLowerCase();
   const filtEst=establishments.filter(e=>{
-    const mT=!typeF||typeF==='profissional'?false:(!typeF||points.some(p=>p.est_id===e.id&&p.type===typeF));
+    if(typeF==='profissional') return false;
+    const mT=!typeF||points.some(p=>p.est_id===e.id&&p.type===typeF);
     const mS=!s||e.name.toLowerCase().includes(s)||(e.street||'').toLowerCase().includes(s)||(e.city||'').toLowerCase().includes(s);
-    return (typeF==='profissional'?false:mT)&&mS;
+    return mT&&mS;
   });
   const filtProf=profissionais.filter(p=>{
     if(typeF&&typeF!=='profissional')return false;
@@ -1793,7 +1794,7 @@ export default function App(){
 
   const navigate=(pg,arg=null)=>{
     setPage(pg);setPageArg(arg);window.scrollTo(0,0);
-    if(pg==='crm-login'||pg.startsWith('crm-')||pg.startsWith('prof-'))setView('crm');
+    if(pg==='crm-login'||pg.startsWith('crm-')||pg==='prof-perfil'||pg==='prof-alunos')setView('crm');
     else if(pg==='password-recovery')setView('password-recovery');
     else if(pg==='reset-password')setView('reset-password');
     else setView('marketplace');
