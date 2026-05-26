@@ -124,3 +124,13 @@ export const manutencaoApi = {
 export const dashClienteApi = {
   get: (nome) => get(`/dashboard/cliente?nome=${encodeURIComponent(nome)}`),
 };
+
+// ── Profissionais de Ed. Física ───────────────────────────────────
+export const profEfApi = {
+  publicList: ()           => get('/profissionais-ef/public'),
+  publicGet:  (id)         => get(`/profissionais-ef/${id}/public`),
+  list:       ()           => get('/profissionais-ef'),
+  create:     (data)       => post('/profissionais-ef', data),
+  update:     (id, data)   => put(`/profissionais-ef/${id}`, data),
+  remove:     (id)         => del(`/profissionais-ef/${id}`),
+};

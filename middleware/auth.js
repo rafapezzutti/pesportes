@@ -58,4 +58,11 @@ function adminOrManager(req, res, next) {
   next();
 }
 
-module.exports = { auth, crmOnly, adminOnly, adminOrManager, anyAuth };
+/** Admin ou Profissional EF autenticado (qualquer profissional logado) */
+function profissionalOrAdmin(req, res, next) {
+  if (req.user?.type !== 'crm') return res.status(403).json({ error: 'Acesso restrito' });
+  if (req.user.role === 'admin' || req.user.profissional_id) return next();
+  return res.status(403).json({ error: 'Acesso restrito' });
+}
+
+module.exports = { auth, crmOnly, adminOnly, adminOrManager, anyAuth, profissionalOrAdmin };

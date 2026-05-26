@@ -26,6 +26,7 @@ router.post('/crm/login', async (req, res) => {
       id: user.id, role: user.role, type: 'crm',
       est_id: user.est_id || null,
       est_ids: user.est_ids || [],
+      profissional_id: user.profissional_id || null,
     });
     res.json({
       token,
@@ -33,6 +34,7 @@ router.post('/crm/login', async (req, res) => {
         id: user.id, name: user.name, email: user.email, role: user.role,
         est_id: user.est_id || null,
         est_ids: user.est_ids || [],
+        profissional_id: user.profissional_id || null,
       },
     });
   } catch (err) {
@@ -162,7 +164,7 @@ router.get('/me', async (req, res) => {
     let rows;
     if (payload.type === 'crm') {
       const r = await pool.query(
-        `SELECT id, name, email, role, est_id, COALESCE(est_ids, '{}') AS est_ids
+        `SELECT id, name, email, role, est_id, COALESCE(est_ids, '{}') AS est_ids, profissional_id
          FROM crm_users WHERE id = $1`, [payload.id]
       );
       rows = r.rows;

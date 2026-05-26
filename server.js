@@ -17,16 +17,17 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 
 // ── API Routes ──────────────────────────────────────────────────
-app.use('/api/auth',           require('./routes/auth'));
-app.use('/api/establishments', require('./routes/establishments'));
-app.use('/api/points',         require('./routes/points'));
-app.use('/api/crm-users',      require('./routes/users'));
-app.use('/api/reservations',   require('./routes/reservations'));
-app.use('/api/dashboard',      require('./routes/dashboard'));
-app.use('/api/professores',    require('./routes/professores'));
-app.use('/api/planos',         require('./routes/planos'));
-app.use('/api/bar',            require('./routes/bar'));
-app.use('/api/manutencao',     require('./routes/manutencao'));
+app.use('/api/auth',             require('./routes/auth'));
+app.use('/api/establishments',   require('./routes/establishments'));
+app.use('/api/points',           require('./routes/points'));
+app.use('/api/crm-users',        require('./routes/users'));
+app.use('/api/reservations',     require('./routes/reservations'));
+app.use('/api/dashboard',        require('./routes/dashboard'));
+app.use('/api/professores',      require('./routes/professores'));
+app.use('/api/planos',           require('./routes/planos'));
+app.use('/api/bar',              require('./routes/bar'));
+app.use('/api/manutencao',       require('./routes/manutencao'));
+app.use('/api/profissionais-ef', require('./routes/profissionais_ef'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));

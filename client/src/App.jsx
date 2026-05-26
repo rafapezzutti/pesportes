@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   authApi, estApi, pointApi, userApi, resApi, dashboardApi,
-  professorApi, planoApi, barApi, manutencaoApi, dashClienteApi,
+  professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   saveToken, clearToken,
 } from './api';
 
@@ -136,16 +136,24 @@ function MktHeader({publicUser,page,navigate,onLogout}){
 // ================================================================
 // MARKETPLACE HOME
 // ================================================================
-function MktHome({establishments,points,navigate}){
+function MktHome({establishments,points,profissionais,navigate}){
   const [search,setSearch]=useState('');
   const [typeF,setTypeF]=useState('');
-  const filtered=establishments.filter(e=>{
-    const mT=!typeF||points.some(p=>p.est_id===e.id&&p.type===typeF);
-    const s=search.toLowerCase();
+  const s=search.toLowerCase();
+  const filtEst=establishments.filter(e=>{
+    const mT=!typeF||typeF==='profissional'?false:(!typeF||points.some(p=>p.est_id===e.id&&p.type===typeF));
     const mS=!s||e.name.toLowerCase().includes(s)||(e.street||'').toLowerCase().includes(s)||(e.city||'').toLowerCase().includes(s);
-    return mT&&mS;
+    return (typeF==='profissional'?false:mT)&&mS;
   });
-  return<div><div className="bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600 text-white"><div className="max-w-4xl mx-auto px-4 pt-16 pb-20 text-center"><h1 className="text-4xl sm:text-5xl font-black mb-3 tracking-tight">Reserve seu esporte favorito</h1><p className="text-emerald-200 text-lg mb-10">Quadras, campos e espaços esportivos perto de você</p><div className="bg-white rounded-2xl p-4 shadow-2xl"><div className="flex flex-col sm:flex-row gap-3"><div className="flex-1"><Sel value={typeF} onChange={e=>setTypeF(e.target.value)} options={ESTABLISHMENT_TYPES} placeholder="Tipo de esporte / espaço"/></div><div className="flex-1"><Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nome do local ou endereço..."/></div></div></div></div></div><div className="max-w-7xl mx-auto px-4 py-10"><div className="flex items-center justify-between mb-6"><h2 className="text-xl font-semibold text-gray-800">{filtered.length} estabelecimento{filtered.length!==1?'s':''} encontrado{filtered.length!==1?'s':''}</h2>{(search||typeF)&&<button onClick={()=>{setSearch('');setTypeF('');}} className="text-sm text-emerald-600 hover:underline">Limpar filtros</button>}</div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">{filtered.map(est=>{const pts=points.filter(p=>p.est_id===est.id);const minP=pts.length?Math.min(...pts.map(p=>p.price_per_hour)):0;const types=[...new Set(pts.map(p=>p.type))];return<div key={est.id} onClick={()=>navigate('est-detail',est.id)} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 card-hover cursor-pointer"><div className="h-48 relative overflow-hidden bg-gray-200">{est.main_photo?<img src={est.main_photo} alt={est.name} className="w-full h-full object-cover"/>:<div className="w-full h-full flex items-center justify-center text-5xl">🏟️</div>}<div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3"><p className="text-white text-xs font-medium">{est.street}{est.number?`, ${est.number}`:''}</p></div></div><div className="p-4"><h3 className="font-bold text-gray-800 mb-1">{est.name}</h3><p className="text-xs text-gray-500 mb-3">{pts.length} espaço{pts.length!==1?'s':''} • {est.city||''}/{est.state||''}</p><div className="flex items-end justify-between"><div className="flex flex-wrap gap-1">{types.slice(0,2).map(t=><Badge key={t} color="green">{t.replace('Quadra de ','')}</Badge>)}{types.length>2&&<Badge color="gray">+{types.length-2}</Badge>}</div><div className="text-right"><p className="text-xs text-gray-400">a partir de</p><p className="text-emerald-600 font-bold text-sm">{fmt$(minP)}/h</p></div></div></div></div>;})}</div>{filtered.length===0&&<div className="text-center py-20"><p className="text-6xl mb-4">🔍</p><p className="text-xl text-gray-500 mb-2">Nenhum estabelecimento encontrado</p></div>}</div></div>;
+  const filtProf=profissionais.filter(p=>{
+    if(typeF&&typeF!=='profissional')return false;
+    return !s||p.nome.toLowerCase().includes(s)||(p.especialidade||'').toLowerCase().includes(s)||(p.city||'').toLowerCase().includes(s);
+  });
+  const total=filtEst.length+filtProf.length;
+  return<div><div className="bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600 text-white"><div className="max-w-4xl mx-auto px-4 pt-16 pb-20 text-center"><h1 className="text-4xl sm:text-5xl font-black mb-3 tracking-tight">Reserve seu esporte favorito</h1><p className="text-emerald-200 text-lg mb-10">Quadras, campos, espaços esportivos e profissionais perto de você</p><div className="bg-white rounded-2xl p-4 shadow-2xl"><div className="flex flex-col sm:flex-row gap-3"><div className="flex-1"><Sel value={typeF} onChange={e=>setTypeF(e.target.value)} options={[...ESTABLISHMENT_TYPES,{value:'profissional',label:'👤 Profissional de Ed. Física'}]} placeholder="Tipo de esporte / espaço"/></div><div className="flex-1"><Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nome, especialidade ou cidade..."/></div></div></div></div></div><div className="max-w-7xl mx-auto px-4 py-10"><div className="flex items-center justify-between mb-6"><h2 className="text-xl font-semibold text-gray-800">{total} resultado{total!==1?'s':''} encontrado{total!==1?'s':''}</h2>{(search||typeF)&&<button onClick={()=>{setSearch('');setTypeF('');}} className="text-sm text-emerald-600 hover:underline">Limpar filtros</button>}</div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    {filtEst.map(est=>{const pts=points.filter(p=>p.est_id===est.id);const minP=pts.length?Math.min(...pts.map(p=>p.price_per_hour)):0;const types=[...new Set(pts.map(p=>p.type))];return<div key={`est-${est.id}`} onClick={()=>navigate('est-detail',est.id)} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 card-hover cursor-pointer"><div className="h-48 relative overflow-hidden bg-gray-200">{est.main_photo?<img src={est.main_photo} alt={est.name} className="w-full h-full object-cover"/>:<div className="w-full h-full flex items-center justify-center text-5xl">🏟️</div>}<div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3"><p className="text-white text-xs font-medium">{est.street}{est.number?`, ${est.number}`:''}</p></div></div><div className="p-4"><h3 className="font-bold text-gray-800 mb-1">{est.name}</h3><p className="text-xs text-gray-500 mb-3">{pts.length} espaço{pts.length!==1?'s':''} • {est.city||''}/{est.state||''}</p><div className="flex items-end justify-between"><div className="flex flex-wrap gap-1">{types.slice(0,2).map(t=><Badge key={t} color="green">{t.replace('Quadra de ','')}</Badge>)}{types.length>2&&<Badge color="gray">+{types.length-2}</Badge>}</div><div className="text-right"><p className="text-xs text-gray-400">a partir de</p><p className="text-emerald-600 font-bold text-sm">{fmt$(minP)}/h</p></div></div></div></div>;})}
+    {filtProf.map(p=><div key={`prof-${p.id}`} onClick={()=>navigate('prof-detail',p.id)} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 card-hover cursor-pointer"><div className="h-48 relative overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">{p.foto?<img src={p.foto} alt={p.nome} className="w-full h-full object-cover object-top"/>:<div className="w-full h-full flex items-center justify-center text-6xl">🏋️</div>}<div className="absolute top-3 left-3"><span className="bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded-full">👤 Profissional EF</span></div></div><div className="p-4"><h3 className="font-bold text-gray-800 mb-1">{p.nome}</h3><p className="text-xs text-gray-500 mb-3">{p.especialidade||'Ed. Física'} • {p.city||''}{p.state?`/${p.state}`:''}</p><div className="flex items-end justify-between"><div className="flex flex-wrap gap-1">{p.cref&&<Badge color="blue">CREF {p.cref}</Badge>}{p.aceita_avulso&&<Badge color="green">Avulso</Badge>}{p.aceita_mensal&&<Badge color="green">Mensal</Badge>}</div>{p.valor_hora>0&&<div className="text-right"><p className="text-xs text-gray-400">a partir de</p><p className="text-indigo-600 font-bold text-sm">{fmt$(p.valor_hora)}/h</p></div>}</div></div></div>)}
+  </div>{total===0&&<div className="text-center py-20"><p className="text-6xl mb-4">🔍</p><p className="text-xl text-gray-500 mb-2">Nenhum resultado encontrado</p></div>}</div></div>;
 }
 
 // ================================================================
@@ -201,6 +209,65 @@ function EstDetail({estId,points,navigate,publicUser,onReserve}){
   };
 
   return<div className="max-w-7xl mx-auto px-4 py-8"><button onClick={()=>navigate('mkt-home')} className="text-emerald-600 hover:text-emerald-700 text-sm mb-5 flex items-center gap-1.5 font-medium">← Voltar</button><div className="grid grid-cols-1 lg:grid-cols-3 gap-8"><div className="lg:col-span-2 space-y-6"><div className="relative rounded-2xl overflow-hidden h-72 bg-gray-200">{photos.length?<img src={photos[photo]} alt={est.name} className="w-full h-full object-cover"/>:<div className="w-full h-full flex items-center justify-center text-7xl">🏟️</div>}{photos.length>1&&<><button onClick={()=>setPhoto(p=>(p-1+photos.length)%photos.length)} className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center">‹</button><button onClick={()=>setPhoto(p=>(p+1)%photos.length)} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center">›</button><div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">{photos.map((_,i)=><button key={i} onClick={()=>setPhoto(i)} className={`w-2 h-2 rounded-full ${i===photo?'bg-white':'bg-white/40'}`}/>)}</div></>}</div><div><h1 className="text-2xl font-black text-gray-900 mb-2">{est.name}</h1><p className="text-gray-500 text-sm mb-1">📍 {est.street}{est.number?`, ${est.number}`:''}{est.complement?` — ${est.complement}`:''}</p><p className="text-gray-500 text-sm mb-1">{est.city}/{est.state} — CEP {est.cep}</p><p className="text-gray-500 text-sm mb-1">📞 {est.phone}</p>{est.site&&<a href={est.site} target="_blank" rel="noopener noreferrer" className="text-emerald-600 text-sm hover:underline flex items-center gap-1">🌐 {est.site.replace(/^https?:\/\//,'')}</a>}</div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h3 className="font-bold text-gray-800 mb-3">Horário de Funcionamento</h3><div className="grid grid-cols-2 gap-1">{DAYS.map(({key,label})=><div key={key} className="flex items-center gap-2 text-sm py-0.5"><span className="w-9 text-gray-500 font-medium">{label}:</span>{est.operating_hours?.[key]?.open?<span className="text-gray-700">{est.operating_hours[key].start} – {est.operating_hours[key].end}</span>:<span className="text-gray-400 italic text-xs">Fechado</span>}</div>)}</div></div><div><h3 className="font-bold text-gray-800 mb-3">Espaços disponíveis</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{pts.map(pt=><div key={pt.id} onClick={()=>{setSelPt(pt);setSelSlots([]);}} className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${selPt?.id===pt.id?'border-emerald-500 bg-emerald-50':'border-gray-200 hover:border-emerald-300 bg-white'}`}><div className="flex justify-between items-start"><div><p className="font-semibold text-gray-800">{pt.name}</p><p className="text-xs text-gray-500 mt-0.5">{pt.type}</p></div><span className="text-emerald-600 font-bold text-sm">{fmt$(pt.price_per_hour)}/h</span></div>{pt.custom_hours&&<p className="text-xs text-amber-600 mt-1.5">⏰ Horário próprio</p>}</div>)}</div></div></div><div className="lg:col-span-1"><div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm sticky top-24"><h3 className="font-bold text-gray-800 mb-4 text-base">Fazer uma Reserva</h3>{!selPt?<div className="text-center py-8"><p className="text-4xl mb-2">👈</p><p className="text-sm text-gray-400">Selecione um espaço ao lado</p></div>:<div className="space-y-4"><div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100"><p className="text-sm font-semibold text-emerald-800">{selPt.name}</p><p className="text-xs text-emerald-600">{selPt.type} • {fmt$(selPt.price_per_hour)}/hora</p></div><Field label="Data da reserva" required><Inp type="date" value={selDate} min={TODAY} max={maxDateStr} onChange={e=>{setSelDate(e.target.value);setSelSlots([]);}}/></Field>{selDate&&<div><p className="text-sm font-medium text-gray-700 mb-2">Horários disponíveis</p>{slotsLoading?<Spinner text="Buscando horários..."/>:slots.length===0?<div className="text-center py-4 bg-gray-50 rounded-lg"><p className="text-sm text-gray-400">Nenhum horário disponível</p></div>:<><div className="grid grid-cols-3 gap-1.5">{slots.map(s=><button key={s.time} onClick={()=>toggleSlot(s)} disabled={!s.available} className={`slot-btn py-2 text-xs rounded-lg border font-medium ${selSlots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through'}`}>{s.time}</button>)}</div><p className="text-xs text-gray-400 mt-1.5">Selecione horários consecutivos</p></>}</div>}{selSlots.length>0&&<div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-sm"><div className="flex justify-between text-gray-600"><span>Período</span><span className="font-medium">{startT} – {endT}</span></div><div className="flex justify-between text-gray-600"><span>Duração</span><span className="font-medium">{hours}h</span></div><div className="flex justify-between text-emerald-700 font-bold pt-1.5 border-t border-gray-200"><span>Total estimado</span><span>{fmt$(total)}</span></div><p className="text-xs text-gray-400">💳 Pagamento no local</p></div>}<Btn onClick={handleRes} disabled={!canRes} className="w-full" size="lg">{publicUser?'Solicitar Reserva':'Entrar para Reservar'}</Btn></div>}</div></div></div></div>;
+}
+
+// ================================================================
+// PROFISSIONAL EF DETAIL (Marketplace)
+// ================================================================
+function ProfDetail({profId,navigate}){
+  const [prof,setProf]=useState(null);
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{
+    profEfApi.publicGet(profId).then(setProf).catch(()=>setProf(null)).finally(()=>setLoading(false));
+  },[profId]);
+  if(loading)return<div className="p-8"><Spinner/></div>;
+  if(!prof)return<div className="max-w-2xl mx-auto px-4 py-16 text-center"><p className="text-5xl mb-4">😕</p><p className="text-gray-500">Profissional não encontrado.</p><Btn className="mt-4" onClick={()=>navigate('mkt-home')}>← Voltar</Btn></div>;
+  const hasHours=prof.operating_hours&&Object.values(prof.operating_hours).some(h=>h?.open);
+  return<div className="max-w-4xl mx-auto px-4 py-8">
+    <button onClick={()=>navigate('mkt-home')} className="text-indigo-600 hover:text-indigo-700 text-sm mb-5 flex items-center gap-1.5 font-medium">← Voltar</button>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="lg:col-span-2 space-y-6">
+        {/* Foto e identidade */}
+        <div className="flex gap-6 items-start">
+          <div className="w-32 h-32 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100 shrink-0 shadow-sm">
+            {prof.foto?<img src={prof.foto} alt={prof.nome} className="w-full h-full object-cover object-top"/>:<div className="w-full h-full flex items-center justify-center text-5xl">🏋️</div>}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1"><span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">👤 Profissional EF</span>{prof.cref&&<span className="bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full">CREF {prof.cref}</span>}</div>
+            <h1 className="text-2xl font-black text-gray-900 mb-1">{prof.nome}</h1>
+            {prof.especialidade&&<p className="text-indigo-600 font-semibold text-sm mb-2">{prof.especialidade}</p>}
+            {prof.bio&&<p className="text-gray-600 text-sm leading-relaxed">{prof.bio}</p>}
+          </div>
+        </div>
+        {/* Contato e localização */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-2">
+          <h3 className="font-bold text-gray-800 mb-3">Contato & Localização</h3>
+          {prof.city&&<p className="text-gray-500 text-sm">📍 {prof.street&&`${prof.street}${prof.number?`, ${prof.number}`:''}  — `}{prof.city}{prof.state?`/${prof.state}`:''}{prof.cep?` — CEP ${prof.cep}`:''}</p>}
+          {prof.phone&&<p className="text-gray-500 text-sm">📞 {prof.phone}</p>}
+          {prof.email&&<a href={`mailto:${prof.email}`} className="text-indigo-600 text-sm hover:underline flex items-center gap-1">✉️ {prof.email}</a>}
+          {prof.site&&<a href={prof.site} target="_blank" rel="noopener noreferrer" className="text-indigo-600 text-sm hover:underline flex items-center gap-1">🌐 {prof.site.replace(/^https?:\/\//,'')}</a>}
+        </div>
+        {/* Horário */}
+        {hasHours&&<div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h3 className="font-bold text-gray-800 mb-3">Disponibilidade</h3>
+          <div className="grid grid-cols-2 gap-1">{DAYS.map(({key,label})=><div key={key} className="flex items-center gap-2 text-sm py-0.5"><span className="w-9 text-gray-500 font-medium">{label}:</span>{prof.operating_hours?.[key]?.open?<span className="text-gray-700">{prof.operating_hours[key].start} – {prof.operating_hours[key].end}</span>:<span className="text-gray-400 italic text-xs">Indisponível</span>}</div>)}</div>
+        </div>}
+      </div>
+      {/* Card lateral */}
+      <div className="lg:col-span-1">
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm sticky top-24 space-y-4">
+          <h3 className="font-bold text-gray-800 text-base">Atendimento</h3>
+          <div className="space-y-2">
+            {prof.aceita_avulso&&<div className="flex items-center gap-2 text-sm text-gray-700 bg-green-50 rounded-xl px-3 py-2">✅ Aulas avulsas</div>}
+            {prof.aceita_mensal&&<div className="flex items-center gap-2 text-sm text-gray-700 bg-green-50 rounded-xl px-3 py-2">✅ Planos mensais</div>}
+            {prof.valor_hora>0&&<div className="mt-2 pt-3 border-t border-gray-100"><p className="text-xs text-gray-400">Valor hora</p><p className="text-2xl font-black text-indigo-700">{fmt$(prof.valor_hora)}<span className="text-sm font-normal text-gray-400">/h</span></p></div>}
+          </div>
+          {prof.phone&&<a href={`https://wa.me/55${prof.phone.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer" className="block w-full text-center bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl py-2.5 text-sm transition-colors">💬 Falar no WhatsApp</a>}
+          {prof.email&&<a href={`mailto:${prof.email}`} className="block w-full text-center border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold rounded-xl py-2.5 text-sm transition-colors">✉️ Enviar Email</a>}
+        </div>
+      </div>
+    </div>
+  </div>;
 }
 
 // ================================================================
@@ -373,15 +440,19 @@ function CRMLogin({onLogin,navigate}){
 // ================================================================
 function CRMLayout({crmUser,page,navigate,onLogout,children}){
   const menu=[
-    {key:'crm-dashboard',    label:'Dashboard',      icon:'📊',roles:['admin','manager']},
-    {key:'crm-reservations', label:'Reservas',       icon:'📅',roles:['admin','manager','simples']},
-    {key:'crm-establishment',label:'Estabelecimentos',icon:'🏢',roles:['admin','manager']},
-    {key:'crm-points',       label:'Pontos',         icon:'📍',roles:['admin','manager']},
-    {key:'crm-users',        label:'Usuários',       icon:'👥',roles:['admin','manager']},
-    {key:'crm-professors',   label:'Professores',     icon:'🎓',roles:['admin','manager']},
-    {key:'crm-unimidia',    label:'Quero Divulgar',  icon:'📺',roles:['admin','manager']},
+    {key:'crm-dashboard',      label:'Dashboard',        icon:'📊',roles:['admin','manager']},
+    {key:'crm-reservations',   label:'Reservas',         icon:'📅',roles:['admin','manager','simples']},
+    {key:'crm-establishment',  label:'Estabelecimentos', icon:'🏢',roles:['admin','manager']},
+    {key:'crm-points',         label:'Pontos',           icon:'📍',roles:['admin','manager']},
+    {key:'crm-users',          label:'Usuários',         icon:'👥',roles:['admin','manager']},
+    {key:'crm-professors',     label:'Professores',      icon:'🎓',roles:['admin','manager']},
+    {key:'crm-profissionais-ef',label:'Profissionais EF',icon:'🏋️',roles:['admin','manager']},
+    {key:'crm-unimidia',       label:'Quero Divulgar',   icon:'📺',roles:['admin','manager']},
+    // Menu exclusivo para profissional logado
+    {key:'prof-perfil',        label:'Meu Perfil',       icon:'👤',roles:['profissional']},
+    {key:'prof-alunos',        label:'Meus Alunos',      icon:'📚',roles:['profissional']},
   ].filter(m=>m.roles.includes(crmUser.role));
-  const roleLabel={admin:'Administrador',manager:'Gerente',simples:'Usuário Simples'};
+  const roleLabel={admin:'Administrador',manager:'Gerente',simples:'Usuário Simples',profissional:'Profissional EF'};
   return<div className="min-h-screen bg-gray-100 flex"><aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-0.5">{menu.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</nav><div className="p-3 border-t border-gray-100 space-y-2"><div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{roleLabel[crmUser.role]||crmUser.role}</p></div><Btn variant="ghost" size="sm" onClick={onLogout} className="w-full text-gray-500">Sair do CRM</Btn></div></aside><main className="flex-1 overflow-auto">{children}</main></div>;
 }
 
@@ -1496,6 +1567,205 @@ function CRMUnimidia({crmUser,showToast}){
 }
 
 // ================================================================
+// CRM PROFISSIONAIS EF (Admin)
+// ================================================================
+const BLANK_PEF={nome:'',cref:'',especialidade:'',bio:'',foto:'',phone:'',email:'',site:'',street:'',number:'',complement:'',cep:'',city:'',state:'',valor_hora:'',aceita_avulso:true,aceita_mensal:false,marketplace_visible:false,operating_hours:{...DEFAULT_HOURS},login_email:'',login_password:''};
+
+function CRMProfissionaisEF({showToast}){
+  const [list,setList]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [tab,setTab]=useState('lista');
+  const [editId,setEditId]=useState(null);
+  const [form,setForm]=useState(BLANK_PEF);
+  const [saving,setSaving]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const [cepLoading,setCepLoading]=useState(false);
+
+  const load=()=>{setLoading(true);profEfApi.list().then(setList).catch(()=>{}).finally(()=>setLoading(false));};
+  useEffect(()=>{load();},[]);
+
+  const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  const openNew=()=>{setEditId(null);setForm(BLANK_PEF);setTab('form');};
+  const openEdit=(p)=>{setEditId(p.id);setForm({...BLANK_PEF,...p,valor_hora:p.valor_hora||'',login_email:'',login_password:'',operating_hours:p.operating_hours||{...DEFAULT_HOURS}});setTab('form');};
+
+  const handleCEP=async(v)=>{upd('cep',v);if(v.replace(/\D/g,'').length===8){setCepLoading(true);const d=await viaCEP(v);setCepLoading(false);if(d){upd('street',d.logradouro);upd('city',d.localidade);upd('state',d.uf);}}};
+
+  const handleFoto=async(e)=>{
+    const file=e.target.files[0];if(!file)return;
+    if(file.size>20*1024*1024){showToast('Máx. 20MB','error');return;}
+    setUploading(true);const dataUrl=await compressImage(file);if(dataUrl)upd('foto',dataUrl);setUploading(false);
+  };
+
+  const save=async()=>{
+    if(!form.nome){showToast('Nome é obrigatório','error');return;}
+    setSaving(true);
+    try{
+      const payload={...form,valor_hora:Number(form.valor_hora)||0};
+      if(editId){await profEfApi.update(editId,payload);showToast('Profissional atualizado!');}
+      else{
+        if(!form.login_email||!form.login_password){showToast('Email e senha de login são obrigatórios','error');setSaving(false);return;}
+        await profEfApi.create(payload);showToast('Profissional cadastrado com login criado!');
+      }
+      load();setTab('lista');
+    }catch(e){showToast(e.message||'Erro ao salvar','error');}
+    finally{setSaving(false);}
+  };
+
+  const remove=async(id)=>{
+    if(!confirm('Excluir profissional?'))return;
+    try{await profEfApi.remove(id);showToast('Excluído');load();}catch(e){showToast(e.message||'Erro','error');}
+  };
+
+  if(loading)return<Spinner/>;
+  return<div className="p-6 max-w-5xl">
+    <div className="flex items-center justify-between mb-6">
+      <h1 className="text-2xl font-black text-gray-900">🏋️ Profissionais de Ed. Física</h1>
+      <Btn onClick={openNew}>+ Novo Profissional</Btn>
+    </div>
+    <Tabs tabs={[{key:'lista',label:`Lista (${list.length})`},{key:'form',label:editId?'Editar':'Novo'}]} active={tab} onChange={setTab}/>
+    {tab==='lista'&&<div className="mt-4 space-y-3">
+      {list.length===0&&<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🏋️</p><p>Nenhum profissional cadastrado</p></div>}
+      {list.map(p=><div key={p.id} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4 shadow-sm">
+        <div className="w-14 h-14 rounded-xl overflow-hidden bg-indigo-100 shrink-0 flex items-center justify-center">{p.foto?<img src={p.foto} alt={p.nome} className="w-full h-full object-cover"/>:<span className="text-2xl">🏋️</span>}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap"><span className="font-bold text-gray-800">{p.nome}</span>{p.cref&&<span className="text-xs text-gray-400">CREF {p.cref}</span>}{p.marketplace_visible&&<Badge color="blue">Marketplace</Badge>}</div>
+          <p className="text-sm text-gray-500 truncate">{p.especialidade||'—'} • {p.city||'—'}{p.state?`/${p.state}`:''}</p>
+          <p className="text-xs text-gray-400">{p.phone} • {p.email}</p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Btn variant="secondary" size="sm" onClick={()=>openEdit(p)}>Editar</Btn>
+          <Btn variant="danger" size="sm" onClick={()=>remove(p.id)}>Excluir</Btn>
+        </div>
+      </div>)}
+    </div>}
+    {tab==='form'&&<div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="space-y-5">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+          <h2 className="font-bold text-gray-700">Dados Pessoais</h2>
+          <Field label="Nome completo" required><Inp value={form.nome} onChange={e=>upd('nome',e.target.value)}/></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="CREF"><Inp value={form.cref} onChange={e=>upd('cref',e.target.value)} placeholder="000000-G/SP"/></Field>
+            <Field label="Especialidade"><Inp value={form.especialidade} onChange={e=>upd('especialidade',e.target.value)} placeholder="Musculação, Funcional..."/></Field>
+          </div>
+          <Field label="Bio / Apresentação"><textarea value={form.bio} onChange={e=>upd('bio',e.target.value)} rows={3} placeholder="Apresentação profissional..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"/></Field>
+          <Field label="Telefone"><Inp value={form.phone} onChange={e=>upd('phone',e.target.value)} placeholder="(00) 00000-0000"/></Field>
+          <Field label="Email"><Inp type="email" value={form.email} onChange={e=>upd('email',e.target.value)}/></Field>
+          <Field label="Site"><Inp type="url" value={form.site} onChange={e=>upd('site',e.target.value)} placeholder="https://..."/></Field>
+          <Field label="Valor/hora (R$)"><Inp type="number" value={form.valor_hora} onChange={e=>upd('valor_hora',e.target.value)} min="0" step="0.01"/></Field>
+          <div className="flex flex-wrap gap-4">
+            <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={form.aceita_avulso} onChange={e=>upd('aceita_avulso',e.target.checked)} className="rounded"/><span>Avulso</span></label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={form.aceita_mensal} onChange={e=>upd('aceita_mensal',e.target.checked)} className="rounded"/><span>Plano mensal</span></label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={form.marketplace_visible} onChange={e=>upd('marketplace_visible',e.target.checked)} className="rounded"/><span className="text-indigo-600 font-medium">Exibir no marketplace</span></label>
+          </div>
+        </div>
+        {!editId&&<div className="bg-white rounded-2xl border border-indigo-100 p-5 space-y-3">
+          <h2 className="font-bold text-gray-700">🔑 Login do Profissional</h2>
+          <p className="text-xs text-gray-400">Credenciais de acesso ao CRM</p>
+          <Field label="Email de login" required><Inp type="email" value={form.login_email} onChange={e=>upd('login_email',e.target.value)}/></Field>
+          <Field label="Senha" required><Inp type="password" value={form.login_password} onChange={e=>upd('login_password',e.target.value)} placeholder="Mínimo 6 caracteres"/></Field>
+        </div>}
+      </div>
+      <div className="space-y-5">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+          <h2 className="font-bold text-gray-700">Foto de Perfil</h2>
+          <label className={`flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed rounded-xl p-4 cursor-pointer transition-colors ${uploading?'border-indigo-300 bg-indigo-50':'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50'}`}>
+            <input type="file" accept="image/*" className="hidden" onChange={handleFoto} disabled={uploading}/>
+            <span className="text-3xl">{uploading?'⏳':'📷'}</span>
+            <p className="text-sm font-medium text-gray-700">{uploading?'Processando...':'Clique para selecionar foto'}</p>
+          </label>
+          {form.foto&&<div className="relative rounded-xl overflow-hidden h-40"><img src={form.foto} alt="foto" className="w-full h-full object-cover object-top"/><button onClick={()=>upd('foto','')} className="absolute top-2 right-2 bg-red-600/90 text-white text-xs rounded-lg px-2 py-1">✕ Remover</button></div>}
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+          <h2 className="font-bold text-gray-700">Localização</h2>
+          <Field label="CEP" help={cepLoading?'Buscando...':''}><Inp value={form.cep} onChange={e=>handleCEP(e.target.value)} placeholder="00000-000"/></Field>
+          <Field label="Rua"><Inp value={form.street} onChange={e=>upd('street',e.target.value)}/></Field>
+          <div className="grid grid-cols-2 gap-3"><Field label="Número"><Inp value={form.number} onChange={e=>upd('number',e.target.value)}/></Field><Field label="Complemento"><Inp value={form.complement} onChange={e=>upd('complement',e.target.value)}/></Field></div>
+          <div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Field label="Cidade"><Inp value={form.city} onChange={e=>upd('city',e.target.value)}/></Field></div><Field label="UF"><Inp value={form.state} onChange={e=>upd('state',e.target.value.toUpperCase().slice(0,2))} placeholder="SP"/></Field></div>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h2 className="font-bold text-gray-700 mb-3">Disponibilidade</h2>
+          <HoursEditor value={form.operating_hours} onChange={v=>upd('operating_hours',v)}/>
+        </div>
+      </div>
+      <div className="lg:col-span-2 flex gap-3">
+        <Btn onClick={save} disabled={saving} className="flex-1">{saving?'Salvando...':'💾 Salvar'}</Btn>
+        <Btn variant="secondary" onClick={()=>{setTab('lista');setEditId(null);setForm(BLANK_PEF);}}>Cancelar</Btn>
+      </div>
+    </div>}
+  </div>;
+}
+
+// ================================================================
+// CRM PROFISSIONAL — visão do próprio profissional logado
+// ================================================================
+function CRMProfissionalHome({crmUser,showToast}){
+  const [form,setForm]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  useEffect(()=>{
+    if(!crmUser.profissional_id)return;
+    profEfApi.publicGet(crmUser.profissional_id)
+      .then(p=>setForm({...p,valor_hora:p.valor_hora||'',operating_hours:p.operating_hours||{...DEFAULT_HOURS}}))
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  },[crmUser.profissional_id]);
+
+  const handleFoto=async(e)=>{
+    const file=e.target.files[0];if(!file)return;
+    setUploading(true);const dataUrl=await compressImage(file);if(dataUrl)upd('foto',dataUrl);setUploading(false);
+  };
+
+  const save=async()=>{
+    setSaving(true);
+    try{await profEfApi.update(crmUser.profissional_id,{...form,valor_hora:Number(form.valor_hora)||0});showToast('Perfil atualizado!');}
+    catch(e){showToast(e.message||'Erro ao salvar','error');}
+    finally{setSaving(false);}
+  };
+
+  if(loading||!form)return<Spinner/>;
+  return<div className="p-6 max-w-3xl">
+    <h1 className="text-2xl font-black text-gray-900 mb-6">👤 Meu Perfil</h1>
+    <div className="space-y-5">
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+        <h2 className="font-bold text-gray-700">Informações Profissionais</h2>
+        <Field label="Nome"><Inp value={form.nome||''} onChange={e=>upd('nome',e.target.value)}/></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="CREF"><Inp value={form.cref||''} onChange={e=>upd('cref',e.target.value)}/></Field>
+          <Field label="Especialidade"><Inp value={form.especialidade||''} onChange={e=>upd('especialidade',e.target.value)}/></Field>
+        </div>
+        <Field label="Bio / Apresentação"><textarea value={form.bio||''} onChange={e=>upd('bio',e.target.value)} rows={3} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"/></Field>
+        <Field label="Telefone"><Inp value={form.phone||''} onChange={e=>upd('phone',e.target.value)}/></Field>
+        <Field label="Email de contato"><Inp type="email" value={form.email||''} onChange={e=>upd('email',e.target.value)}/></Field>
+        <Field label="Site"><Inp type="url" value={form.site||''} onChange={e=>upd('site',e.target.value)}/></Field>
+        <Field label="Valor/hora (R$)"><Inp type="number" value={form.valor_hora||''} onChange={e=>upd('valor_hora',e.target.value)} min="0" step="0.01"/></Field>
+        <div className="flex flex-wrap gap-4">
+          <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={!!form.aceita_avulso} onChange={e=>upd('aceita_avulso',e.target.checked)} className="rounded"/><span>Aulas avulsas</span></label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={!!form.aceita_mensal} onChange={e=>upd('aceita_mensal',e.target.checked)} className="rounded"/><span>Planos mensais</span></label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={!!form.marketplace_visible} onChange={e=>upd('marketplace_visible',e.target.checked)} className="rounded"/><span className="text-indigo-600 font-medium">Visível no marketplace</span></label>
+        </div>
+      </div>
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+        <h2 className="font-bold text-gray-700">Foto de Perfil</h2>
+        {form.foto&&<div className="relative rounded-xl overflow-hidden h-40 mb-2"><img src={form.foto} alt="foto" className="w-full h-full object-cover object-top"/><button onClick={()=>upd('foto','')} className="absolute top-2 right-2 bg-red-600/90 text-white text-xs rounded-lg px-2 py-1">✕</button></div>}
+        <label className="flex items-center gap-2 cursor-pointer text-sm text-indigo-600 hover:underline font-medium">
+          <input type="file" accept="image/*" className="hidden" onChange={handleFoto} disabled={uploading}/>
+          {uploading?'⏳ Processando...':'📷 Alterar foto'}
+        </label>
+      </div>
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <h2 className="font-bold text-gray-700 mb-3">Minha Disponibilidade</h2>
+        <HoursEditor value={form.operating_hours} onChange={v=>upd('operating_hours',v)}/>
+      </div>
+      <Btn onClick={save} disabled={saving} className="w-full">{saving?'Salvando...':'💾 Salvar Perfil'}</Btn>
+    </div>
+  </div>;
+}
+
+// ================================================================
 // MAIN APP
 // ================================================================
 export default function App(){
@@ -1506,6 +1776,7 @@ export default function App(){
   const [publicUser,setPublicUser]=useState(null);
   const [establishments,setEstablishments]=useState([]);
   const [points,setPoints]=useState([]);
+  const [profissionais,setProfissionais]=useState([]);
   const [toast,setToast]=useState(null);
   const [showAuth,setShowAuth]=useState(false);
   const [authMode,setAuthMode]=useState('login');
@@ -1522,23 +1793,21 @@ export default function App(){
 
   const navigate=(pg,arg=null)=>{
     setPage(pg);setPageArg(arg);window.scrollTo(0,0);
-    if(pg==='crm-login'||pg.startsWith('crm-'))setView('crm');
+    if(pg==='crm-login'||pg.startsWith('crm-')||pg.startsWith('prof-'))setView('crm');
     else if(pg==='password-recovery')setView('password-recovery');
     else if(pg==='reset-password')setView('reset-password');
     else setView('marketplace');
-    // Atualiza URL para permitir links diretos
-    if(pg==='est-detail'&&arg){
-      window.history.pushState({pg,arg},'',`/e/${arg}`);
-    } else if(!pg.startsWith('crm-')&&pg!=='password-recovery'&&pg!=='reset-password'){
+    if(pg==='est-detail'&&arg) window.history.pushState({pg,arg},'',`/e/${arg}`);
+    else if(pg==='prof-detail'&&arg) window.history.pushState({pg,arg},'',`/p/${arg}`);
+    else if(!pg.startsWith('crm-')&&!pg.startsWith('prof-')&&pg!=='password-recovery'&&pg!=='reset-password')
       window.history.replaceState({pg,arg},'','/');
-    }
   };
 
-  // Suporte ao botão voltar do browser
   useEffect(()=>{
     const handler=(e)=>{
       const s=e.state;
       if(s?.pg==='est-detail'&&s?.arg){setPage('est-detail');setPageArg(s.arg);setView('marketplace');}
+      else if(s?.pg==='prof-detail'&&s?.arg){setPage('prof-detail');setPageArg(s.arg);setView('marketplace');}
       else{setPage('mkt-home');setPageArg(null);setView('marketplace');}
       window.scrollTo(0,0);
     };
@@ -1546,14 +1815,13 @@ export default function App(){
     return()=>window.removeEventListener('popstate',handler);
   },[]);
 
-  // Carrega dados do marketplace
   const loadMkt=useCallback(()=>{
     estApi.list().then(setEstablishments).catch(()=>{});
     pointApi.list().then(setPoints).catch(()=>{});
+    profEfApi.publicList().then(setProfissionais).catch(()=>{});
   },[]);
   useEffect(()=>{loadMkt();},[loadMkt]);
 
-  // Restaura sessão e detecta link de reset na URL
   useEffect(()=>{
     const token=localStorage.getItem('token');
     const savedUser=localStorage.getItem('user');
@@ -1561,113 +1829,121 @@ export default function App(){
     if(token&&savedUser){
       try{
         const u=JSON.parse(savedUser);
-        if(savedType==='crm')setCrmUser(u);
+        if(savedType==='crm'){setCrmUser(u);setView('crm');}
         else setPublicUser(u);
       }catch{}
     }
-    // Detecta ?token=...&type=... na URL (link de reset de senha enviado por email)
     const params=new URLSearchParams(window.location.search);
     const urlToken=params.get('token');
     const urlType=params.get('type')||'public';
     if(urlToken){
-      setResetToken(urlToken);
-      setResetType(urlType);
-      setView('reset-password');
+      setResetToken(urlToken);setResetType(urlType);setView('reset-password');
       window.history.replaceState({},'',window.location.pathname);
       return;
     }
-    // Detecta /e/:id na URL — link direto para um estabelecimento
-    const estMatch=window.location.pathname.match(/^\/e\/(\d+)$/);
-    if(estMatch){
-      setPage('est-detail');
-      setPageArg(Number(estMatch[1]));
-      setView('marketplace');
-      window.history.replaceState({pg:'est-detail',arg:Number(estMatch[1])},'',window.location.pathname);
-    }
+    const path=window.location.pathname;
+    const estMatch=path.match(/^\/e\/(\d+)$/);
+    if(estMatch){setPage('est-detail');setPageArg(Number(estMatch[1]));setView('marketplace');window.history.replaceState({pg:'est-detail',arg:Number(estMatch[1])},'',path);return;}
+    const profMatch=path.match(/^\/p\/(\d+)$/);
+    if(profMatch){setPage('prof-detail');setPageArg(Number(profMatch[1]));setView('marketplace');window.history.replaceState({pg:'prof-detail',arg:Number(profMatch[1])},'',path);}
   },[]);
 
-  // ── CRM Auth ──
   const crmLogin=async(email,pw)=>{
     const{token,user}=await authApi.crmLogin(email,pw);
     saveToken(token);localStorage.setItem('user',JSON.stringify(user));localStorage.setItem('userType','crm');
-    setCrmUser(user);navigate(user.role==='simples'?'crm-reservations':'crm-dashboard');
+    setCrmUser(user);
+    if(user.role==='profissional') navigate('prof-perfil');
+    else navigate(user.role==='simples'?'crm-reservations':'crm-dashboard');
   };
   const crmLogout=()=>{
     clearToken();localStorage.removeItem('user');localStorage.removeItem('userType');
     setCrmUser(null);navigate('mkt-home');
   };
-
-  // ── Public Auth ──
   const pubLogin=async(email,pw)=>{
     const{token,user}=await authApi.pubLogin(email,pw);
     saveToken(token);localStorage.setItem('user',JSON.stringify(user));localStorage.setItem('userType','public');
-    setPublicUser(user);setShowAuth(false);showToast(`Bem-vindo, ${user.name.split(' ')[0]}!`,'success');
+    setPublicUser(user);setShowAuth(false);
     if(pendRes){setConfRes(pendRes);setPendRes(null);}
   };
-  const pubRegister=async(name,cpf,email,password)=>{
-    const{token,user}=await authApi.pubRegister(name,cpf,email,password);
+  const pubRegister=async(name,cpf,email,pw)=>{
+    const{token,user}=await authApi.pubRegister(name,cpf,email,pw);
     saveToken(token);localStorage.setItem('user',JSON.stringify(user));localStorage.setItem('userType','public');
-    setPublicUser(user);setShowAuth(false);showToast('Conta criada com sucesso!','success');
+    setPublicUser(user);setShowAuth(false);
     if(pendRes){setConfRes(pendRes);setPendRes(null);}
   };
   const pubLogout=()=>{
     clearToken();localStorage.removeItem('user');localStorage.removeItem('userType');
-    setPublicUser(null);showToast('Saiu da conta','info');
+    setPublicUser(null);
   };
 
-  // ── Reservas ──
-  const handleReserve=(rd,needAuth)=>{
-    if(needAuth){setPendRes(rd);setAuthMode('login');setShowAuth(true);return;}
-    setConfRes(rd);
+  const handleReserve=(pt,date,slots,estId)=>{
+    if(!publicUser){setPendRes({pt,date,slots,estId});setShowAuth(true);return;}
+    setConfRes({pt,date,slots,estId});
   };
-  const confirmRes=async(paymentMethod)=>{
-    const{pt,est,date,startT,endT,hours,total}=confRes;
+  const confirmReserve=async()=>{
+    if(!confRes||confLoading)return;
     setConfLoading(true);
     try{
-      await resApi.create({point_id:pt.id,est_id:est.id,date,start_time:startT,end_time:endT,hours,total,payment_method:paymentMethod||'dinheiro'});
-      setConfRes(null);showToast('✅ Reserva confirmada! Email enviado.','success');
-      navigate('my-reservations');
-    }catch(e){showToast(e.message,'error');}finally{setConfLoading(false);}
+      const{pt,date,slots,estId}=confRes;
+      const start=slots[0];const end=slots[slots.length-1];
+      const[sh,sm]=start.split(':').map(Number);const[eh,em]=end.split(':').map(Number);
+      const endTime=`${String(eh+(em===30?0:1)).padStart(2,'0')}:${em===30?'00':'30'}`;
+      const hours=slots.length*0.5;
+      await resApi.create({point_id:pt.id,est_id:estId,date,start_time:start,end_time:endTime,hours,total:pt.price_per_hour*hours});
+      showToast('Reserva solicitada! Aguarde confirmação.','success');
+      setConfRes(null);loadMkt();
+    }catch(e){showToast(e.message||'Erro ao reservar','error');}
+    finally{setConfLoading(false);}
   };
 
-  // ── RENDER ──
-  if(view==='reset-password')return<><Toast toast={toast}/><ResetPassword token={resetToken} type={resetType} navigate={navigate} showToast={showToast}/></>;
-  if(view==='password-recovery')return<><Toast toast={toast}/><PasswordRecovery navigate={navigate} type={pageArg||'public'}/></>;
+  const crmRoutes={
+    'crm-dashboard':    <CRMDashboard/>,
+    'crm-establishment':<CRMEstabelecimentos crmUser={crmUser} showToast={showToast}/>,
+    'crm-points':       <CRMPoints crmUser={crmUser} showToast={showToast}/>,
+    'crm-users':        <CRMUsers crmUser={crmUser} showToast={showToast}/>,
+    'crm-reservations': <CRMReservations crmUser={crmUser} showToast={showToast}/>,
+    'crm-professors':   <CRMProfessors crmUser={crmUser} showToast={showToast}/>,
+    'crm-profissionais-ef':<CRMProfissionaisEF showToast={showToast}/>,
+    'crm-unimidia':     <CRMUnimidia crmUser={crmUser} showToast={showToast}/>,
+    'prof-perfil':      <CRMProfissionalHome crmUser={crmUser} showToast={showToast}/>,
+    'prof-alunos':      <CRMPlanosAula showToast={showToast}/>,
+  };
+
+  if(view==='reset-password')return<ResetPassword token={resetToken} type={resetType} navigate={navigate} showToast={showToast}/>;
+  if(view==='password-recovery')return<PasswordRecovery navigate={navigate} type={pageArg||'public'}/>;
 
   if(view==='crm'){
-    if(!crmUser)return<><Toast toast={toast}/><CRMLogin onLogin={crmLogin} navigate={navigate}/></>;
-    const pages={
-      'crm-dashboard':    <CRMDashboard/>,
-      'crm-establishment':<CRMEstablishment showToast={showToast}/>,
-      'crm-points':       <CRMPoints crmUser={crmUser} showToast={showToast}/>,
-      'crm-users':        <CRMUsers crmUser={crmUser} showToast={showToast}/>,
-      'crm-reservations': <CRMReservations showToast={showToast}/>,
-      'crm-professors':   <CRMProfessors crmUser={crmUser} showToast={showToast}/>,
-      'crm-unimidia':     <CRMUnimidia crmUser={crmUser} showToast={showToast}/>,
-    };
-    return<><Toast toast={toast}/><CRMLayout crmUser={crmUser} page={page} navigate={navigate} onLogout={crmLogout}>{pages[page]||pages['crm-dashboard']}</CRMLayout></>;
+    if(!crmUser)return<CRMLogin onLogin={crmLogin} navigate={navigate}/>;
+    return<>
+      <Toast toast={toast}/>
+      <CRMLayout crmUser={crmUser} page={page} navigate={navigate} onLogout={crmLogout}>
+        {crmRoutes[page]||<CRMDashboard/>}
+      </CRMLayout>
+    </>;
   }
 
-  const mktPage=()=>{
-    switch(page){
-      case 'est-detail':
-        return<EstDetail estId={pageArg} points={points} navigate={navigate} publicUser={publicUser} onReserve={handleReserve}/>;
-      case 'my-reservations':
-        return publicUser
-          ?<MyReservations publicUser={publicUser} navigate={navigate} showToast={showToast}/>
-          :<div className="max-w-md mx-auto text-center py-24 px-4"><p className="text-5xl mb-4">🔐</p><p className="text-gray-600 mb-5">Você precisa estar logado para ver suas reservas.</p><Btn onClick={()=>{setAuthMode('login');setShowAuth(true);}}>Entrar na minha conta</Btn></div>;
-      case 'public-auth':
-        return<div className="min-h-[60vh] flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-lg p-6 w-full max-w-sm"><button onClick={()=>navigate('mkt-home')} className="text-sm text-gray-400 hover:text-gray-600 mb-4 block">← Voltar</button><AuthModal open={true} onClose={()=>navigate('mkt-home')} onLogin={pubLogin} onRegister={pubRegister} initialMode={pageArg||'login'}/></div></div>;
-      default:
-        return<MktHome establishments={establishments} points={points} navigate={navigate}/>;
-    }
-  };
-
-  return<div className="min-h-screen bg-gray-50">
+  return<>
     <Toast toast={toast}/>
     <MktHeader publicUser={publicUser} page={page} navigate={navigate} onLogout={pubLogout}/>
-    {mktPage()}
-    <AuthModal open={showAuth} onClose={(a)=>{setShowAuth(false);setPendRes(null);if(a==='forgot')navigate('password-recovery');}} onLogin={pubLogin} onRegister={pubRegister} initialMode={authMode}/>
-    <ResConfirmModal open={!!confRes&&!!publicUser} data={confRes} publicUser={publicUser} onConfirm={confirmRes} onClose={()=>setConfRes(null)} loading={confLoading}/>
-  </div>;
+    {page==='mkt-home'&&<MktHome establishments={establishments} points={points} profissionais={profissionais} navigate={navigate}/>}
+    {page==='est-detail'&&<EstDetail estId={pageArg} points={points} navigate={navigate} publicUser={publicUser} onReserve={handleReserve}/>}
+    {page==='prof-detail'&&<ProfDetail profId={pageArg} navigate={navigate}/>}
+    {page==='my-reservations'&&<MyReservations publicUser={publicUser} navigate={navigate} showToast={showToast}/>}
+    {page==='public-auth'&&<AuthModal open={showAuth||true} onClose={()=>navigate('mkt-home')} onLogin={pubLogin} onRegister={pubRegister} initialMode={pageArg||'login'}/>}
+    <AuthModal open={showAuth} onClose={()=>{setShowAuth(false);setPendRes(null);}} onLogin={pubLogin} onRegister={pubRegister} initialMode={authMode}/>
+    <Modal open={!!confRes} onClose={()=>setConfRes(null)} title="Confirmar Reserva">
+      {confRes&&<div className="space-y-4">
+        <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
+          <p className="font-semibold text-gray-800">{confRes.pt.name}</p>
+          <p className="text-gray-500">Data: {fmtDate(confRes.date)}</p>
+          <p className="text-gray-500">Horário: {confRes.slots[0]} – {(()=>{const s=confRes.slots[confRes.slots.length-1];const[h,m]=s.split(':').map(Number);return`${String(h+(m===30?0:1)).padStart(2,'0')}:${m===30?'00':'30'}`;})()}</p>
+          <p className="font-bold text-emerald-700 pt-1">Total: {fmt$(confRes.pt.price_per_hour*confRes.slots.length*0.5)}</p>
+        </div>
+        <div className="flex gap-3">
+          <Btn variant="secondary" className="flex-1" onClick={()=>setConfRes(null)}>Cancelar</Btn>
+          <Btn className="flex-1" onClick={confirmReserve} disabled={confLoading}>{confLoading?'Aguarde...':'Confirmar Reserva'}</Btn>
+        </div>
+      </div>}
+    </Modal>
+  </>;
 }
