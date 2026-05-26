@@ -32,3 +32,6 @@ ALTER TABLE crm_users
 
 ALTER TABLE planos_aula
   ADD COLUMN IF NOT EXISTS profissional_ef_id INTEGER REFERENCES profissionais_ef(id) ON DELETE SET NULL;
+
+ALTER TABLE profissionais_ef ADD COLUMN IF NOT EXISTS foto_x INTEGER DEFAULT 50;
+ALTER TABLE profissionais_ef ADD COLUMN IF NOT EXISTS foto_y INTEGER DEFAULT 30;

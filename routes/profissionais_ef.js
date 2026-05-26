@@ -5,7 +5,7 @@ const { auth, adminOnly } = require('../middleware/auth');
 
 // Campos públicos retornados no marketplace
 const PUBLIC_FIELDS = `
-  id, nome, cref, especialidade, bio, foto, phone, email, site,
+  id, nome, cref, especialidade, bio, foto, foto_x, foto_y, phone, email, site,
   street, number, complement, cep, city, state,
   valor_hora, aceita_avulso, aceita_mensal, operating_hours
 `;
@@ -59,7 +59,7 @@ router.get('/', auth, adminOnly, async (req, res) => {
 // ── POST / — cria profissional + crm_user de login (admin) ───────────────────
 router.post('/', auth, adminOnly, async (req, res) => {
   const {
-    nome, cref, especialidade, bio, foto, phone, email, site,
+    nome, cref, especialidade, bio, foto, foto_x, foto_y, phone, email, site,
     street, number, complement, cep, city, state,
     valor_hora, aceita_avulso, aceita_mensal, marketplace_visible,
     operating_hours,
@@ -87,13 +87,14 @@ router.post('/', auth, adminOnly, async (req, res) => {
     // Criar profissional_ef
     const { rows: profRows } = await client.query(
       `INSERT INTO profissionais_ef
-         (nome, cref, especialidade, bio, foto, phone, email, site,
+         (nome, cref, especialidade, bio, foto, foto_x, foto_y, phone, email, site,
           street, number, complement, cep, city, state,
           valor_hora, aceita_avulso, aceita_mensal, marketplace_visible, operating_hours)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
        RETURNING *`,
       [
         nome, cref || null, especialidade || null, bio || null, foto || null,
+        foto_x ?? 50, foto_y ?? 30,
         phone || null, email || null, site || null,
         street || null, number || null, complement || null, cep || null,
         city || null, state || null,
@@ -136,7 +137,7 @@ router.put('/:id', auth, async (req, res) => {
   }
 
   const {
-    nome, cref, especialidade, bio, foto, phone, email, site,
+    nome, cref, especialidade, bio, foto, foto_x, foto_y, phone, email, site,
     street, number, complement, cep, city, state,
     valor_hora, aceita_avulso, aceita_mensal, marketplace_visible,
     operating_hours, ativo,
@@ -150,26 +151,30 @@ router.put('/:id', auth, async (req, res) => {
          especialidade      = COALESCE($3, especialidade),
          bio                = COALESCE($4, bio),
          foto               = COALESCE($5, foto),
-         phone              = COALESCE($6, phone),
-         email              = COALESCE($7, email),
-         site               = COALESCE($8, site),
-         street             = COALESCE($9, street),
-         number             = COALESCE($10, number),
-         complement         = COALESCE($11, complement),
-         cep                = COALESCE($12, cep),
-         city               = COALESCE($13, city),
-         state              = COALESCE($14, state),
-         valor_hora         = COALESCE($15, valor_hora),
-         aceita_avulso      = COALESCE($16, aceita_avulso),
-         aceita_mensal      = COALESCE($17, aceita_mensal),
-         marketplace_visible = COALESCE($18, marketplace_visible),
-         operating_hours    = COALESCE($19, operating_hours),
-         ativo              = COALESCE($20, ativo),
+         foto_x             = COALESCE($6, foto_x),
+         foto_y             = COALESCE($7, foto_y),
+         phone              = COALESCE($8, phone),
+         email              = COALESCE($9, email),
+         site               = COALESCE($10, site),
+         street             = COALESCE($11, street),
+         number             = COALESCE($12, number),
+         complement         = COALESCE($13, complement),
+         cep                = COALESCE($14, cep),
+         city               = COALESCE($15, city),
+         state              = COALESCE($16, state),
+         valor_hora         = COALESCE($17, valor_hora),
+         aceita_avulso      = COALESCE($18, aceita_avulso),
+         aceita_mensal      = COALESCE($19, aceita_mensal),
+         marketplace_visible = COALESCE($20, marketplace_visible),
+         operating_hours    = COALESCE($21, operating_hours),
+         ativo              = COALESCE($22, ativo),
          updated_at         = NOW()
-       WHERE id = $21
+       WHERE id = $23
        RETURNING *`,
       [
         nome || null, cref || null, especialidade || null, bio || null, foto || null,
+        foto_x !== undefined ? foto_x : null,
+        foto_y !== undefined ? foto_y : null,
         phone || null, email || null, site || null,
         street || null, number || null, complement || null, cep || null,
         city || null, state || null,
