@@ -1898,7 +1898,7 @@ export default function App(){
 
   const crmRoutes={
     'crm-dashboard':    <CRMDashboard/>,
-    'crm-establishment':<CRMEstabelecimentos crmUser={crmUser} showToast={showToast}/>,
+    'crm-establishment':<CRMEstablishment crmUser={crmUser} showToast={showToast}/>,
     'crm-points':       <CRMPoints crmUser={crmUser} showToast={showToast}/>,
     'crm-users':        <CRMUsers crmUser={crmUser} showToast={showToast}/>,
     'crm-reservations': <CRMReservations crmUser={crmUser} showToast={showToast}/>,
