@@ -441,25 +441,39 @@ function CRMLogin({onLogin,navigate}){
 // CRM LAYOUT
 // ================================================================
 function CRMLayout({crmUser,page,navigate,onLogout,children}){
-  const menu=[
-    {key:'crm-dashboard',      label:'Dashboard',        icon:'📊',roles:['admin','manager']},
-    {key:'crm-reservations',   label:'Reservas',         icon:'📅',roles:['admin','manager','simples']},
-    {key:'crm-establishment',  label:'Estabelecimentos', icon:'🏢',roles:['admin','manager']},
-    {key:'crm-points',         label:'Pontos',           icon:'📍',roles:['admin','manager']},
-    {key:'crm-users',          label:'Usuários',         icon:'👥',roles:['admin','manager']},
-    {key:'crm-professors',     label:'Professores',      icon:'🎓',roles:['admin','manager']},
-    {key:'crm-profissionais-ef',label:'Profissionais EF',icon:'🏋️',roles:['admin','manager']},
-    {key:'crm-funcionarios',   label:'Funcionários',     icon:'👷',roles:['admin','manager']},
-    {key:'crm-financeiro',     label:'Financeiro',       icon:'💰',roles:['admin','manager']},
-    {key:'crm-estoque',        label:'Estoque Bar',      icon:'📦',roles:['admin','manager']},
-    {key:'crm-unimidia',       label:'Quero Divulgar',   icon:'📺',roles:['admin','manager']},
-    {key:'crm-audit',          label:'Auditoria',        icon:'🛡️',roles:['admin']},
-    // Menu exclusivo para profissional logado
-    {key:'prof-perfil',        label:'Meu Perfil',       icon:'👤',roles:['profissional']},
-    {key:'prof-alunos',        label:'Meus Alunos',      icon:'📚',roles:['profissional']},
-  ].filter(m=>m.roles.includes(crmUser.role));
+  const groups=[
+    {label:'Principal', items:[
+      {key:'crm-dashboard',      label:'Dashboard', icon:'📊',roles:['admin','manager']},
+      {key:'crm-reservations',   label:'Reservas',  icon:'📅',roles:['admin','manager','simples']},
+    ]},
+    {label:'Cadastros', items:[
+      {key:'crm-establishment',  label:'Estabelecimentos', icon:'🏢',roles:['admin','manager']},
+      {key:'crm-points',         label:'Pontos',           icon:'📍',roles:['admin','manager']},
+      {key:'crm-professors',     label:'Professores',      icon:'🎓',roles:['admin','manager']},
+      {key:'crm-profissionais-ef',label:'Profissionais EF',icon:'🏋️',roles:['admin','manager']},
+    ]},
+    {label:'Financeiro', items:[
+      {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager']},
+      {key:'crm-funcionarios',   label:'Funcionários', icon:'👷',roles:['admin','manager']},
+      {key:'crm-estoque',        label:'Estoque Bar',  icon:'📦',roles:['admin','manager']},
+    ]},
+    {label:'Marketing', items:[
+      {key:'crm-unimidia',       label:'Quero Divulgar', icon:'📺',roles:['admin','manager']},
+    ]},
+    {label:'Administração', items:[
+      {key:'crm-users',          label:'Usuários',  icon:'👥',roles:['admin','manager']},
+      {key:'crm-audit',          label:'Auditoria', icon:'🛡️',roles:['admin']},
+    ]},
+    {label:'Profissional', items:[
+      {key:'prof-perfil',        label:'Meu Perfil',  icon:'👤',roles:['profissional']},
+      {key:'prof-alunos',        label:'Meus Alunos', icon:'📚',roles:['profissional']},
+    ]},
+  ].map(g=>({...g,items:g.items.filter(m=>m.roles.includes(crmUser.role))})).filter(g=>g.items.length);
+  const [openGroups,setOpenGroups]=useState({});
+  const isOpen=(l)=>openGroups[l]!==false;
+  const toggleGroup=(l)=>setOpenGroups(p=>({...p,[l]:p[l]===false?true:false}));
   const roleLabel={admin:'Administrador',manager:'Gerente',simples:'Usuário Simples',profissional:'Profissional EF'};
-  return<div className="min-h-screen bg-gray-100 flex"><aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-0.5">{menu.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</nav><div className="p-3 border-t border-gray-100 space-y-2"><div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{roleLabel[crmUser.role]||crmUser.role}</p></div><Btn variant="ghost" size="sm" onClick={onLogout} className="w-full text-gray-500">Sair do CRM</Btn></div></aside><main className="flex-1 overflow-auto">{children}</main></div>;
+  return<div className="min-h-screen bg-gray-100 flex"><aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-2 overflow-y-auto">{groups.map(g=><div key={g.label}><button onClick={()=>toggleGroup(g.label)} className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wide hover:text-gray-600"><span>{g.label}</span><span className="text-gray-300 text-[10px]">{isOpen(g.label)?'▾':'▸'}</span></button>{isOpen(g.label)&&<div className="space-y-0.5 mt-0.5">{g.items.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</div>}</div>)}</nav><div className="p-3 border-t border-gray-100 space-y-2"><div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{roleLabel[crmUser.role]||crmUser.role}</p></div><Btn variant="ghost" size="sm" onClick={onLogout} className="w-full text-gray-500">Sair do CRM</Btn></div></aside><main className="flex-1 overflow-auto">{children}</main></div>;
 }
 
 // ================================================================
