@@ -92,6 +92,21 @@ router.post('/', auth, adminOrManager, async (req, res) => {
       [est_id || null, cliente_nome, cliente_ref || 'manual',
        JSON.stringify(itens), total, observacoes || null, dataFinal]
     );
+
+    // Baixa de estoque (#10): se o item referencia um produto cadastrado, decrementa.
+    for (const it of itens) {
+      const qtd = Number(it.quantidade) || 0;
+      if (qtd <= 0) continue;
+      if (it.produto_id) {
+        await pool.query('UPDATE bar_produtos SET estoque = estoque - $1, updated_at = NOW() WHERE id = $2',
+          [qtd, it.produto_id]).catch(() => {});
+      } else if (est_id && it.nome) {
+        await pool.query(
+          'UPDATE bar_produtos SET estoque = estoque - $1, updated_at = NOW() WHERE est_id = $2 AND LOWER(nome) = LOWER($3)',
+          [qtd, est_id, it.nome]).catch(() => {});
+      }
+    }
+
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);

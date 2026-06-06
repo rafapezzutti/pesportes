@@ -1,20 +1,58 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const cron = require('node-cron');
 const pool = require('./db/pool');
 const { sendReminderEmail } = require('./services/email');
+const auditLogger = require('./middleware/audit');
+
+// ── Validação de variáveis de ambiente ──────────────────────────
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET'];
+const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missing.length) {
+  console.error(`❌ Variáveis de ambiente obrigatórias ausentes: ${missing.join(', ')}`);
+  process.exit(1);
+}
+if (!process.env.RESEND_API_KEY) {
+  console.warn('⚠️  RESEND_API_KEY não configurada — e-mails não serão enviados.');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const TZ = process.env.TZ_RESERVAS || 'America/Sao_Paulo';
 
-// ── Middleware ──────────────────────────────────────────────────
+// ── Segurança ───────────────────────────────────────────────────
+app.set('trust proxy', 1); // Render/Fly ficam atrás de proxy (IP real no rate limit)
+app.use(helmet({ contentSecurityPolicy: false })); // CSP off p/ não quebrar o SPA
+
+// CORS — em produção o SPA é servido pelo mesmo host (same-origin).
+// Mantém allowlist para chamadas externas eventuais.
+const allowlist = [process.env.FRONTEND_URL].filter(Boolean);
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: (origin, cb) => {
+    if (!origin || allowlist.length === 0 || allowlist.includes(origin)) return cb(null, true);
+    return cb(null, false);
+  },
   credentials: true,
 }));
+
 app.use(express.json({ limit: '10mb' }));
+
+// Rate limiting nas rotas de autenticação (anti brute-force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 30,                  // 30 tentativas por IP por janela
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+});
+app.use('/api/auth', authLimiter);
+
+// Auditoria — registra automaticamente todas as ações de escrita
+app.use(auditLogger);
 
 // ── API Routes ──────────────────────────────────────────────────
 app.use('/api/auth',             require('./routes/auth'));
@@ -28,6 +66,13 @@ app.use('/api/planos',           require('./routes/planos'));
 app.use('/api/bar',              require('./routes/bar'));
 app.use('/api/manutencao',       require('./routes/manutencao'));
 app.use('/api/profissionais-ef', require('./routes/profissionais_ef'));
+app.use('/api/audit',            require('./routes/audit'));
+app.use('/api/repasse',          require('./routes/repasse'));
+app.use('/api/expenses',         require('./routes/expenses'));
+app.use('/api/finance',          require('./routes/finance'));
+app.use('/api/reviews',          require('./routes/reviews'));
+app.use('/api/bar-produtos',     require('./routes/bar_produtos'));
+app.use('/api/reports',          require('./routes/reports'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));
@@ -39,37 +84,47 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(DIST, 'index.html'));
 });
 
-// ── Cron Jobs — Lembretes de Reserva ────────────────────────────
-cron.schedule('* * * * *', async () => {
+// ── Cron — Lembretes de Reserva ─────────────────────────────────
+// Roda a cada 5 min. Usa flags reminded_1h / reminded_15m para nunca
+// perder um lembrete (mesmo de horários "quebrados") e nunca repetir.
+// Interpreta o horário da reserva no fuso configurado (BR por padrão).
+cron.schedule('*/5 * * * *', async () => {
   try {
-    const now = new Date();
-    const in60 = new Date(now.getTime() + 60 * 60 * 1000);
-    const in15 = new Date(now.getTime() + 15 * 60 * 1000);
+    const { rows } = await pool.query(`
+      SELECT r.*,
+             pu.name  AS user_name,
+             pu.email AS user_email,
+             p.name   AS point_name, p.price_per_hour,
+             e.name   AS est_name, e.phone AS est_phone,
+             e.street, e.number AS est_number, e.city, e.state,
+             EXTRACT(EPOCH FROM (
+               ((r.date + r.start_time::time) AT TIME ZONE $1) - NOW()
+             )) / 60 AS mins_until
+      FROM reservations r
+      JOIN public_users pu  ON r.user_id  = pu.id
+      JOIN points p         ON r.point_id = p.id
+      JOIN establishments e ON r.est_id   = e.id
+      WHERE r.status = 'confirmed'
+        AND ((r.date + r.start_time::time) AT TIME ZONE $1)
+              BETWEEN NOW() AND NOW() + INTERVAL '70 minutes'
+        AND (r.reminded_1h = FALSE OR r.reminded_15m = FALSE)
+    `, [TZ]);
 
-    const fmt = (d) => {
-      const hh = String(d.getHours()).padStart(2, '0');
-      const mm = String(d.getMinutes()).padStart(2, '0');
-      return `${hh}:${mm}`;
-    };
-
-    for (const [target, type] of [[in60, '1h'], [in15, '15min']]) {
-      const dateStr = target.toISOString().split('T')[0];
-      const timeStr = fmt(target);
-
-      const { rows } = await pool.query(`
-        SELECT r.*, pu.name as user_name, pu.email as user_email,
-               p.name as point_name, p.price_per_hour,
-               e.name as est_name, e.phone as est_phone,
-               e.street, e.number as est_number, e.city, e.state
-        FROM reservations r
-        JOIN public_users pu ON r.user_id = pu.id
-        JOIN points p ON r.point_id = p.id
-        JOIN establishments e ON r.est_id = e.id
-        WHERE r.date = $1 AND r.start_time = $2 AND r.status = 'confirmed'
-      `, [dateStr, timeStr]);
-
-      for (const res of rows) {
-        await sendReminderEmail(res, type);
+    for (const r of rows) {
+      const mins = Number(r.mins_until);
+      try {
+        if (mins <= 15 && !r.reminded_15m) {
+          await sendReminderEmail(r, '15min');
+          await pool.query(
+            'UPDATE reservations SET reminded_15m = TRUE, reminded_1h = TRUE WHERE id = $1',
+            [r.id]
+          );
+        } else if (mins <= 60 && !r.reminded_1h) {
+          await sendReminderEmail(r, '1h');
+          await pool.query('UPDATE reservations SET reminded_1h = TRUE WHERE id = $1', [r.id]);
+        }
+      } catch (err) {
+        console.error(`[CRON] Falha ao lembrar reserva ${r.id}:`, err.message);
       }
     }
   } catch (err) {

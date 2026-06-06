@@ -57,15 +57,15 @@ router.get('/:id', auth, async (req, res) => {
 
 // POST /api/professores
 router.post('/', auth, adminOrManager, async (req, res) => {
-  const { est_id, nome, cpf, data_nascimento, email, telefone, valor_hora_avulso } = req.body;
+  const { est_id, nome, cpf, data_nascimento, email, telefone, valor_hora_avulso, percentual_repasse } = req.body;
   if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO professores (est_id, nome, cpf, data_nascimento, email, telefone, valor_hora_avulso)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      `INSERT INTO professores (est_id, nome, cpf, data_nascimento, email, telefone, valor_hora_avulso, percentual_repasse)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [est_id || null, nome, cpf || null, data_nascimento || null,
-       email || null, telefone || null, valor_hora_avulso || 0]
+       email || null, telefone || null, valor_hora_avulso || 0, percentual_repasse || 0]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -76,15 +76,15 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 
 // PUT /api/professores/:id
 router.put('/:id', auth, adminOrManager, async (req, res) => {
-  const { est_id, nome, cpf, data_nascimento, email, telefone, valor_hora_avulso, ativo } = req.body;
+  const { est_id, nome, cpf, data_nascimento, email, telefone, valor_hora_avulso, percentual_repasse, ativo } = req.body;
   try {
     const { rows } = await pool.query(
       `UPDATE professores SET
          est_id=$1, nome=$2, cpf=$3, data_nascimento=$4,
-         email=$5, telefone=$6, valor_hora_avulso=$7, ativo=$8, updated_at=NOW()
-       WHERE id=$9 RETURNING *`,
+         email=$5, telefone=$6, valor_hora_avulso=$7, percentual_repasse=$8, ativo=$9, updated_at=NOW()
+       WHERE id=$10 RETURNING *`,
       [est_id || null, nome, cpf || null, data_nascimento || null,
-       email || null, telefone || null, valor_hora_avulso || 0,
+       email || null, telefone || null, valor_hora_avulso || 0, percentual_repasse || 0,
        ativo !== false, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Professor não encontrado' });

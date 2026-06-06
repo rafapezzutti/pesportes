@@ -83,6 +83,60 @@ export const resApi = {
   manualCreate: (data)               => post('/reservations/manual', data),
 };
 
+// ── Auditoria ─────────────────────────────────────────────────────
+export const auditApi = {
+  list:    (params = {}) => get('/audit?' + new URLSearchParams(params).toString()),
+  filters: ()            => get('/audit/filters'),
+};
+
+// ── Repasse de professores ────────────────────────────────────────
+export const repasseApi = {
+  list:    (params = {}) => get('/repasse?' + new URLSearchParams(params).toString()),
+  detalhe: (id, params = {}) => get(`/repasse/${id}/detalhe?` + new URLSearchParams(params).toString()),
+  marcar:  (body)        => patch('/repasse/marcar', body),
+};
+
+// ── Despesas ──────────────────────────────────────────────────────
+export const expenseApi = {
+  list:   (params = {}) => get('/expenses?' + new URLSearchParams(params).toString()),
+  create: (data)        => post('/expenses', data),
+  update: (id, data)    => put(`/expenses/${id}`, data),
+  remove: (id)          => del(`/expenses/${id}`),
+};
+
+// ── Financeiro ────────────────────────────────────────────────────
+export const financeApi = {
+  cashflow: (params = {}) => get('/finance/cashflow?' + new URLSearchParams(params).toString()),
+};
+
+// ── Avaliações ────────────────────────────────────────────────────
+export const reviewApi = {
+  list:   (type, id)     => get(`/reviews/${type}/${id}`),
+  create: (data)         => post('/reviews', data),
+};
+
+// ── Produtos / estoque do bar ─────────────────────────────────────
+export const barProdutoApi = {
+  list:    (estId)       => get(`/bar-produtos${estId ? `?estId=${estId}` : ''}`),
+  create:  (data)        => post('/bar-produtos', data),
+  update:  (id, data)    => put(`/bar-produtos/${id}`, data),
+  estoque: (id, delta)   => patch(`/bar-produtos/${id}/estoque`, { delta }),
+  remove:  (id)          => del(`/bar-produtos/${id}`),
+};
+
+// ── Relatórios (download .xlsx) ───────────────────────────────────
+export async function downloadReport(path, filename) {
+  const token = getToken();
+  const res = await fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error('Falha ao gerar relatório');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ── Token helpers ─────────────────────────────────────────────────
 export function saveToken(token) { localStorage.setItem('token', token); }
 export function clearToken()     { localStorage.removeItem('token'); }
