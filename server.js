@@ -73,6 +73,8 @@ app.use('/api/finance',          require('./routes/finance'));
 app.use('/api/reviews',          require('./routes/reviews'));
 app.use('/api/bar-produtos',     require('./routes/bar_produtos'));
 app.use('/api/reports',          require('./routes/reports'));
+app.use('/api/employees',        require('./routes/employees'));
+app.use('/api/ponto',            require('./routes/ponto'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));

@@ -107,6 +107,23 @@ export const expenseApi = {
 // ── Financeiro ────────────────────────────────────────────────────
 export const financeApi = {
   cashflow: (params = {}) => get('/finance/cashflow?' + new URLSearchParams(params).toString()),
+  projecao: (params = {}) => get('/finance/projecao?' + new URLSearchParams(params).toString()),
+};
+
+// ── Funcionários (RH) ─────────────────────────────────────────────
+export const employeeApi = {
+  list:   (params = {}) => get('/employees?' + new URLSearchParams(params).toString()),
+  folha:  (params = {}) => get('/employees/folha?' + new URLSearchParams(params).toString()),
+  create: (data)        => post('/employees', data),
+  update: (id, data)    => put(`/employees/${id}`, data),
+  remove: (id)          => del(`/employees/${id}`),
+};
+
+// ── Ponto ─────────────────────────────────────────────────────────
+export const pontoApi = {
+  list:   (params = {}) => get('/ponto?' + new URLSearchParams(params).toString()),
+  save:   (data)        => post('/ponto', data),
+  remove: (id)          => del(`/ponto/${id}`),
 };
 
 // ── Avaliações ────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import {
   authApi, estApi, pointApi, userApi, resApi, dashboardApi,
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
-  downloadReport, saveToken, clearToken,
+  employeeApi, pontoApi, downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -449,6 +449,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,children}){
     {key:'crm-users',          label:'Usuários',         icon:'👥',roles:['admin','manager']},
     {key:'crm-professors',     label:'Professores',      icon:'🎓',roles:['admin','manager']},
     {key:'crm-profissionais-ef',label:'Profissionais EF',icon:'🏋️',roles:['admin','manager']},
+    {key:'crm-funcionarios',   label:'Funcionários',     icon:'👷',roles:['admin','manager']},
     {key:'crm-financeiro',     label:'Financeiro',       icon:'💰',roles:['admin','manager']},
     {key:'crm-estoque',        label:'Estoque Bar',      icon:'📦',roles:['admin','manager']},
     {key:'crm-unimidia',       label:'Quero Divulgar',   icon:'📺',roles:['admin','manager']},
@@ -1790,10 +1791,192 @@ function CRMProfissionalHome({crmUser,showToast}){
 // MAIN APP
 // ================================================================
 // ================================================================
+// CRM FUNCIONÁRIOS — RH (CLT/PJ), ponto e folha
+// ================================================================
+const PONTO_TIPOS=[
+  {value:'normal',label:'Normal'},{value:'falta',label:'Falta'},{value:'atestado',label:'Atestado'},
+  {value:'folga',label:'Folga'},{value:'ferias',label:'Férias'},
+];
+function CRMFuncionarios({crmUser,showToast}){
+  const [tab,setTab]=useState('lista');
+  const [ests,setEsts]=useState([]);
+  const [emps,setEmps]=useState([]);
+  const [folha,setFolha]=useState(null);
+  const [form,setForm]=useState(null);
+  const isAdmin=crmUser.role==='admin';
+
+  // ponto
+  const mr=monthRange();
+  const [pFrom,setPFrom]=useState(mr.from);
+  const [pTo,setPTo]=useState(mr.to);
+  const [selEmp,setSelEmp]=useState('');
+  const [pontos,setPontos]=useState([]);
+  const [pForm,setPForm]=useState(null);
+
+  useEffect(()=>{estApi.list().then(setEsts).catch(()=>{});},[]);
+  const loadEmps =useCallback(()=>{employeeApi.list().then(setEmps).catch(()=>{});},[]);
+  const loadFolha=useCallback(()=>{employeeApi.folha().then(setFolha).catch(()=>{});},[]);
+  const loadPonto=useCallback(()=>{if(selEmp)pontoApi.list({employeeId:selEmp,from:pFrom,to:pTo}).then(setPontos).catch(()=>{});else setPontos([]);},[selEmp,pFrom,pTo]);
+  useEffect(()=>{loadEmps();},[loadEmps]);
+  useEffect(()=>{if(tab==='folha')loadFolha();},[tab,loadFolha]);
+  useEffect(()=>{if(tab==='ponto')loadPonto();},[tab,loadPonto]);
+
+  const BLANK={est_id:'',tipo:'clt',nome:'',cargo:'',cpf_cnpj:'',email:'',telefone:'',salario_base:'',encargos:'',beneficios:'',vale_transporte:'',dia_pagamento:5,data_admissao:'',ativo:true};
+  const saveEmp=async()=>{
+    if(!form.nome){showToast&&showToast('Nome obrigatório','error');return;}
+    try{
+      const body={...form,
+        salario_base:parseFloat(form.salario_base)||0,encargos:parseFloat(form.encargos)||0,
+        beneficios:parseFloat(form.beneficios)||0,vale_transporte:parseFloat(form.vale_transporte)||0,
+        dia_pagamento:parseInt(form.dia_pagamento)||5,est_id:form.est_id||null,data_admissao:form.data_admissao||null};
+      if(form.id)await employeeApi.update(form.id,body);else await employeeApi.create(body);
+      setForm(null);loadEmps();showToast&&showToast('Funcionário salvo','success');
+    }catch(e){showToast&&showToast(e.message||'Erro','error');}
+  };
+  const delEmp=async(id)=>{if(!confirm('Excluir funcionário?'))return;await employeeApi.remove(id);loadEmps();};
+
+  const savePonto=async()=>{
+    try{await pontoApi.save({...pForm,employee_id:selEmp});setPForm(null);loadPonto();showToast&&showToast('Ponto registrado','success');}
+    catch(e){showToast&&showToast(e.message||'Erro','error');}
+  };
+  const delPonto=async(id)=>{await pontoApi.remove(id);loadPonto();};
+
+  const custo=(e)=>Number(e.salario_base||0)+Number(e.encargos||0)+Number(e.beneficios||0)+Number(e.vale_transporte||0);
+  const totFolha=emps.filter(e=>e.ativo).reduce((s,e)=>s+custo(e),0);
+
+  return<div className="p-6">
+    <div className="flex items-center justify-between mb-6">
+      <div><h1 className="text-2xl font-black text-gray-900">Funcionários</h1>
+      <p className="text-sm text-gray-400">Equipe CLT, prestadores PJ, ponto e folha</p></div>
+      {tab==='lista'&&<Btn onClick={()=>setForm({...BLANK})}>+ Novo Funcionário</Btn>}
+    </div>
+
+    <div className="border-b border-gray-200 mb-5"><nav className="flex gap-1">
+      {[{k:'lista',l:'Equipe'},{k:'ponto',l:'Ponto'},{k:'folha',l:'Folha / Custo'}].map(t=>
+        <button key={t.k} onClick={()=>setTab(t.k)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${tab===t.k?'border-emerald-600 text-emerald-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>{t.l}</button>)}
+    </nav></div>
+
+    {tab==='lista'&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
+      <thead><tr className="border-b border-gray-100 bg-gray-50">{['Nome','Cargo','Tipo','Salário/Valor','Encargos','Benefícios','Custo Mensal','Status',''].map((h,i)=><th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
+      <tbody className="divide-y divide-gray-50">
+        {emps.length===0&&<tr><td colSpan={9} className="text-center py-10 text-gray-400">Nenhum funcionário cadastrado</td></tr>}
+        {emps.map(e=><tr key={e.id} className="hover:bg-gray-50">
+          <td className="px-3 py-2.5 font-medium text-gray-800">{e.nome}</td>
+          <td className="px-3 py-2.5 text-gray-600">{e.cargo||'—'}</td>
+          <td className="px-3 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${e.tipo==='pj'?'text-indigo-700 bg-indigo-50':'text-emerald-700 bg-emerald-50'}`}>{e.tipo.toUpperCase()}</span></td>
+          <td className="px-3 py-2.5 text-gray-600">{fmt$(e.salario_base)}</td>
+          <td className="px-3 py-2.5 text-gray-600">{fmt$(e.encargos)}</td>
+          <td className="px-3 py-2.5 text-gray-600">{fmt$(e.beneficios)}</td>
+          <td className="px-3 py-2.5 font-semibold text-gray-800">{fmt$(custo(e))}</td>
+          <td className="px-3 py-2.5">{e.ativo?<span className="text-xs text-emerald-700">Ativo</span>:<span className="text-xs text-gray-400">Inativo</span>}</td>
+          <td className="px-3 py-2.5 text-right whitespace-nowrap"><button onClick={()=>setForm({...e,data_admissao:e.data_admissao?.slice(0,10)||''})} className="text-gray-400 hover:text-emerald-600 mr-2">✏️</button>{isAdmin&&<button onClick={()=>delEmp(e.id)} className="text-gray-400 hover:text-red-600">🗑️</button>}</td>
+        </tr>)}
+      </tbody>
+      <tfoot><tr className="border-t-2 border-gray-200 bg-gray-50"><td colSpan={6} className="px-3 py-2 text-xs font-bold text-gray-500 uppercase">Custo mensal total (ativos)</td><td className="px-3 py-2 font-bold text-emerald-700">{fmt$(totFolha)}</td><td colSpan={2}/></tr></tfoot>
+    </table></div></div>}
+
+    {tab==='ponto'&&<div>
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-3 items-end">
+        <div className="w-56"><p className="text-xs text-gray-400 mb-1 font-medium">Funcionário</p>
+          <Sel value={selEmp} onChange={e=>setSelEmp(e.target.value)} options={emps.map(e=>({value:String(e.id),label:e.nome}))} placeholder="Selecione..."/></div>
+        <div className="w-40"><p className="text-xs text-gray-400 mb-1 font-medium">De</p><Inp type="date" value={pFrom} onChange={e=>setPFrom(e.target.value)}/></div>
+        <div className="w-40"><p className="text-xs text-gray-400 mb-1 font-medium">Até</p><Inp type="date" value={pTo} onChange={e=>setPTo(e.target.value)}/></div>
+        {selEmp&&<Btn size="sm" onClick={()=>setPForm({data:mr.to,entrada:'',saida:'',tipo:'normal',observacoes:''})}>+ Lançar Ponto</Btn>}
+      </div>
+      {!selEmp?<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🕐</p><p>Selecione um funcionário para ver o ponto</p></div>:
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
+        <thead><tr className="border-b border-gray-100 bg-gray-50">{['Data','Entrada','Saída','Horas','Tipo','Obs',''].map((h,i)=><th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
+        <tbody className="divide-y divide-gray-50">
+          {pontos.length===0&&<tr><td colSpan={7} className="text-center py-10 text-gray-400">Nenhum registro no período</td></tr>}
+          {pontos.map(p=><tr key={p.id} className="hover:bg-gray-50">
+            <td className="px-3 py-2.5 text-gray-700">{new Date(p.data).toLocaleDateString('pt-BR')}</td>
+            <td className="px-3 py-2.5 text-gray-600">{p.entrada||'—'}</td>
+            <td className="px-3 py-2.5 text-gray-600">{p.saida||'—'}</td>
+            <td className="px-3 py-2.5 text-gray-600">{Number(p.horas).toFixed(2)}h</td>
+            <td className="px-3 py-2.5"><span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">{p.tipo}</span></td>
+            <td className="px-3 py-2.5 text-gray-400 text-xs">{p.observacoes||'—'}</td>
+            <td className="px-3 py-2.5 text-right"><button onClick={()=>delPonto(p.id)} className="text-gray-400 hover:text-red-600">🗑️</button></td>
+          </tr>)}
+        </tbody>
+        <tfoot><tr className="border-t-2 border-gray-200 bg-gray-50"><td colSpan={3} className="px-3 py-2 text-xs font-bold text-gray-500 uppercase">Total de horas</td><td className="px-3 py-2 font-bold text-gray-800">{pontos.reduce((s,p)=>s+Number(p.horas),0).toFixed(2)}h</td><td colSpan={3}/></tr></tfoot>
+      </table></div></div>}
+    </div>}
+
+    {tab==='folha'&&(folha?<div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5"><p className="text-xs text-gray-400 mb-1">Custo mensal total</p><p className="text-2xl font-black text-emerald-700">{fmt$(folha.total_mensal)}</p></div>
+      </div>
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
+        <thead><tr className="border-b border-gray-100 bg-gray-50">{['Tipo','Qtd','Salários','Encargos','Benefícios','Vale Transp.','Total'].map((h,i)=><th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
+        <tbody className="divide-y divide-gray-50">
+          {folha.por_tipo.length===0&&<tr><td colSpan={7} className="text-center py-10 text-gray-400">Sem funcionários ativos</td></tr>}
+          {folha.por_tipo.map(r=><tr key={r.tipo} className="hover:bg-gray-50">
+            <td className="px-3 py-2.5 font-medium text-gray-800">{r.tipo.toUpperCase()}</td>
+            <td className="px-3 py-2.5 text-gray-600">{r.qtd}</td>
+            <td className="px-3 py-2.5 text-gray-600">{fmt$(r.salarios)}</td>
+            <td className="px-3 py-2.5 text-gray-600">{fmt$(r.encargos)}</td>
+            <td className="px-3 py-2.5 text-gray-600">{fmt$(r.beneficios)}</td>
+            <td className="px-3 py-2.5 text-gray-600">{fmt$(r.vale_transporte)}</td>
+            <td className="px-3 py-2.5 font-semibold text-gray-800">{fmt$(r.total)}</td>
+          </tr>)}
+        </tbody>
+      </table></div></div>
+    </div>:<div className="text-center py-10 text-gray-400">Carregando...</div>)}
+
+    {/* Modal funcionário */}
+    <Modal open={!!form} onClose={()=>setForm(null)} title={form?.id?'Editar Funcionário':'Novo Funcionário'} maxW="max-w-xl">
+      {form&&<div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Tipo" required><Sel value={form.tipo} onChange={e=>setForm(p=>({...p,tipo:e.target.value}))} options={[{value:'clt',label:'CLT (funcionário)'},{value:'pj',label:'PJ (prestador)'}]}/></Field>
+          <Field label="Estabelecimento"><Sel value={form.est_id} onChange={e=>setForm(p=>({...p,est_id:e.target.value}))} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Geral / nenhum"/></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Nome" required><Inp value={form.nome} onChange={e=>setForm(p=>({...p,nome:e.target.value}))}/></Field>
+          <Field label="Cargo"><Inp value={form.cargo} onChange={e=>setForm(p=>({...p,cargo:e.target.value}))} placeholder="Recepcionista, Faxineira..."/></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={form.tipo==='pj'?'CNPJ':'CPF'}><Inp value={form.cpf_cnpj} onChange={e=>setForm(p=>({...p,cpf_cnpj:e.target.value}))}/></Field>
+          <Field label="Telefone"><Inp value={form.telefone} onChange={e=>setForm(p=>({...p,telefone:e.target.value}))}/></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={form.tipo==='pj'?'Valor mensal (R$)':'Salário base (R$)'} required><Inp type="number" value={form.salario_base} onChange={e=>setForm(p=>({...p,salario_base:e.target.value}))}/></Field>
+          <Field label="Dia de pagamento"><Inp type="number" value={form.dia_pagamento} onChange={e=>setForm(p=>({...p,dia_pagamento:e.target.value}))}/></Field>
+        </div>
+        {form.tipo!=='pj'&&<div className="grid grid-cols-3 gap-3">
+          <Field label="Encargos (R$)" help="INSS/FGTS/13/férias"><Inp type="number" value={form.encargos} onChange={e=>setForm(p=>({...p,encargos:e.target.value}))}/></Field>
+          <Field label="Benefícios (R$)" help="VR/VA/plano"><Inp type="number" value={form.beneficios} onChange={e=>setForm(p=>({...p,beneficios:e.target.value}))}/></Field>
+          <Field label="Vale Transp. (R$)"><Inp type="number" value={form.vale_transporte} onChange={e=>setForm(p=>({...p,vale_transporte:e.target.value}))}/></Field>
+        </div>}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Admissão"><Inp type="date" value={form.data_admissao} onChange={e=>setForm(p=>({...p,data_admissao:e.target.value}))}/></Field>
+          <Field label="Status"><Sel value={form.ativo?'sim':'nao'} onChange={e=>setForm(p=>({...p,ativo:e.target.value==='sim'}))} options={[{value:'sim',label:'Ativo'},{value:'nao',label:'Inativo'}]}/></Field>
+        </div>
+        <div className="flex gap-3 pt-2"><Btn variant="secondary" className="flex-1" onClick={()=>setForm(null)}>Cancelar</Btn><Btn className="flex-1" onClick={saveEmp}>Salvar</Btn></div>
+      </div>}
+    </Modal>
+
+    {/* Modal ponto */}
+    <Modal open={!!pForm} onClose={()=>setPForm(null)} title="Lançar Ponto">
+      {pForm&&<div className="space-y-3">
+        <Field label="Data" required><Inp type="date" value={pForm.data} onChange={e=>setPForm(p=>({...p,data:e.target.value}))}/></Field>
+        <Field label="Tipo"><Sel value={pForm.tipo} onChange={e=>setPForm(p=>({...p,tipo:e.target.value}))} options={PONTO_TIPOS}/></Field>
+        {pForm.tipo==='normal'&&<div className="grid grid-cols-2 gap-3">
+          <Field label="Entrada"><Inp type="time" value={pForm.entrada} onChange={e=>setPForm(p=>({...p,entrada:e.target.value}))}/></Field>
+          <Field label="Saída"><Inp type="time" value={pForm.saida} onChange={e=>setPForm(p=>({...p,saida:e.target.value}))}/></Field>
+        </div>}
+        <Field label="Observações"><Inp value={pForm.observacoes} onChange={e=>setPForm(p=>({...p,observacoes:e.target.value}))}/></Field>
+        <div className="flex gap-3 pt-2"><Btn variant="secondary" className="flex-1" onClick={()=>setPForm(null)}>Cancelar</Btn><Btn className="flex-1" onClick={savePonto}>Salvar</Btn></div>
+      </div>}
+    </Modal>
+  </div>;
+}
+
+// ================================================================
 // CRM FINANCEIRO — fluxo de caixa, despesas, repasse e relatórios
 // ================================================================
 const EXP_CATS=[
   {value:'aluguel',label:'Aluguel'},{value:'luz',label:'Energia'},{value:'agua',label:'Água'},
+  {value:'gas',label:'Gás'},
   {value:'internet',label:'Internet/Telefone'},{value:'manutencao',label:'Manutenção'},
   {value:'salarios',label:'Salários'},{value:'marketing',label:'Marketing'},
   {value:'impostos',label:'Impostos'},{value:'material',label:'Material'},{value:'outro',label:'Outro'},
@@ -1817,16 +2000,21 @@ function CRMFinanceiro({crmUser,showToast}){
   const [expForm,setExpForm]=useState(null);
   // repasse
   const [rep,setRep]=useState([]);
+  // projeção
+  const [proj,setProj]=useState(null);
+  const [saldoIni,setSaldoIni]=useState('0');
 
   const loadFluxo=useCallback(()=>{financeApi.cashflow({from,to}).then(setCf).catch(()=>{});},[from,to]);
   const loadExps =useCallback(()=>{expenseApi.list({from,to}).then(setExps).catch(()=>{});},[from,to]);
   const loadRep  =useCallback(()=>{repasseApi.list({from,to}).then(setRep).catch(()=>{});},[from,to]);
+  const loadProj =useCallback(()=>{financeApi.projecao({saldoInicial:parseFloat(saldoIni)||0}).then(setProj).catch(()=>{});},[saldoIni]);
 
   useEffect(()=>{
     if(tab==='fluxo')loadFluxo();
     if(tab==='despesas')loadExps();
     if(tab==='repasse')loadRep();
-  },[tab,loadFluxo,loadExps,loadRep]);
+    if(tab==='projecao')loadProj();
+  },[tab,loadFluxo,loadExps,loadRep,loadProj]);
 
   const saveExp=async()=>{
     try{
@@ -1863,7 +2051,7 @@ function CRMFinanceiro({crmUser,showToast}){
 
     {/* tabs */}
     <div className="border-b border-gray-200 mb-5"><nav className="flex gap-1">
-      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'}].map(t=>
+      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'projecao',l:'Projeção'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'}].map(t=>
         <button key={t.k} onClick={()=>setTab(t.k)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${tab===t.k?'border-emerald-600 text-emerald-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>{t.l}</button>)}
     </nav></div>
 
@@ -1878,6 +2066,33 @@ function CRMFinanceiro({crmUser,showToast}){
           <div key={l} className="flex justify-between py-1.5 border-b border-gray-50 text-sm"><span className="text-gray-600">{l} <span className="text-gray-400">({o.count})</span></span><span className="font-semibold text-gray-800">{fmt$(o.total)}</span></div>)}
       </div>
     </div>:<div className="text-center py-10 text-gray-400">Carregando...</div>)}
+
+    {tab==='projecao'&&<div>
+      <div className="flex items-end gap-3 mb-5">
+        <div className="w-48"><p className="text-xs text-gray-400 mb-1 font-medium">Saldo inicial em caixa (R$)</p>
+          <Inp type="number" value={saldoIni} onChange={e=>setSaldoIni(e.target.value)}/></div>
+        <Btn variant="secondary" size="sm" onClick={loadProj}>Recalcular</Btn>
+      </div>
+      {proj?<div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-5">
+          <h3 className="font-bold text-gray-700 mb-3">Recorrência mensal estimada</h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+            <div><p className="text-gray-400">Receita recorrente</p><p className="font-semibold text-emerald-700">{fmt$(proj.mensal.receita)}</p></div>
+            <div><p className="text-gray-400">Folha</p><p className="font-semibold text-red-600">{fmt$(proj.mensal.folha)}</p></div>
+            <div><p className="text-gray-400">Despesas recorrentes</p><p className="font-semibold text-red-600">{fmt$(proj.mensal.despesa_recorrente)}</p></div>
+            <div><p className="text-gray-400">Líquido/mês</p><p className="font-bold" style={{color:proj.mensal.liquido>=0?'#0284c7':'#dc2626'}}>{fmt$(proj.mensal.liquido)}</p></div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {proj.projecao.map(p=><div key={p.dias} className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
+            <p className="text-xs text-gray-400 mb-1">{p.dias} dias</p>
+            <p className="text-lg font-black" style={{color:p.saldo_projetado>=0?'#16a34a':'#dc2626'}}>{fmt$(p.saldo_projetado)}</p>
+            <p className="text-[11px] text-gray-400 mt-1">saldo projetado</p>
+          </div>)}
+        </div>
+        <p className="text-xs text-gray-400 mt-3">Projeção = saldo inicial + (receita recorrente − folha − despesas recorrentes) × meses − despesas pontuais futuras a vencer no período. Receita avulsa não entra.</p>
+      </div>:<div className="text-center py-10 text-gray-400">Carregando...</div>}
+    </div>}
 
     {tab==='despesas'&&<div>
       <div className="flex justify-between items-center mb-4">
@@ -2279,6 +2494,7 @@ export default function App(){
     'crm-professors':   <CRMProfessors crmUser={crmUser} showToast={showToast}/>,
     'crm-profissionais-ef':<CRMProfissionaisEF showToast={showToast}/>,
     'crm-unimidia':     <CRMUnimidia crmUser={crmUser} showToast={showToast}/>,
+    'crm-funcionarios': <CRMFuncionarios crmUser={crmUser} showToast={showToast}/>,
     'crm-financeiro':   <CRMFinanceiro crmUser={crmUser} showToast={showToast}/>,
     'crm-estoque':      <CRMEstoque crmUser={crmUser} showToast={showToast}/>,
     'crm-audit':        <CRMAudit showToast={showToast}/>,
