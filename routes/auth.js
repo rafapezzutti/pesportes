@@ -8,6 +8,16 @@ const { sendPasswordResetEmail } = require('../services/email');
 const sign = (payload) =>
   jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 
+// Tabela de eventos de login (painel de atividade no Master) — autocria
+pool.query(`CREATE TABLE IF NOT EXISTS login_events (
+  id BIGSERIAL PRIMARY KEY, user_id INTEGER, user_name TEXT, user_role TEXT, ip TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+)`).catch(() => {});
+pool.query('CREATE INDEX IF NOT EXISTS idx_login_events_created ON login_events(created_at DESC)').catch(() => {});
+const logLogin = (req, id, nome, role) =>
+  pool.query('INSERT INTO login_events (user_id, user_name, user_role, ip) VALUES ($1,$2,$3,$4)',
+    [id, nome, role, (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip]).catch(() => {});
+
 // CRM Login
 router.post('/crm/login', async (req, res) => {
   const { email, password } = req.body;
@@ -28,6 +38,7 @@ router.post('/crm/login', async (req, res) => {
       est_ids: user.est_ids || [],
       profissional_id: user.profissional_id || null,
     });
+    logLogin(req, user.id, user.name, user.role);
     res.json({
       token,
       user: {
@@ -58,6 +69,7 @@ router.post('/public/login', async (req, res) => {
       return res.status(401).json({ error: 'Email ou senha invalidos' });
 
     const token = sign({ id: user.id, type: 'public' });
+    logLogin(req, user.id, user.name, 'cliente');
     res.json({
       token,
       user: { id: user.id, name: user.name, email: user.email, cpf: user.cpf },
