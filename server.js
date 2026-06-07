@@ -92,6 +92,13 @@ app.get('*', (req, res) => {
 // Interpreta o horário da reserva no fuso configurado (BR por padrão).
 cron.schedule('*/5 * * * *', async () => {
   try {
+    // Só consulta o banco em horário comercial (7h–23h BRT) para o Neon
+    // poder dormir (scale-to-zero) durante a madrugada e reduzir custo.
+    const brHour = Number(new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric', hour12: false, timeZone: TZ,
+    }).format(new Date()));
+    if (brHour < 7 || brHour >= 23) return;
+
     const { rows } = await pool.query(`
       SELECT r.*,
              pu.name  AS user_name,
