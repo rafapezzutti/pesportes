@@ -6,7 +6,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const cron = require('node-cron');
 const pool = require('./db/pool');
-const { sendReminderEmail, sendVacinaReminderEmail } = require('./services/email');
+const { sendReminderEmail } = require('./services/email');
 const auditLogger = require('./middleware/audit');
 
 // ── Validação de variáveis de ambiente ──────────────────────────
@@ -76,7 +76,6 @@ app.use('/api/reports',          require('./routes/reports'));
 app.use('/api/employees',        require('./routes/employees'));
 app.use('/api/ponto',            require('./routes/ponto'));
 app.use('/api/alunos',           require('./routes/alunos'));
-app.use('/api/vacinas',          require('./routes/vacinas'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));
@@ -143,40 +142,6 @@ cron.schedule('*/5 * * * *', async () => {
   }
 });
 
-// ── Cron — Lembretes de Vacina (diário às 8h BRT) ───────────────────
-// Envia email ao aluno quando data_proxima_dose = hoje ou amanhã.
-// Marca lembrete_enviado = TRUE para não repetir.
-cron.schedule('0 8 * * *', async () => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT v.*,
-             a.nome  AS aluno_nome,
-             a.email AS aluno_email,
-             e.name  AS est_name
-      FROM aluno_vacinas v
-      JOIN alunos        a ON v.aluno_id = a.id
-      LEFT JOIN establishments e ON v.est_id = e.id
-      WHERE v.lembrete_enviado = FALSE
-        AND a.email IS NOT NULL
-        AND v.data_proxima_dose BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '1 day'
-    `);
-    for (const v of rows) {
-      try {
-        await sendVacinaReminderEmail(v);
-        await pool.query(
-          'UPDATE aluno_vacinas SET lembrete_enviado = TRUE, updated_at = NOW() WHERE id = $1',
-          [v.id]
-        );
-        console.log(`[VACINA] Lembrete enviado para ${v.aluno_email} — ${v.nome_vacina}`);
-      } catch (err) {
-        console.error(`[VACINA] Falha ao enviar lembrete id=${v.id}:`, err.message);
-      }
-    }
-  } catch (err) {
-    console.error('[VACINA CRON] Erro:', err.message);
-  }
-}, { timezone: 'America/Sao_Paulo' });
-
 // ── Auto-migrate: garante tabelas e colunas novas no startup ────────
 async function runMigrations() {
   const stmts = [
@@ -204,20 +169,6 @@ async function runMigrations() {
     `ALTER TABLE planos_aula       ADD COLUMN IF NOT EXISTS status_pgto TEXT DEFAULT 'pendente'`,
     `ALTER TABLE planos_aula       ADD COLUMN IF NOT EXISTS forma_pgto  TEXT`,
     `ALTER TABLE alunos            ADD COLUMN IF NOT EXISTS telefone    TEXT`,
-    `CREATE TABLE IF NOT EXISTS aluno_vacinas (
-      id                SERIAL PRIMARY KEY,
-      aluno_id          INTEGER NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
-      est_id            INTEGER REFERENCES establishments(id) ON DELETE SET NULL,
-      nome_vacina       TEXT NOT NULL,
-      data_aplicacao    DATE,
-      data_proxima_dose DATE,
-      observacoes       TEXT,
-      lembrete_enviado  BOOLEAN DEFAULT FALSE,
-      created_at        TIMESTAMPTZ DEFAULT NOW(),
-      updated_at        TIMESTAMPTZ DEFAULT NOW()
-    )`,
-    `CREATE INDEX IF NOT EXISTS idx_aluno_vacinas_aluno   ON aluno_vacinas(aluno_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_aluno_vacinas_proxima ON aluno_vacinas(data_proxima_dose)`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
