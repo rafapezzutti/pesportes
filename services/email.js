@@ -148,6 +148,37 @@ async function sendReminderEmail(res, type) {
   await send({ to: res.user_email, subject: title, html });
 }
 
+async function sendVacinaReminderEmail(v) {
+  if (!v.aluno_email) return;
+  const proxima = v.data_proxima_dose
+    ? fmtDate(typeof v.data_proxima_dose === 'string'
+        ? v.data_proxima_dose.split('T')[0]
+        : v.data_proxima_dose.toISOString().split('T')[0])
+    : '—';
+  const aplicacao = v.data_aplicacao
+    ? fmtDate(typeof v.data_aplicacao === 'string'
+        ? v.data_aplicacao.split('T')[0]
+        : v.data_aplicacao.toISOString().split('T')[0])
+    : '—';
+
+  const html = baseTemplate('💉 Lembrete de Vacina', `
+    <p>Olá, <strong>${v.aluno_nome}</strong>!</p>
+    <p>Este é um lembrete de que você tem uma dose de vacina agendada para <strong>${proxima}</strong>.</p>
+    <div class="row"><span class="label">Vacina</span><span class="value">${v.nome_vacina}</span></div>
+    <div class="row"><span class="label">Última aplicação</span><span class="value">${aplicacao}</span></div>
+    <div class="row"><span class="label">Próxima dose</span><span class="value">${proxima}</span></div>
+    ${v.est_name ? `<div class="row"><span class="label">Estabelecimento</span><span class="value">${v.est_name}</span></div>` : ''}
+    ${v.observacoes ? `<div class="alert">📋 ${v.observacoes}</div>` : ''}
+    <p style="color:#6b7280;font-size:13px;margin-top:16px">Em caso de dúvidas, entre em contato com seu estabelecimento.</p>
+  `);
+
+  await send({
+    to: v.aluno_email,
+    subject: `💉 Lembrete: vacina ${v.nome_vacina} — ${proxima}`,
+    html,
+  });
+}
+
 async function sendPasswordResetEmail(email, name, resetLink) {
   const html = baseTemplate('Redefinição de Senha 🔑', `
     <p>Olá, <strong>${name}</strong>!</p>
@@ -171,4 +202,5 @@ module.exports = {
   sendRescheduleEmail,
   sendReminderEmail,
   sendPasswordResetEmail,
+  sendVacinaReminderEmail,
 };

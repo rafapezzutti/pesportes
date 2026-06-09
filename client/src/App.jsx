@@ -3,7 +3,7 @@ import {
   authApi, estApi, pointApi, userApi, resApi, dashboardApi,
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
-  employeeApi, pontoApi, alunoApi, contasApi, impersonateApi, downloadReport, saveToken, clearToken,
+  employeeApi, pontoApi, alunoApi, contasApi, vacinaApi, impersonateApi, downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -452,6 +452,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
       {key:'crm-professors',     label:'Professores',      icon:'🎓',roles:['admin','manager']},
       {key:'crm-profissionais-ef',label:'Profissionais EF',icon:'🏋️',roles:['admin','manager']},
       {key:'crm-alunos',         label:'Alunos',           icon:'🎽',roles:['admin','manager']},
+      {key:'crm-vacinas',        label:'Vacinas',          icon:'💉',roles:['admin','manager']},
     ]},
     {label:'Financeiro', items:[
       {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager']},
@@ -1509,6 +1510,151 @@ function CRMAlunos({crmUser,showToast}){
     <Modal open={!!delA} onClose={()=>setDelA(null)} title="Excluir Aluno">
       <p className="text-sm text-gray-600 mb-5">Excluir o aluno <strong>{delA?.nome}</strong>?</p>
       <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelA(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={del}>Excluir</Btn></div>
+    </Modal>
+  </div>;
+}
+
+// ================================================================
+// CRM VACINAS
+// ================================================================
+const STATUS_VACINA={upcoming:'🔜 Próxima',today:'⚠️ Hoje',overdue:'🔴 Vencida',done:'✅ Aplicada'};
+
+function vacinaStatus(proxima){
+  if(!proxima)return'done';
+  const d=new Date(proxima);d.setHours(0,0,0,0);
+  const t=new Date();t.setHours(0,0,0,0);
+  const diff=(d-t)/(1000*60*60*24);
+  if(diff<0)return'overdue';
+  if(diff===0)return'today';
+  return'upcoming';
+}
+
+function CRMVacinas({crmUser,showToast}){
+  const [vacinas,setVacinas]=useState([]);
+  const [alunos,setAlunos]=useState([]);
+  const [ests,setEsts]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [filterAluno,setFilterAluno]=useState('');
+  const [showForm,setShowForm]=useState(false);
+  const [editV,setEditV]=useState(null);
+  const [delV,setDelV]=useState(null);
+  const BLANK={aluno_id:'',est_id:'',nome_vacina:'',data_aplicacao:'',data_proxima_dose:'',observacoes:''};
+  const [f,setF]=useState(BLANK);
+  const upd=(k,v)=>setF(p=>({...p,[k]:v}));
+
+  const load=()=>{
+    setLoading(true);
+    Promise.all([vacinaApi.list(),alunoApi.list(),estApi.list()])
+      .then(([v,a,e])=>{setVacinas(v);setAlunos(a);setEsts(e);})
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{load();},[]);
+
+  const openNew=()=>{setF(BLANK);setEditV(null);setShowForm(true);};
+  const openEdit=(v)=>{
+    setF({
+      aluno_id:v.aluno_id||'',est_id:v.est_id||'',
+      nome_vacina:v.nome_vacina||'',
+      data_aplicacao:v.data_aplicacao?v.data_aplicacao.split('T')[0]:'',
+      data_proxima_dose:v.data_proxima_dose?v.data_proxima_dose.split('T')[0]:'',
+      observacoes:v.observacoes||'',
+    });
+    setEditV(v);setShowForm(true);
+  };
+
+  const save=async()=>{
+    if(!f.aluno_id||!f.nome_vacina){showToast('Aluno e vacina são obrigatórios','error');return;}
+    try{
+      const payload={...f,aluno_id:Number(f.aluno_id),est_id:f.est_id||null,
+        data_aplicacao:f.data_aplicacao||null,data_proxima_dose:f.data_proxima_dose||null,
+        observacoes:f.observacoes||null};
+      if(editV)await vacinaApi.update(editV.id,{...payload,lembrete_enviado:false});
+      else await vacinaApi.create(payload);
+      showToast('Vacina salva!','success');setShowForm(false);load();
+    }catch(e){showToast(e.message,'error');}
+  };
+  const del=async()=>{
+    try{await vacinaApi.remove(delV.id);showToast('Registro removido','info');setDelV(null);load();}
+    catch(e){showToast(e.message,'error');}
+  };
+
+  const filtered=filterAluno?vacinas.filter(v=>v.aluno_id===Number(filterAluno)):vacinas;
+
+  const statusColor={upcoming:'bg-blue-50 text-blue-700',today:'bg-amber-50 text-amber-700',overdue:'bg-red-50 text-red-700',done:'bg-emerald-50 text-emerald-700'};
+
+  if(loading)return<Spinner/>;
+
+  return<div className="p-6 max-w-6xl">
+    <div className="flex items-center justify-between mb-6">
+      <div>
+        <h1 className="text-2xl font-black text-gray-900">Vacinas</h1>
+        <p className="text-sm text-gray-400">{vacinas.length} registro{vacinas.length!==1?'s':''}</p>
+      </div>
+      <Btn onClick={openNew}>+ Nova Vacina</Btn>
+    </div>
+
+    {/* Filtro por aluno */}
+    <div className="mb-4 max-w-xs">
+      <Sel value={filterAluno} onChange={e=>setFilterAluno(e.target.value)}
+        options={alunos.map(a=>({value:a.id,label:a.nome}))}
+        placeholder="Filtrar por aluno…"/>
+    </div>
+
+    {filtered.length===0
+      ?<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">💉</p><p className="text-lg">Nenhuma vacina registrada</p><Btn className="mt-5" onClick={openNew}>+ Registrar primeira vacina</Btn></div>
+      :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>{['Aluno','Vacina','Aplicação','Próximo Retorno','Status','Obs.','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {filtered.map(v=>{
+              const st=vacinaStatus(v.data_proxima_dose);
+              return<tr key={v.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 font-semibold text-gray-800">{v.aluno_nome}</td>
+                <td className="px-4 py-3 text-gray-700">{v.nome_vacina}</td>
+                <td className="px-4 py-3 text-gray-500">{v.data_aplicacao?fmtDate(v.data_aplicacao):'—'}</td>
+                <td className="px-4 py-3 font-medium text-gray-800">{v.data_proxima_dose?fmtDate(v.data_proxima_dose):'—'}</td>
+                <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor[st]}`}>{STATUS_VACINA[st]}</span></td>
+                <td className="px-4 py-3 text-gray-400 max-w-[160px] truncate">{v.observacoes||'—'}</td>
+                <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
+                  <Btn variant="secondary" size="sm" onClick={()=>openEdit(v)}>Editar</Btn>
+                  <Btn variant="danger" size="sm" onClick={()=>setDelV(v)}>Excluir</Btn>
+                </div></td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <Modal open={showForm} onClose={()=>setShowForm(false)} title={editV?'Editar Vacina':'Nova Vacina'}>
+      <div className="space-y-3">
+        <Field label="Aluno" required>
+          <Sel value={f.aluno_id} onChange={e=>upd('aluno_id',e.target.value)}
+            options={alunos.map(a=>({value:a.id,label:a.nome}))} placeholder="Selecione o aluno"/>
+        </Field>
+        <Field label="Vacina" required><Inp value={f.nome_vacina} onChange={e=>upd('nome_vacina',e.target.value)} placeholder="Ex: Antirrábica, Polivalente…"/></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Data de Aplicação"><Inp type="date" value={f.data_aplicacao} onChange={e=>upd('data_aplicacao',e.target.value)}/></Field>
+          <Field label="Próximo Retorno"><Inp type="date" value={f.data_proxima_dose} onChange={e=>upd('data_proxima_dose',e.target.value)}/></Field>
+        </div>
+        <Field label="Estabelecimento">
+          <Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)}
+            options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione (opcional)"/>
+        </Field>
+        <Field label="Observações"><Inp value={f.observacoes} onChange={e=>upd('observacoes',e.target.value)} placeholder="Dose, lote, observações…"/></Field>
+        <div className="flex gap-3 pt-1">
+          <Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn>
+          <Btn className="flex-1" onClick={save}>Salvar</Btn>
+        </div>
+      </div>
+    </Modal>
+
+    <Modal open={!!delV} onClose={()=>setDelV(null)} title="Excluir Vacina">
+      <p className="text-sm text-gray-600 mb-5">Excluir o registro de <strong>{delV?.nome_vacina}</strong> para <strong>{delV?.aluno_nome}</strong>?</p>
+      <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelV(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={del}>Excluir</Btn></div>
     </Modal>
   </div>;
 }
@@ -2875,6 +3021,7 @@ export default function App(){
     'crm-professors':   <CRMProfessors crmUser={crmUser} showToast={showToast}/>,
     'crm-profissionais-ef':<CRMProfissionaisEF showToast={showToast}/>,
     'crm-alunos':       <CRMAlunos crmUser={crmUser} showToast={showToast}/>,
+    'crm-vacinas':      <CRMVacinas crmUser={crmUser} showToast={showToast}/>,
     'crm-unimidia':     <CRMUnimidia crmUser={crmUser} showToast={showToast}/>,
     'crm-funcionarios': <CRMFuncionarios crmUser={crmUser} showToast={showToast}/>,
     'crm-financeiro':   <CRMFinanceiro crmUser={crmUser} showToast={showToast}/>,

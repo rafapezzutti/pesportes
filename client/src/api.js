@@ -221,6 +221,14 @@ export const alunoApi = {
   remove: (id)         => del(`/alunos/${id}`),
 };
 
+// ── Vacinas ───────────────────────────────────────────────────────
+export const vacinaApi = {
+  list:   (params={}) => get('/vacinas?' + new URLSearchParams(params).toString()),
+  create: (data)      => post('/vacinas', data),
+  update: (id, data)  => put(`/vacinas/${id}`, data),
+  remove: (id)        => del(`/vacinas/${id}`),
+};
+
 // ── Contas a Receber / Resumo por Aluno ───────────────────────────
 export const contasApi = {
   list:       (params={}) => get('/finance/contas-a-receber?' + new URLSearchParams(params).toString()),
