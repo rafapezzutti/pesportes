@@ -34,15 +34,15 @@ router.get('/', auth, async (req, res) => {
 
 // ── POST / — cria aluno ───────────────────────────────────────────
 router.post('/', auth, adminOrManager, async (req, res) => {
-  const { nome, cpf, email, data_nascimento, est_id } = req.body;
+  const { nome, cpf, email, telefone, data_nascimento, est_id } = req.body;
   if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO alunos (nome, cpf, email, data_nascimento, est_id)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO alunos (nome, cpf, email, telefone, data_nascimento, est_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [nome, cpf || null, email || null, data_nascimento || null, est_id || null]
+      [nome, cpf || null, email || null, telefone || null, data_nascimento || null, est_id || null]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -53,21 +53,23 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 
 // ── PUT /:id — atualiza aluno ─────────────────────────────────────
 router.put('/:id', auth, adminOrManager, async (req, res) => {
-  const { nome, cpf, email, data_nascimento, est_id, ativo } = req.body;
+  const { nome, cpf, email, telefone, data_nascimento, est_id, ativo } = req.body;
   try {
     const { rows } = await pool.query(
       `UPDATE alunos SET
          nome            = COALESCE($1, nome),
          cpf             = COALESCE($2, cpf),
          email           = COALESCE($3, email),
-         data_nascimento = COALESCE($4, data_nascimento),
-         est_id          = COALESCE($5, est_id),
-         ativo           = COALESCE($6, ativo),
+         telefone        = COALESCE($4, telefone),
+         data_nascimento = COALESCE($5, data_nascimento),
+         est_id          = COALESCE($6, est_id),
+         ativo           = COALESCE($7, ativo),
          updated_at      = NOW()
-       WHERE id = $7
+       WHERE id = $8
        RETURNING *`,
-      [nome || null, cpf || null, email || null, data_nascimento || null,
-       est_id || null, ativo !== undefined ? ativo : null, req.params.id]
+      [nome || null, cpf || null, email || null, telefone || null,
+       data_nascimento || null, est_id || null,
+       ativo !== undefined ? ativo : null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Aluno não encontrado' });
     res.json(rows[0]);

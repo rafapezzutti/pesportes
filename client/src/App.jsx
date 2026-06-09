@@ -1418,7 +1418,7 @@ function CRMAlunos({crmUser,showToast}){
   const [showForm,setShowForm]=useState(false);
   const [editA,setEditA]=useState(null);
   const [delA,setDelA]=useState(null);
-  const BLANK={nome:'',cpf:'',email:'',data_nascimento:'',est_id:''};
+  const BLANK={nome:'',cpf:'',email:'',telefone:'',data_nascimento:'',est_id:''};
   const [f,setF]=useState(BLANK);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
 
@@ -1432,7 +1432,7 @@ function CRMAlunos({crmUser,showToast}){
 
   const openNew=()=>{setF(BLANK);setEditA(null);setShowForm(true);};
   const openEdit=(a)=>{
-    setF({nome:a.nome||'',cpf:a.cpf||'',email:a.email||'',
+    setF({nome:a.nome||'',cpf:a.cpf||'',email:a.email||'',telefone:a.telefone||'',
           data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:'',
           est_id:a.est_id||''});
     setEditA(a);setShowForm(true);
@@ -1467,13 +1467,14 @@ function CRMAlunos({crmUser,showToast}){
       :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
-            <tr>{['Nome','CPF','Email','Aniversário','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
+            <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {alunos.map(a=><tr key={a.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-semibold text-gray-800">{a.nome}</td>
               <td className="px-4 py-3 text-gray-500">{a.cpf||'—'}</td>
               <td className="px-4 py-3 text-gray-500">{a.email||'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{a.telefone||'—'}</td>
               <td className="px-4 py-3 text-gray-500">{a.data_nascimento?fmtDate(a.data_nascimento):'—'}</td>
               <td className="px-4 py-3 text-gray-500">{a.est_name||'—'}</td>
               <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
@@ -1493,7 +1494,10 @@ function CRMAlunos({crmUser,showToast}){
           <Field label="CPF"><Inp value={f.cpf} onChange={e=>upd('cpf',e.target.value)} placeholder="000.000.000-00"/></Field>
           <Field label="Data de Aniversário"><Inp type="date" value={f.data_nascimento} onChange={e=>upd('data_nascimento',e.target.value)}/></Field>
         </div>
-        <Field label="Email"><Inp type="email" value={f.email} onChange={e=>upd('email',e.target.value)} placeholder="aluno@email.com"/></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Email"><Inp type="email" value={f.email} onChange={e=>upd('email',e.target.value)} placeholder="aluno@email.com"/></Field>
+          <Field label="Telefone"><Inp type="tel" value={f.telefone} onChange={e=>upd('telefone',e.target.value)} placeholder="(11) 99999-9999"/></Field>
+        </div>
         <Field label="Estabelecimento"><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione (opcional)"/></Field>
         <div className="flex gap-3 pt-1">
           <Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn>
