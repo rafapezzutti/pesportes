@@ -1,13 +1,37 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
+const jwt   = require('jsonwebtoken');
 const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 
 const PUBLIC_COLS = `id, name, street, number, complement, cep, city, state,
                      phone, site, photos, main_photo, operating_hours, unimidia_divulgacao, aulas`;
 
 // GET /api/establishments
+// — Público (marketplace): retorna todos
+// — CRM admin: retorna todos
+// — CRM manager/simples: retorna apenas os est_ids vinculados ao usuário
 router.get('/', async (req, res) => {
   try {
+    const header = req.headers.authorization;
+    if (header && header.startsWith('Bearer ')) {
+      try {
+        const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET);
+        if (payload.type === 'crm' && payload.role !== 'admin') {
+          // Coleta todos os ids vinculados ao usuário
+          const ids = Array.from(new Set([
+            ...(payload.est_ids || []),
+            ...(payload.est_id ? [payload.est_id] : []),
+          ])).map(Number).filter(Boolean);
+          if (!ids.length) return res.json([]);
+          const { rows } = await pool.query(
+            `SELECT ${PUBLIC_COLS} FROM establishments WHERE id = ANY($1) ORDER BY name`,
+            [ids]
+          );
+          return res.json(rows);
+        }
+      } catch { /* token inválido → trata como público */ }
+    }
+    // Admin ou sem token (marketplace público)
     const { rows } = await pool.query(
       `SELECT ${PUBLIC_COLS} FROM establishments ORDER BY name`
     );
