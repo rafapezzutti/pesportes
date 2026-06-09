@@ -207,6 +207,12 @@ export const profEfApi = {
   remove:     (id)         => del(`/profissionais-ef/${id}`),
 };
 
+// ── Impersonation (admin) ─────────────────────────────────────────
+export const impersonateApi = {
+  listUsers:   ()       => get('/auth/crm-users-list'),
+  impersonate: (userId) => post('/auth/impersonate', { userId }),
+};
+
 // ── Alunos ────────────────────────────────────────────────────────
 export const alunoApi = {
   list:   ()           => get('/alunos'),

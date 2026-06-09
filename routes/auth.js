@@ -167,6 +167,55 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// ── Impersonation (admin only) ────────────────────────────────────
+const { auth: authMw, adminOnly } = require('../middleware/auth');
+
+router.post('/impersonate', authMw, adminOnly, async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId obrigatorio' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, email, role, est_id,
+              COALESCE(est_ids, '{}') AS est_ids, profissional_id
+       FROM crm_users WHERE id = $1`, [userId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+    const u = rows[0];
+    const token = sign({
+      id: u.id, role: u.role, type: 'crm',
+      est_id: u.est_id || null,
+      est_ids: u.est_ids || [],
+      profissional_id: u.profissional_id || null,
+      impersonated_by: req.user.id,
+    });
+    res.json({
+      token,
+      user: { id: u.id, name: u.name, email: u.email, role: u.role,
+              est_id: u.est_id || null, est_ids: u.est_ids || [] },
+    });
+  } catch (err) {
+    console.error('[impersonate]', err);
+    res.status(500).json({ error: 'Erro ao impersonar usuário' });
+  }
+});
+
+router.get('/crm-users-list', authMw, adminOnly, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT cu.id, cu.name, cu.email, cu.role,
+              cu.est_id, cu.est_ids,
+              e.name AS est_name
+       FROM crm_users cu
+       LEFT JOIN establishments e ON cu.est_id = e.id
+       WHERE cu.role != 'admin'
+       ORDER BY cu.role, cu.name`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao listar usuários' });
+  }
+});
+
 // Me
 router.get('/me', async (req, res) => {
   const header = req.headers.authorization;

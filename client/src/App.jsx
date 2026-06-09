@@ -3,7 +3,7 @@ import {
   authApi, estApi, pointApi, userApi, resApi, dashboardApi,
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
-  employeeApi, pontoApi, alunoApi, contasApi, downloadReport, saveToken, clearToken,
+  employeeApi, pontoApi, alunoApi, contasApi, impersonateApi, downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -440,7 +440,7 @@ function CRMLogin({onLogin,navigate}){
 // ================================================================
 // CRM LAYOUT
 // ================================================================
-function CRMLayout({crmUser,page,navigate,onLogout,children}){
+function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImpersonating,onImpersonate,children}){
   const groups=[
     {label:'Principal', items:[
       {key:'crm-dashboard',      label:'Dashboard', icon:'📊',roles:['admin','manager']},
@@ -474,7 +474,18 @@ function CRMLayout({crmUser,page,navigate,onLogout,children}){
   const isOpen=(l)=>openGroups[l]===true; // recolhido por padrão
   const toggleGroup=(l)=>setOpenGroups(p=>({...p,[l]:!p[l]}));
   const roleLabel={admin:'Administrador',manager:'Gerente',simples:'Usuário Simples',profissional:'Profissional EF'};
-  return<div className="min-h-screen bg-gray-100 flex"><aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-2 overflow-y-auto">{groups.map(g=><div key={g.label}><button onClick={()=>toggleGroup(g.label)} className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wide hover:text-gray-600"><span>{g.label}</span><span className="text-gray-300 text-[10px]">{isOpen(g.label)?'▾':'▸'}</span></button>{isOpen(g.label)&&<div className="space-y-0.5 mt-0.5">{g.items.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</div>}</div>)}</nav><div className="p-3 border-t border-gray-100 space-y-2"><div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{roleLabel[crmUser.role]||crmUser.role}</p></div><Btn variant="ghost" size="sm" onClick={onLogout} className="w-full text-gray-500">Sair do CRM</Btn></div></aside><main className="flex-1 overflow-auto">{children}</main></div>;
+  const [userList,setUserList]=useState([]);
+  const [dropOpen,setDropOpen]=useState(false);
+  const isRealAdmin=crmUser.role==='admin'&&!isImpersonating;
+  useEffect(()=>{if(!isRealAdmin)return;impersonateApi.listUsers().then(setUserList).catch(()=>{});},[isRealAdmin]);
+  return<div className="min-h-screen bg-gray-100 flex flex-col">
+    {isImpersonating&&<div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between text-sm font-medium shrink-0">
+      <span>Visualizando como <strong>{crmUser.name}</strong></span>
+      <button onClick={onStopImpersonating} className="ml-4 bg-white text-amber-700 px-3 py-1 rounded-lg text-xs font-bold hover:bg-amber-50">← Voltar ao Admin</button>
+    </div>}
+    <div className="flex flex-1 min-h-0"><aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-2 overflow-y-auto">{groups.map(g=><div key={g.label}><button onClick={()=>toggleGroup(g.label)} className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wide hover:text-gray-600"><span>{g.label}</span><span className="text-gray-300 text-[10px]">{isOpen(g.label)?'▾':'▸'}</span></button>{isOpen(g.label)&&<div className="space-y-0.5 mt-0.5">{g.items.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</div>}</div>)}</nav><div className="p-3 border-t border-gray-100 space-y-2">
+      {isRealAdmin&&<div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-1 mb-1">Entrar como cliente</p><div className="relative"><button onClick={()=>setDropOpen(p=>!p)} className="w-full flex items-center justify-between px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl hover:border-emerald-400 transition-colors"><span className="text-gray-500 truncate">Selecionar usuário…</span><span className="text-gray-400 ml-1">{dropOpen?'▴':'▾'}</span></button>{dropOpen&&userList.length>0&&<div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto">{userList.map(u=><button key={u.id} onClick={()=>{setDropOpen(false);onImpersonate(u.id);}} className="w-full text-left px-3 py-2.5 hover:bg-emerald-50 transition-colors border-b border-gray-50 last:border-0"><p className="text-xs font-semibold text-gray-800 truncate">{u.name}</p><p className="text-[10px] text-gray-400 truncate">{u.est_name||u.role}</p></button>)}</div>}</div></div>}
+      <div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{roleLabel[crmUser.role]||crmUser.role}</p></div><Btn variant="ghost" size="sm" onClick={onLogout} className="w-full text-gray-500">Sair do CRM</Btn></div></aside><main className="flex-1 overflow-auto">{children}</main></div></div>;
 }
 
 // ================================================================
@@ -2712,6 +2723,7 @@ export default function App(){
   const [confLoading,setConfLoading]=useState(false);
   const [resetToken,setResetToken]=useState(null);
   const [resetType,setResetType]=useState('public');
+  const [isImpersonating,setIsImpersonating]=useState(false);
 
   const showToast=useCallback((message,type='success')=>{
     setToast({message,type});
@@ -2756,8 +2768,10 @@ export default function App(){
     if(token&&savedUser){
       try{
         const u=JSON.parse(savedUser);
-        if(savedType==='crm'){setCrmUser(u);setView('crm');}
-        else setPublicUser(u);
+        if(savedType==='crm'){
+          setCrmUser(u);setView('crm');
+          if(localStorage.getItem('token_admin_backup'))setIsImpersonating(true);
+        } else setPublicUser(u);
       }catch{}
     }
     const params=new URLSearchParams(window.location.search);
@@ -2784,7 +2798,32 @@ export default function App(){
   };
   const crmLogout=()=>{
     clearToken();localStorage.removeItem('user');localStorage.removeItem('userType');
-    setCrmUser(null);navigate('mkt-home');
+    localStorage.removeItem('token_admin_backup');localStorage.removeItem('user_admin_backup');
+    setCrmUser(null);setIsImpersonating(false);navigate('mkt-home');
+  };
+  const handleImpersonate=async(userId)=>{
+    try{
+      const{token,user}=await impersonateApi.impersonate(userId);
+      localStorage.setItem('token_admin_backup',localStorage.getItem('token'));
+      localStorage.setItem('user_admin_backup',localStorage.getItem('user'));
+      saveToken(token);localStorage.setItem('user',JSON.stringify(user));
+      setCrmUser(user);setIsImpersonating(true);
+      navigate('crm-dashboard');
+      showToast(`Visualizando como ${user.name}`,'success');
+    }catch(e){showToast(e.message||'Erro ao trocar usuário','error');}
+  };
+  const handleStopImpersonating=()=>{
+    const backupToken=localStorage.getItem('token_admin_backup');
+    const backupUser=localStorage.getItem('user_admin_backup');
+    if(backupToken&&backupUser){
+      saveToken(backupToken);
+      const u=JSON.parse(backupUser);
+      localStorage.setItem('user',JSON.stringify(u));
+      setCrmUser(u);
+    }
+    localStorage.removeItem('token_admin_backup');localStorage.removeItem('user_admin_backup');
+    setIsImpersonating(false);navigate('crm-dashboard');
+    showToast('Voltou ao modo Administrador');
   };
   const pubLogin=async(email,pw)=>{
     const{token,user}=await authApi.pubLogin(email,pw);
@@ -2848,7 +2887,10 @@ export default function App(){
     if(!crmUser)return<CRMLogin onLogin={crmLogin} navigate={navigate}/>;
     return<>
       <Toast toast={toast}/>
-      <CRMLayout crmUser={crmUser} page={page} navigate={navigate} onLogout={crmLogout}>
+      <CRMLayout crmUser={crmUser} page={page} navigate={navigate} onLogout={crmLogout}
+        isImpersonating={isImpersonating}
+        onStopImpersonating={handleStopImpersonating}
+        onImpersonate={handleImpersonate}>
         {crmRoutes[page]||<CRMDashboard/>}
       </CRMLayout>
     </>;
