@@ -106,7 +106,8 @@ router.post('/', auth, async (req, res) => {
 // POST /api/reservations/manual — CRM sem cadastro publico
 router.post('/manual', auth, crmOnly, async (req, res) => {
   const { point_id, est_id, date, start_time, end_time, hours,
-          payment_method, client_name, client_phone, client_email } = req.body;
+          payment_method, client_name, client_phone, client_email,
+          participantes } = req.body;
 
   if (!point_id || !est_id || !date || !start_time || !end_time || !hours || !client_name || !client_phone)
     return res.status(400).json({ error: 'Nome e telefone do cliente sao obrigatorios' });
@@ -128,13 +129,24 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
 
     const pm = ['pix','credito','debito','dinheiro'].includes(payment_method) ? payment_method : 'dinheiro';
 
+    // Normaliza participantes (máx 4, percentual automático se não informado)
+    let parts = Array.isArray(participantes) ? participantes.slice(0, 4) : [];
+    if (parts.length > 0) {
+      const total_pct = parts.reduce((s, p) => s + (Number(p.percentual) || 0), 0);
+      if (total_pct === 0) {
+        const each = Math.round(100 / parts.length * 100) / 100;
+        parts = parts.map(p => ({ ...p, percentual: each, status_pgto: 'pendente' }));
+      }
+    }
+
     const { rows } = await pool.query(`
       INSERT INTO reservations
         (point_id, est_id, user_id, date, start_time, end_time, hours, total,
-         payment_method, client_name, client_phone, client_email)
-      VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+         payment_method, client_name, client_phone, client_email, participantes)
+      VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
       [point_id, est_id, date, start_time, end_time, hours, total, pm,
-       client_name.trim(), client_phone.trim(), client_email ? client_email.trim() : null]
+       client_name.trim(), client_phone.trim(), client_email ? client_email.trim() : null,
+       JSON.stringify(parts)]
     );
 
     const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [rows[0].id]);
@@ -142,6 +154,23 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao criar reserva manual' });
+  }
+});
+
+// PATCH /api/reservations/:id/participantes — atualiza lista de participantes
+router.patch('/:id/participantes', auth, crmOnly, async (req, res) => {
+  const { participantes } = req.body;
+  try {
+    let parts = Array.isArray(participantes) ? participantes.slice(0, 4) : [];
+    const { rows } = await pool.query(
+      'UPDATE reservations SET participantes = $1 WHERE id = $2 RETURNING id',
+      [JSON.stringify(parts), req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Reserva não encontrada' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao atualizar participantes' });
   }
 });
 

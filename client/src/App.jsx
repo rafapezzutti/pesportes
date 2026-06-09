@@ -3,7 +3,7 @@ import {
   authApi, estApi, pointApi, userApi, resApi, dashboardApi,
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
-  employeeApi, pontoApi, downloadReport, saveToken, clearToken,
+  employeeApi, pontoApi, alunoApi, contasApi, downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -451,6 +451,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,children}){
       {key:'crm-points',         label:'Pontos',           icon:'📍',roles:['admin','manager']},
       {key:'crm-professors',     label:'Professores',      icon:'🎓',roles:['admin','manager']},
       {key:'crm-profissionais-ef',label:'Profissionais EF',icon:'🏋️',roles:['admin','manager']},
+      {key:'crm-alunos',         label:'Alunos',           icon:'🎽',roles:['admin','manager']},
     ]},
     {label:'Financeiro', items:[
       {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager']},
@@ -1064,8 +1065,9 @@ function CRMReservations({showToast}){
 
   // ── Nova reserva manual ──
   const [showManual,setShowManual]=useState(false);
-  const MBL={name:'',phone:'',email:'',estId:'',pointId:'',date:'',slots:[],pm:'dinheiro'};
+  const MBL={name:'',phone:'',email:'',estId:'',pointId:'',date:'',slots:[],pm:'dinheiro',participantes:[]};
   const [mb,setMb]=useState(MBL);
+  const [mbAlunos,setMbAlunos]=useState([]);
   const [mbEsts,setMbEsts]=useState([]);
   const [mbPoints,setMbPoints]=useState([]);
   const [mbSlots,setMbSlots]=useState([]);
@@ -1090,6 +1092,7 @@ function CRMReservations({showToast}){
   useEffect(()=>{
     if(!showManual)return;
     estApi.list().then(setMbEsts).catch(()=>{});
+    alunoApi.list().then(setMbAlunos).catch(()=>{});
   },[showManual]);
   useEffect(()=>{
     if(!mb.estId){setMbPoints([]);updMb('pointId','');return;}
@@ -1124,6 +1127,7 @@ function CRMReservations({showToast}){
         point_id:Number(mb.pointId),est_id:Number(mb.estId),
         date:mb.date,start_time:s,end_time:e,hours:mb.slots.length,
         payment_method:mb.pm,client_name:mb.name,client_phone:mb.phone,client_email:mb.email||undefined,
+        participantes:mb.participantes.filter(p=>p.nome),
       });
       showToast('Reserva criada com sucesso!','success');
       setShowManual(false);setMb(MBL);load();
@@ -1241,6 +1245,34 @@ function CRMReservations({showToast}){
         <Field label="Forma de pagamento">
           <Sel value={mb.pm} onChange={e=>updMb('pm',e.target.value)} options={PAY_OPTS}/>
         </Field>
+
+        {/* Participantes em grupo */}
+        <div className="border border-gray-200 rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-700">👥 Participantes em grupo <span className="text-xs font-normal text-gray-400">(opcional, máx. 4)</span></p>
+            {mb.participantes.length<4&&<button onClick={()=>updMb('participantes',[...mb.participantes,{nome:'',percentual:''}])} className="text-xs text-emerald-600 hover:underline font-medium">+ Adicionar</button>}
+          </div>
+          {mb.participantes.length===0&&<p className="text-xs text-gray-400">Sem participantes (reserva individual). Adicione para dividir a cobrança.</p>}
+          {mb.participantes.map((p,i)=>{
+            const eachPct=mb.participantes.length?Math.round(100/mb.participantes.length):100;
+            const pct=Number(p.percentual)||eachPct;
+            const valor=mbTotal>0?mbTotal*pct/100:0;
+            return<div key={i} className="flex gap-2 items-center">
+              <select value={p.nome} onChange={e=>{const np=[...mb.participantes];np[i]={...np[i],nome:e.target.value};updMb('participantes',np);}}
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                <option value="">— Selecione aluno —</option>
+                {mbAlunos.map(a=><option key={a.id} value={a.nome}>{a.nome}</option>)}
+              </select>
+              <input type="number" value={p.percentual||eachPct} min="1" max="100"
+                onChange={e=>{const np=[...mb.participantes];np[i]={...np[i],percentual:Number(e.target.value)};updMb('participantes',np);}}
+                className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-emerald-500" placeholder="%"/>
+              <span className="text-xs text-gray-500 w-20 text-right">{fmt$(valor)}</span>
+              <button onClick={()=>updMb('participantes',mb.participantes.filter((_,j)=>j!==i))} className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+            </div>;
+          })}
+          {mb.participantes.length>0&&<p className="text-xs text-gray-400">Total distribuído: {mb.participantes.reduce((s,p)=>s+(Number(p.percentual)||Math.round(100/mb.participantes.length)),0)}%</p>}
+        </div>
+
         <div className="flex gap-3 pt-1">
           <Btn variant="secondary" className="flex-1" onClick={()=>setShowManual(false)}>Cancelar</Btn>
           <Btn className="flex-1" disabled={mbSaving||!mb.name||!mb.phone||!mb.slots.length} onClick={saveManual}>{mbSaving?'Salvando...':'Confirmar Reserva'}</Btn>
@@ -1255,13 +1287,14 @@ function CRMReservations({showToast}){
 // ================================================================
 // CRM BAR
 // ================================================================
-function VendasForm({titulo,labelItem,onSave,clientes,loading}){
+function VendasForm({titulo,labelItem,onSave,clientes,loading,showFoto=false}){
   const [clienteNome,setClienteNome]=useState('');
   const [clienteInput,setClienteInput]=useState('');
   const [showSugg,setShowSugg]=useState(false);
   const [itens,setItens]=useState([{nome:'',quantidade:1,valor_unitario:''}]);
   const [obs,setObs]=useState('');
   const [dataVenda,setDataVenda]=useState(TODAY);
+  const [foto,setFoto]=useState(null);
   const [saving,setSaving]=useState(false);
 
   const sugg=clientes.filter(c=>c.toLowerCase().includes(clienteInput.toLowerCase())&&clienteInput.length>0).slice(0,8);
@@ -1272,14 +1305,21 @@ function VendasForm({titulo,labelItem,onSave,clientes,loading}){
 
   const total=itens.reduce((s,i)=>s+(Number(i.quantidade)||0)*(Number(i.valor_unitario)||0),0);
 
+  const handleFotoChange=async(e)=>{
+    const file=e.target.files?.[0];
+    if(!file)return;
+    const compressed=await compressImage(file,1920,0.88);
+    setFoto(compressed);
+  };
+
   const save=async()=>{
     const nome=clienteNome||clienteInput;
     if(!nome){alert('Selecione ou informe o cliente');return;}
     if(!itens[0].nome){alert('Informe ao menos um item');return;}
     setSaving(true);
     try{
-      await onSave({cliente_nome:nome,itens:itens.map(i=>({...i,quantidade:Number(i.quantidade),valor_unitario:Number(i.valor_unitario)})),observacoes:obs,data_venda:dataVenda});
-      setClienteNome('');setClienteInput('');setItens([{nome:'',quantidade:1,valor_unitario:''}]);setObs('');setDataVenda(TODAY);
+      await onSave({cliente_nome:nome,itens:itens.map(i=>({...i,quantidade:Number(i.quantidade),valor_unitario:Number(i.valor_unitario)})),observacoes:obs,data_venda:dataVenda,foto:foto||null});
+      setClienteNome('');setClienteInput('');setItens([{nome:'',quantidade:1,valor_unitario:''}]);setObs('');setDataVenda(TODAY);setFoto(null);
     }finally{setSaving(false);}
   };
 
@@ -1326,6 +1366,12 @@ function VendasForm({titulo,labelItem,onSave,clientes,loading}){
       </div>
     </div>
 
+    {showFoto&&<div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">📷 Foto (comprovante / registro)</label>
+      <input type="file" accept="image/*" onChange={handleFotoChange} className="block w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"/>
+      {foto&&<img src={foto} alt="preview" className="mt-2 h-24 rounded-lg object-cover border border-gray-200"/>}
+    </div>}
+
     <Btn onClick={save} disabled={saving} className="w-full">{saving?'Salvando...':'💾 Registrar'}</Btn>
   </div>;
 }
@@ -1348,6 +1394,107 @@ function VendasList({rows,onDelete,tipo}){
       </div>
       <Btn variant="danger" size="sm" onClick={()=>onDelete(v.id)}>Excluir</Btn>
     </div>)}
+  </div>;
+}
+
+// ================================================================
+// CRM ALUNOS
+// ================================================================
+function CRMAlunos({crmUser,showToast}){
+  const [alunos,setAlunos]=useState([]);
+  const [ests,setEsts]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [showForm,setShowForm]=useState(false);
+  const [editA,setEditA]=useState(null);
+  const [delA,setDelA]=useState(null);
+  const BLANK={nome:'',cpf:'',email:'',data_nascimento:'',est_id:''};
+  const [f,setF]=useState(BLANK);
+  const upd=(k,v)=>setF(p=>({...p,[k]:v}));
+
+  const load=()=>{
+    Promise.all([alunoApi.list(),estApi.list()])
+      .then(([a,e])=>{setAlunos(a);setEsts(e);})
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{load();},[]);
+
+  const openNew=()=>{setF(BLANK);setEditA(null);setShowForm(true);};
+  const openEdit=(a)=>{
+    setF({nome:a.nome||'',cpf:a.cpf||'',email:a.email||'',
+          data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:'',
+          est_id:a.est_id||''});
+    setEditA(a);setShowForm(true);
+  };
+
+  const save=async()=>{
+    if(!f.nome){showToast('Nome é obrigatório','error');return;}
+    try{
+      const payload={...f,est_id:f.est_id||null,data_nascimento:f.data_nascimento||null};
+      if(editA)await alunoApi.update(editA.id,payload);
+      else await alunoApi.create(payload);
+      showToast('Aluno salvo!','success');setShowForm(false);load();
+    }catch(e){showToast(e.message,'error');}
+  };
+
+  const del=async()=>{
+    try{await alunoApi.remove(delA.id);showToast('Aluno removido','info');setDelA(null);load();}
+    catch(e){showToast(e.message,'error');}
+  };
+
+  if(loading)return<Spinner/>;
+
+  return<div className="p-6 max-w-5xl">
+    <div className="flex items-center justify-between mb-6">
+      <div><h1 className="text-2xl font-black text-gray-900">Alunos</h1>
+      <p className="text-sm text-gray-400">{alunos.length} aluno{alunos.length!==1?'s':''} cadastrado{alunos.length!==1?'s':''}</p></div>
+      <Btn onClick={openNew}>+ Novo Aluno</Btn>
+    </div>
+
+    {alunos.length===0
+      ?<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎽</p><p className="text-lg">Nenhum aluno cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro aluno</Btn></div>
+      :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>{['Nome','CPF','Email','Aniversário','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {alunos.map(a=><tr key={a.id} className="hover:bg-gray-50">
+              <td className="px-4 py-3 font-semibold text-gray-800">{a.nome}</td>
+              <td className="px-4 py-3 text-gray-500">{a.cpf||'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{a.email||'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{a.data_nascimento?fmtDate(a.data_nascimento):'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{a.est_name||'—'}</td>
+              <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
+                <Btn variant="secondary" size="sm" onClick={()=>openEdit(a)}>Editar</Btn>
+                <Btn variant="danger" size="sm" onClick={()=>setDelA(a)}>Excluir</Btn>
+              </div></td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <Modal open={showForm} onClose={()=>setShowForm(false)} title={editA?'Editar Aluno':'Novo Aluno'}>
+      <div className="space-y-3">
+        <Field label="Nome do Aluno" required><Inp value={f.nome} onChange={e=>upd('nome',e.target.value)} placeholder="Nome completo"/></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="CPF"><Inp value={f.cpf} onChange={e=>upd('cpf',e.target.value)} placeholder="000.000.000-00"/></Field>
+          <Field label="Data de Aniversário"><Inp type="date" value={f.data_nascimento} onChange={e=>upd('data_nascimento',e.target.value)}/></Field>
+        </div>
+        <Field label="Email"><Inp type="email" value={f.email} onChange={e=>upd('email',e.target.value)} placeholder="aluno@email.com"/></Field>
+        <Field label="Estabelecimento"><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione (opcional)"/></Field>
+        <div className="flex gap-3 pt-1">
+          <Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn>
+          <Btn className="flex-1" onClick={save}>Salvar</Btn>
+        </div>
+      </div>
+    </Modal>
+
+    <Modal open={!!delA} onClose={()=>setDelA(null)} title="Excluir Aluno">
+      <p className="text-sm text-gray-600 mb-5">Excluir o aluno <strong>{delA?.nome}</strong>?</p>
+      <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelA(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={del}>Excluir</Btn></div>
+    </Modal>
   </div>;
 }
 
@@ -1387,7 +1534,7 @@ function CRMBar({showToast}){
         {ests.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
       </select>
     </div>
-    {tab==='novo'&&<VendasForm titulo="Registrar Consumo de Bar" labelItem="Bebidas / Itens" onSave={save} clientes={clientes} loading={loading}/>}
+    {tab==='novo'&&<VendasForm titulo="Registrar Consumo de Bar" labelItem="Bebidas / Itens" onSave={save} clientes={clientes} loading={loading} showFoto={true}/>}
     {tab==='historico'&&(loading?<Spinner/>:<VendasList rows={vendas} onDelete={del} tipo="bar"/>)}
   </div>;
 }
@@ -2000,6 +2147,11 @@ function monthRange(){
   const n=new Date();const from=new Date(n.getFullYear(),n.getMonth(),1);const to=new Date(n.getFullYear(),n.getMonth()+1,0);
   const f=d=>d.toISOString().split('T')[0];return{from:f(from),to:f(to)};
 }
+const PGTO_STATUS_OPTS=[{value:'pendente',label:'Pendente'},{value:'pago',label:'Pago'},{value:'em_atraso',label:'Em Atraso'}];
+const PGTO_FORMA_OPTS=[{value:'pix',label:'💠 Pix'},{value:'debito',label:'🏦 Débito'},{value:'credito',label:'💳 Crédito'},{value:'boleto',label:'📄 Boleto'}];
+const PGTO_STATUS_BADGE={pendente:'bg-amber-100 text-amber-700',pago:'bg-emerald-100 text-emerald-700',em_atraso:'bg-red-100 text-red-700'};
+const TIPO_LABEL={reserva:'📅 Reserva',aula:'📚 Aula/Plano',bar:'🍺 Bar'};
+
 function CRMFinanceiro({crmUser,showToast}){
   const [tab,setTab]=useState('fluxo');
   const mr=monthRange();
@@ -2017,18 +2169,36 @@ function CRMFinanceiro({crmUser,showToast}){
   // projeção
   const [proj,setProj]=useState(null);
   const [saldoIni,setSaldoIni]=useState('0');
+  // contas a receber
+  const [contas,setContas]=useState([]);
+  const [contasLoading,setContasLoading]=useState(false);
+  const [contasFiltStatus,setContasFiltStatus]=useState('');
+  // resumo por aluno
+  const [alunos,setAlunos]=useState([]);
+  const [selAluno,setSelAluno]=useState('');
+  const [selMes,setSelMes]=useState(TODAY.slice(0,7));
+  const [resumo,setResumo]=useState(null);
+  const [resumoLoading,setResumoLoading]=useState(false);
+  const [emailSending,setEmailSending]=useState(false);
 
   const loadFluxo=useCallback(()=>{financeApi.cashflow({from,to}).then(setCf).catch(()=>{});},[from,to]);
   const loadExps =useCallback(()=>{expenseApi.list({from,to}).then(setExps).catch(()=>{});},[from,to]);
   const loadRep  =useCallback(()=>{repasseApi.list({from,to}).then(setRep).catch(()=>{});},[from,to]);
   const loadProj =useCallback(()=>{financeApi.projecao({saldoInicial:parseFloat(saldoIni)||0}).then(setProj).catch(()=>{});},[saldoIni]);
+  const loadContas=useCallback(()=>{
+    setContasLoading(true);
+    const p={from,to};if(contasFiltStatus)p.status=contasFiltStatus;
+    contasApi.list(p).then(setContas).catch(()=>{}).finally(()=>setContasLoading(false));
+  },[from,to,contasFiltStatus]);
 
   useEffect(()=>{
     if(tab==='fluxo')loadFluxo();
     if(tab==='despesas')loadExps();
     if(tab==='repasse')loadRep();
     if(tab==='projecao')loadProj();
-  },[tab,loadFluxo,loadExps,loadRep,loadProj]);
+    if(tab==='contas')loadContas();
+    if(tab==='resumo')alunoApi.list().then(setAlunos).catch(()=>{});
+  },[tab,loadFluxo,loadExps,loadRep,loadProj,loadContas]);
 
   const saveExp=async()=>{
     try{
@@ -2064,8 +2234,8 @@ function CRMFinanceiro({crmUser,showToast}){
     </div>
 
     {/* tabs */}
-    <div className="border-b border-gray-200 mb-5"><nav className="flex gap-1">
-      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'projecao',l:'Projeção'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'}].map(t=>
+    <div className="border-b border-gray-200 mb-5"><nav className="flex gap-1 flex-wrap">
+      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'projecao',l:'Projeção'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'},{k:'contas',l:'💳 Contas a Receber'},{k:'resumo',l:'📋 Resumo por Aluno'}].map(t=>
         <button key={t.k} onClick={()=>setTab(t.k)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${tab===t.k?'border-emerald-600 text-emerald-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>{t.l}</button>)}
     </nav></div>
 
@@ -2144,6 +2314,160 @@ function CRMFinanceiro({crmUser,showToast}){
         </tr>)}
       </tbody>
     </table></div></div>}
+
+    {/* aba contas a receber */}
+    {tab==='contas'&&<div>
+      <div className="flex flex-wrap gap-3 items-end mb-4">
+        <div className="w-48">
+          <p className="text-xs text-gray-400 mb-1 font-medium">Filtrar por status</p>
+          <select value={contasFiltStatus} onChange={e=>{setContasFiltStatus(e.target.value);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+            <option value="">Todos</option>
+            {PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <Btn variant="secondary" size="sm" onClick={loadContas}>🔄 Atualizar</Btn>
+        <div className="ml-auto text-sm text-gray-500">
+          {contas.length} registro{contas.length!==1?'s':''} •{' '}
+          <strong className="text-emerald-700">{fmt$(contas.reduce((s,c)=>s+Number(c.total),0))}</strong>
+        </div>
+      </div>
+      {contasLoading?<Spinner/>:contas.length===0
+        ?<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">💳</p><p>Nenhum registro encontrado no período</p></div>
+        :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead><tr className="bg-gray-50 border-b border-gray-100">
+              {['Tipo','Cliente','Estabelecimento','Data','Valor','Status','Forma Pgto'].map(h=><th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>)}
+            </tr></thead>
+            <tbody className="divide-y divide-gray-50">
+              {contas.map(c=>{
+                const updatePgto=async(field,val)=>{
+                  await contasApi.updatePgto(c.tipo,c.id,{[field]:val}).catch(()=>{});
+                  loadContas();
+                };
+                return<tr key={`${c.tipo}-${c.id}`} className="hover:bg-gray-50">
+                  <td className="px-3 py-2.5 whitespace-nowrap"><span className="text-xs font-semibold">{TIPO_LABEL[c.tipo]||c.tipo}</span></td>
+                  <td className="px-3 py-2.5 font-medium text-gray-800">{c.cliente||'—'}</td>
+                  <td className="px-3 py-2.5 text-gray-500 text-xs">{c.est_name||'—'}</td>
+                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{c.data?fmtDate(c.data.split('T')[0]):'—'}</td>
+                  <td className="px-3 py-2.5 font-bold text-gray-800 whitespace-nowrap">{fmt$(c.total)}</td>
+                  <td className="px-3 py-2.5">
+                    <select value={c.status_pgto||'pendente'} onChange={e=>updatePgto('status_pgto',e.target.value)}
+                      className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-400 ${PGTO_STATUS_BADGE[c.status_pgto||'pendente']}`}>
+                      {PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <select value={c.forma_pgto||''} onChange={e=>updatePgto('forma_pgto',e.target.value)}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400">
+                      <option value="">— selecione —</option>
+                      {PGTO_FORMA_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </td>
+                </tr>;
+              })}
+            </tbody>
+          </table></div>
+        </div>}
+    </div>}
+
+    {/* aba resumo por aluno */}
+    {tab==='resumo'&&<div>
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-3 items-end">
+        <div className="w-64">
+          <p className="text-xs text-gray-400 mb-1 font-medium">Aluno</p>
+          <select value={selAluno} onChange={e=>setSelAluno(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+            <option value="">Selecione um aluno...</option>
+            {alunos.map(a=><option key={a.id} value={a.nome}>{a.nome}{a.email?` — ${a.email}`:''}</option>)}
+          </select>
+        </div>
+        <div className="w-40">
+          <p className="text-xs text-gray-400 mb-1 font-medium">Mês</p>
+          <input type="month" value={selMes} onChange={e=>setSelMes(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+        </div>
+        <Btn disabled={!selAluno||resumoLoading} onClick={()=>{
+          if(!selAluno)return;
+          setResumoLoading(true);
+          contasApi.resumoAluno({aluno_nome:selAluno,mes:selMes})
+            .then(setResumo).catch(()=>{}).finally(()=>setResumoLoading(false));
+        }}>{resumoLoading?'Buscando...':'🔍 Gerar Resumo'}</Btn>
+      </div>
+
+      {resumoLoading&&<Spinner text="Gerando resumo..."/>}
+      {!resumoLoading&&resumo&&<div>
+        <div id="resumo-aluno-print">
+          <div className="flex items-center justify-between mb-4 print:hidden">
+            <h2 className="text-lg font-black text-gray-800">Resumo de {resumo.aluno_nome} — {new Date(selMes+'-15').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</h2>
+            <div className="flex gap-2">
+              <Btn variant="secondary" size="sm" onClick={()=>window.print()}>🖨️ Imprimir</Btn>
+              <Btn variant="secondary" size="sm" disabled={emailSending} onClick={async()=>{
+                const al=alunos.find(a=>a.nome===selAluno);
+                if(!al?.email){showToast&&showToast('Aluno sem email cadastrado','error');return;}
+                setEmailSending(true);
+                try{await contasApi.emailAluno({aluno_nome:resumo.aluno_nome,aluno_email:al.email,mes:selMes,resumo});showToast&&showToast('Email enviado!','success');}
+                catch(e){showToast&&showToast(e.message||'Erro ao enviar','error');}
+                finally{setEmailSending(false);}
+              }}>{emailSending?'Enviando...':'📧 Enviar por Email'}</Btn>
+            </div>
+          </div>
+
+          {/* totais */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            {[['Aulas/Planos',resumo.totais.aulas,'#7c3aed'],['Reservas',resumo.totais.reservas,'#0284c7'],['Bar',resumo.totais.bar,'#b45309'],['Total Geral',resumo.totais.geral,'#16a34a']].map(([l,v,c])=>
+              <div key={l} className="bg-white rounded-2xl border border-gray-100 p-4">
+                <p className="text-xs text-gray-400 mb-1">{l}</p>
+                <p className="text-xl font-black" style={{color:c}}>{fmt$(v)}</p>
+              </div>)}
+          </div>
+
+          {/* aulas */}
+          {resumo.aulas.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
+            <div className="px-4 py-3 bg-purple-50 border-b border-purple-100"><h3 className="font-bold text-purple-700 text-sm">📚 Aulas / Planos ({resumo.aulas.length})</h3></div>
+            <table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
+              {resumo.aulas.map(a=><tr key={a.id} className="hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-gray-600">{a.tipo||'Aula'}</td>
+                <td className="px-4 py-2.5 text-gray-500">{a.data?fmtDate(a.data.split('T')[0]):'—'}</td>
+                <td className="px-4 py-2.5 text-gray-500">{a.est_name||'—'}</td>
+                <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(a.total)}</td>
+                <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[a.status_pgto||'pendente']}`}>{a.status_pgto||'pendente'}</span></td>
+              </tr>)}
+            </tbody></table>
+          </div>}
+
+          {/* reservas */}
+          {resumo.reservas.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
+            <div className="px-4 py-3 bg-blue-50 border-b border-blue-100"><h3 className="font-bold text-blue-700 text-sm">📅 Reservas ({resumo.reservas.length})</h3></div>
+            <table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
+              {resumo.reservas.map(r=><tr key={r.id} className="hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-gray-600">{r.ponto_name||'Reserva'}</td>
+                <td className="px-4 py-2.5 text-gray-500">{r.data?fmtDate(r.data.split('T')[0]):'—'} {r.start_time&&`${r.start_time}–${r.end_time}`}</td>
+                <td className="px-4 py-2.5 text-gray-500">{r.est_name||'—'}</td>
+                <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(r.total)}</td>
+                <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[r.status_pgto||'pendente']}`}>{r.status_pgto||'pendente'}</span></td>
+              </tr>)}
+            </tbody></table>
+          </div>}
+
+          {/* bar */}
+          {resumo.bar.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
+            <div className="px-4 py-3 bg-amber-50 border-b border-amber-100"><h3 className="font-bold text-amber-700 text-sm">🍺 Consumo Bar ({resumo.bar.length})</h3></div>
+            <table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
+              {resumo.bar.map(b=><tr key={b.id} className="hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-gray-600 text-xs">{(b.itens||[]).map(i=>`${i.nome} ×${i.quantidade}`).join(', ')||'—'}</td>
+                <td className="px-4 py-2.5 text-gray-500">{b.data?fmtDate(b.data.split('T')[0]):'—'}</td>
+                <td className="px-4 py-2.5 text-gray-500">{b.est_name||'—'}</td>
+                <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(b.total)}</td>
+                <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[b.status_pgto||'pendente']}`}>{b.status_pgto||'pendente'}</span></td>
+              </tr>)}
+            </tbody></table>
+          </div>}
+
+          {resumo.aulas.length===0&&resumo.reservas.length===0&&resumo.bar.length===0&&
+            <div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🔍</p><p>Nenhum registro para <strong>{resumo.aluno_nome}</strong> em {new Date(selMes+'-15').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</p></div>}
+        </div>
+      </div>}
+    </div>}
 
     {/* modal despesa */}
     <Modal open={!!expForm} onClose={()=>setExpForm(null)} title={expForm?.id?'Editar Despesa':'Nova Despesa'}>
@@ -2507,6 +2831,7 @@ export default function App(){
     'crm-reservations': <CRMReservations crmUser={crmUser} showToast={showToast}/>,
     'crm-professors':   <CRMProfessors crmUser={crmUser} showToast={showToast}/>,
     'crm-profissionais-ef':<CRMProfissionaisEF showToast={showToast}/>,
+    'crm-alunos':       <CRMAlunos crmUser={crmUser} showToast={showToast}/>,
     'crm-unimidia':     <CRMUnimidia crmUser={crmUser} showToast={showToast}/>,
     'crm-funcionarios': <CRMFuncionarios crmUser={crmUser} showToast={showToast}/>,
     'crm-financeiro':   <CRMFinanceiro crmUser={crmUser} showToast={showToast}/>,

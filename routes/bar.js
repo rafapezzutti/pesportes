@@ -24,13 +24,15 @@ router.get('/clientes', auth, async (req, res) => {
       SELECT DISTINCT nome FROM (
         SELECT name AS nome FROM public_users
         UNION
-        SELECT client_name AS nome FROM reservations WHERE client_name IS NOT NULL ${estFilter ? estFilter.replace('est_id', 'est_id') : ''}
+        SELECT nome FROM alunos WHERE ativo = TRUE ${estFilter ? estFilter : ''}
         UNION
-        SELECT nome_aluno AS nome FROM planos_aula WHERE nome_aluno IS NOT NULL ${estFilter ? estFilter.replace('est_id', 'est_id') : ''}
+        SELECT client_name AS nome FROM reservations WHERE client_name IS NOT NULL ${estFilter ? estFilter : ''}
         UNION
-        SELECT cliente_nome AS nome FROM bar_vendas WHERE cliente_nome IS NOT NULL ${estFilter ? estFilter.replace('est_id', 'est_id') : ''}
+        SELECT nome_aluno AS nome FROM planos_aula WHERE nome_aluno IS NOT NULL ${estFilter ? estFilter : ''}
         UNION
-        SELECT cliente_nome AS nome FROM manutencao_vendas WHERE cliente_nome IS NOT NULL ${estFilter ? estFilter.replace('est_id', 'est_id') : ''}
+        SELECT cliente_nome AS nome FROM bar_vendas WHERE cliente_nome IS NOT NULL ${estFilter ? estFilter : ''}
+        UNION
+        SELECT cliente_nome AS nome FROM manutencao_vendas WHERE cliente_nome IS NOT NULL ${estFilter ? estFilter : ''}
       ) AS t
       WHERE nome IS NOT NULL AND nome != ''
       ORDER BY nome
@@ -78,7 +80,7 @@ router.get('/', auth, async (req, res) => {
 
 // POST /api/bar
 router.post('/', auth, adminOrManager, async (req, res) => {
-  const { est_id, cliente_nome, cliente_ref, itens, observacoes, data_venda } = req.body;
+  const { est_id, cliente_nome, cliente_ref, itens, observacoes, data_venda, foto, forma_pgto } = req.body;
   if (!cliente_nome) return res.status(400).json({ error: 'Nome do cliente é obrigatório' });
   if (!itens || !itens.length) return res.status(400).json({ error: 'Adicione ao menos um item' });
 
@@ -87,10 +89,11 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO bar_vendas (est_id, cliente_nome, cliente_ref, itens, total, observacoes, data_venda)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      `INSERT INTO bar_vendas (est_id, cliente_nome, cliente_ref, itens, total, observacoes, data_venda, foto, forma_pgto, status_pgto)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pendente') RETURNING *`,
       [est_id || null, cliente_nome, cliente_ref || 'manual',
-       JSON.stringify(itens), total, observacoes || null, dataFinal]
+       JSON.stringify(itens), total, observacoes || null, dataFinal,
+       foto || null, forma_pgto || null]
     );
 
     // Baixa de estoque (#10): se o item referencia um produto cadastrado, decrementa.
@@ -111,6 +114,24 @@ router.post('/', auth, adminOrManager, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao registrar venda do bar' });
+  }
+});
+
+// PATCH /api/bar/:id/pgto — atualiza status e forma de pagamento
+router.patch('/:id/pgto', auth, adminOrManager, async (req, res) => {
+  const { status_pgto, forma_pgto } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE bar_vendas SET
+         status_pgto = COALESCE($1, status_pgto),
+         forma_pgto  = COALESCE($2, forma_pgto)
+       WHERE id = $3 RETURNING *`,
+      [status_pgto || null, forma_pgto || null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Venda não encontrada' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao atualizar pagamento' });
   }
 });
 

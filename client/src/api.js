@@ -80,7 +80,8 @@ export const resApi = {
   cancel:     (id)                   => patch(`/reservations/${id}/cancel`),
   reschedule: (id, date, s, e, h)    => patch(`/reservations/${id}/reschedule`, { date, start_time: s, end_time: e, hours: h }),
   setStatus:  (id, status)           => patch(`/reservations/${id}`, { status }),
-  manualCreate: (data)               => post('/reservations/manual', data),
+  manualCreate:        (data)          => post('/reservations/manual', data),
+  updateParticipantes: (id, parts)     => patch(`/reservations/${id}/participantes`, { participantes: parts }),
 };
 
 // ── Auditoria ─────────────────────────────────────────────────────
@@ -204,4 +205,20 @@ export const profEfApi = {
   create:     (data)       => post('/profissionais-ef', data),
   update:     (id, data)   => put(`/profissionais-ef/${id}`, data),
   remove:     (id)         => del(`/profissionais-ef/${id}`),
+};
+
+// ── Alunos ────────────────────────────────────────────────────────
+export const alunoApi = {
+  list:   ()           => get('/alunos'),
+  create: (data)       => post('/alunos', data),
+  update: (id, data)   => put(`/alunos/${id}`, data),
+  remove: (id)         => del(`/alunos/${id}`),
+};
+
+// ── Contas a Receber / Resumo por Aluno ───────────────────────────
+export const contasApi = {
+  list:       (params={}) => get('/finance/contas-a-receber?' + new URLSearchParams(params).toString()),
+  updatePgto: (tipo, id, data) => patch(`/finance/contas-a-receber/${tipo}/${id}`, data),
+  resumoAluno:(params={}) => get('/finance/resumo-aluno?' + new URLSearchParams(params).toString()),
+  emailAluno: (data)      => post('/finance/resumo-aluno/email', data),
 };
