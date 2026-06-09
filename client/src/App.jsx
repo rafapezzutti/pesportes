@@ -46,7 +46,7 @@ const RECORRENCIA_LABEL = {nenhuma:'Sem recorrência',semanal:'Semanal',quinzena
 // UTILITIES
 // ================================================================
 const fmt$ = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
-const fmtDate = d => { if(!d)return''; const s=typeof d==='string'?d:d.toISOString().split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}/${m}/${y}`; };
+const fmtDate = d => { if(!d)return''; const s=(typeof d==='string'?d:d.toISOString()).split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}/${m}/${y}`; };
 const statusLabel = s => ({confirmed:'Confirmada',cancelled:'Cancelada',completed:'Concluída'}[s]||s);
 const statusColor = s => ({confirmed:'bg-emerald-100 text-emerald-700',cancelled:'bg-red-100 text-red-700',completed:'bg-gray-100 text-gray-600'}[s]||'bg-gray-100 text-gray-600');
 const canModify = r => { const dt=new Date(`${typeof r.date==='string'?r.date:r.date.toISOString().split('T')[0]}T${r.start_time}:00`); return new Date()<new Date(dt.getTime()-2*60*60*1000); };
