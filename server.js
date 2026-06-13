@@ -88,10 +88,11 @@ app.get('*', (req, res) => {
 });
 
 // ── Cron — Lembretes de Reserva ─────────────────────────────────
-// Roda a cada 5 min. Usa flags reminded_1h / reminded_15m para nunca
-// perder um lembrete (mesmo de horários "quebrados") e nunca repetir.
-// Interpreta o horário da reserva no fuso configurado (BR por padrão).
-cron.schedule('*/5 * * * *', async () => {
+// Roda a cada 20 min. A janela de busca é 70 min, então 3+ verificações
+// por janela garantem que nenhum lembrete seja perdido. Intervalo de 20 min
+// (vs 5 min anterior) permite ao Neon dormir ~14 min por ciclo, reduzindo
+// compute em ~70%. Usa flags reminded_1h / reminded_15m para nunca repetir.
+cron.schedule('*/20 * * * *', async () => {
   try {
     // Só consulta o banco em horário comercial (7h–23h BRT) para o Neon
     // poder dormir (scale-to-zero) durante a madrugada e reduzir custo.
