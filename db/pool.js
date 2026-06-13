@@ -1,10 +1,14 @@
-const { Pool } = require('pg');
+const { Pool, neonConfig } = require('@neondatabase/serverless');
+const ws = require('ws');
+
+// Driver serverless: WebSocket em vez de TCP persistente.
+// Conexões fecham em 5s de idle → Neon escala a zero logo após a última query real.
+neonConfig.webSocketConstructor = ws;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // Neon exige SSL
-  max: 10,
-  idleTimeoutMillis: 30000,
+  max: 5,
+  idleTimeoutMillis: 5000,
   connectionTimeoutMillis: 5000,
 });
 
