@@ -8,9 +8,15 @@ router.get('/', auth, async (req, res) => {
     const params = [];
     const where  = [];
 
-    if (req.user.role === 'manager' && req.user.est_ids?.length) {
-      params.push(req.user.est_ids);
-      where.push(`a.est_id = ANY($${params.length})`);
+    if (req.user.role === 'manager') {
+      const ids = Array.from(new Set([
+        ...(req.user.est_ids || []),
+        ...(req.user.est_id ? [req.user.est_id] : []),
+      ])).map(Number).filter(Boolean);
+      if (ids.length) {
+        params.push(ids);
+        where.push(`a.est_id = ANY($${params.length})`);
+      }
     } else if (req.user.role === 'simples' && req.user.est_id) {
       params.push(req.user.est_id);
       where.push(`a.est_id = $${params.length}`);

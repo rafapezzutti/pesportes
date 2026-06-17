@@ -766,6 +766,7 @@ function CRMEstablishment({showToast}){
       {ests.length===0
         ?<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🏢</p><p className="text-lg">Nenhum estabelecimento cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro estabelecimento</Btn></div>
         :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>{['Nome','Cidade / UF','Telefone','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
@@ -779,6 +780,7 @@ function CRMEstablishment({showToast}){
               </tr>)}
             </tbody>
           </table>
+          </div>
         </div>
       }
     </div>}
@@ -898,6 +900,7 @@ function CRMUsers({crmUser,showToast}){
 
   return<div className="p-6"><div className="flex items-center justify-between mb-6"><h1 className="text-2xl font-black text-gray-900">Usuários do Sistema</h1><Btn onClick={openNew}>+ Novo Usuário</Btn></div>
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="overflow-x-auto">
     <table className="w-full text-sm"><thead className="bg-gray-50 border-b border-gray-100"><tr>{['Nome','Email','Perfil','Estabelecimento(s)','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr></thead>
     <tbody className="divide-y divide-gray-50">{users.map(u=><tr key={u.id} className="hover:bg-gray-50">
       <td className="px-4 py-3 font-semibold text-gray-800">{u.name}</td>
@@ -906,6 +909,7 @@ function CRMUsers({crmUser,showToast}){
       <td className="px-4 py-3 text-gray-500 text-xs">{u.role==='manager'?(u.est_ids&&u.est_ids.length>0?ests.filter(e=>u.est_ids.map(Number).includes(Number(e.id))).map(e=>e.name).join(', '):<span className="italic text-gray-300">—</span>):(u.est_name||<span className="italic text-gray-300">—</span>)}</td>
       <td className="px-4 py-3"><div className="flex gap-2 justify-end">{isAdmin&&<><Btn variant="secondary" size="sm" onClick={()=>openEdit(u)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelU(u)}>Excluir</Btn></>}</div></td>
     </tr>)}</tbody></table>
+    </div>
     {users.length===0&&<div className="text-center py-12 text-gray-400">Nenhum usuário</div>}
   </div>
   <Modal open={showForm} onClose={()=>setShowForm(false)} title={editU?'Editar Usuário':'Novo Usuário'}><div className="space-y-3">
@@ -1465,6 +1469,7 @@ function CRMAlunos({crmUser,showToast}){
     {alunos.length===0
       ?<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎽</p><p className="text-lg">Nenhum aluno cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro aluno</Btn></div>
       :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
@@ -1484,6 +1489,7 @@ function CRMAlunos({crmUser,showToast}){
             </tr>)}
           </tbody>
         </table>
+        </div>
       </div>
     }
 
@@ -1650,6 +1656,7 @@ function CRMProfessors({crmUser,showToast}){
     {profs.length===0
       ?<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎓</p><p className="text-lg">Nenhum professor cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro professor</Btn></div>
       :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>{['Nome','CPF','Telefone','Email','Valor/h Avulso','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
@@ -1666,6 +1673,7 @@ function CRMProfessors({crmUser,showToast}){
             </tr>)}
           </tbody>
         </table>
+        </div>
       </div>
     }
 

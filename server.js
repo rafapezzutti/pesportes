@@ -170,6 +170,7 @@ async function runMigrations() {
     `ALTER TABLE planos_aula       ADD COLUMN IF NOT EXISTS status_pgto TEXT DEFAULT 'pendente'`,
     `ALTER TABLE planos_aula       ADD COLUMN IF NOT EXISTS forma_pgto  TEXT`,
     `ALTER TABLE alunos            ADD COLUMN IF NOT EXISTS telefone    TEXT`,
+    `ALTER TABLE professores       ADD COLUMN IF NOT EXISTS telefone    TEXT`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
