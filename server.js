@@ -173,6 +173,8 @@ async function runMigrations() {
     `ALTER TABLE professores       ADD COLUMN IF NOT EXISTS telefone    TEXT`,
     `ALTER TABLE bar_vendas        ADD COLUMN IF NOT EXISTS aluno_id   INTEGER REFERENCES alunos(id) ON DELETE SET NULL`,
     `ALTER TABLE manutencao_vendas ADD COLUMN IF NOT EXISTS aluno_id   INTEGER REFERENCES alunos(id) ON DELETE SET NULL`,
+    `ALTER TABLE bar_vendas        ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`,
+    `ALTER TABLE manutencao_vendas ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
