@@ -94,13 +94,22 @@ router.post('/', auth, adminOrManager, async (req, res) => {
   const dataFinal = data_venda || new Date().toISOString().split('T')[0];
 
   try {
+    // INSERT base — não inclui aluno_id para ser robusto caso a migração ainda não tenha rodado
     const { rows } = await pool.query(
-      `INSERT INTO bar_vendas (est_id, cliente_nome, aluno_id, cliente_ref, itens, total, observacoes, data_venda, foto, forma_pgto, status_pgto)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pendente') RETURNING *`,
-      [est_id || null, cliente_nome, aluno_id || null, cliente_ref || 'manual',
+      `INSERT INTO bar_vendas (est_id, cliente_nome, cliente_ref, itens, total, observacoes, data_venda, foto, forma_pgto, status_pgto)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pendente') RETURNING *`,
+      [est_id || null, cliente_nome, cliente_ref || 'manual',
        JSON.stringify(itens), total, observacoes || null, dataFinal,
        foto || null, forma_pgto || null]
     );
+
+    // Vincula aluno_id se fornecido — silencioso caso a coluna ainda não exista
+    if (aluno_id && rows[0]?.id) {
+      await pool.query(
+        'UPDATE bar_vendas SET aluno_id = $1 WHERE id = $2',
+        [aluno_id, rows[0].id]
+      ).catch(() => {});
+    }
 
     // Baixa de estoque (#10): se o item referencia um produto cadastrado, decrementa.
     for (const it of itens) {

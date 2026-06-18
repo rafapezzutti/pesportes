@@ -49,11 +49,19 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO manutencao_vendas (est_id, cliente_nome, aluno_id, cliente_ref, itens, total, observacoes, data_venda)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [est_id || null, cliente_nome, aluno_id || null, cliente_ref || 'manual',
+      `INSERT INTO manutencao_vendas (est_id, cliente_nome, cliente_ref, itens, total, observacoes, data_venda)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [est_id || null, cliente_nome, cliente_ref || 'manual',
        JSON.stringify(itens), total, observacoes || null, dataFinal]
     );
+
+    if (aluno_id && rows[0]?.id) {
+      await pool.query(
+        'UPDATE manutencao_vendas SET aluno_id = $1 WHERE id = $2',
+        [aluno_id, rows[0].id]
+      ).catch(() => {});
+    }
+
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
