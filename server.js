@@ -203,6 +203,18 @@ async function runMigrations() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`,
     `CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC)`,
+    // Colunas que o middleware de audit usa mas podem estar faltando (tabela criada antes da v2)
+    `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_type   TEXT`,
+    `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS est_id      INTEGER`,
+    `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS action      TEXT`,
+    `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity      TEXT`,
+    `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_id   TEXT`,
+    `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS status_code INTEGER`,
+    `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details     JSONB`,
+    `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent  TEXT`,
+    // Colunas de lembrete que o cron precisa mas podem estar faltando em reservations
+    `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS reminded_1h  BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS reminded_15m BOOLEAN DEFAULT FALSE`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
