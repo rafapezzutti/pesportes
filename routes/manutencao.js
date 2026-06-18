@@ -9,9 +9,12 @@ router.get('/', auth, async (req, res) => {
     const clauses = [];
     const params  = [];
 
-    if (req.user.role === 'manager' && req.user.est_ids?.length) {
-      clauses.push(`est_id = ANY($${params.length + 1})`);
-      params.push(req.user.est_ids);
+    if (req.user.role === 'manager') {
+      const ids = Array.from(new Set([
+        ...(req.user.est_ids || []),
+        ...(req.user.est_id ? [req.user.est_id] : []),
+      ])).map(Number).filter(Boolean);
+      if (ids.length) { clauses.push(`est_id = ANY($${params.length + 1})`); params.push(ids); }
     } else if (req.user.role === 'simples' && req.user.est_id) {
       clauses.push(`est_id = $${params.length + 1}`);
       params.push(req.user.est_id);
@@ -37,7 +40,7 @@ router.get('/', auth, async (req, res) => {
 
 // POST /api/manutencao
 router.post('/', auth, adminOrManager, async (req, res) => {
-  const { est_id, cliente_nome, cliente_ref, itens, observacoes, data_venda } = req.body;
+  const { est_id, cliente_nome, aluno_id, cliente_ref, itens, observacoes, data_venda } = req.body;
   if (!cliente_nome) return res.status(400).json({ error: 'Nome do cliente é obrigatório' });
   if (!itens || !itens.length) return res.status(400).json({ error: 'Adicione ao menos um item' });
 
@@ -46,9 +49,9 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO manutencao_vendas (est_id, cliente_nome, cliente_ref, itens, total, observacoes, data_venda)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [est_id || null, cliente_nome, cliente_ref || 'manual',
+      `INSERT INTO manutencao_vendas (est_id, cliente_nome, aluno_id, cliente_ref, itens, total, observacoes, data_venda)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [est_id || null, cliente_nome, aluno_id || null, cliente_ref || 'manual',
        JSON.stringify(itens), total, observacoes || null, dataFinal]
     );
     res.status(201).json(rows[0]);

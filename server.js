@@ -171,6 +171,8 @@ async function runMigrations() {
     `ALTER TABLE planos_aula       ADD COLUMN IF NOT EXISTS forma_pgto  TEXT`,
     `ALTER TABLE alunos            ADD COLUMN IF NOT EXISTS telefone    TEXT`,
     `ALTER TABLE professores       ADD COLUMN IF NOT EXISTS telefone    TEXT`,
+    `ALTER TABLE bar_vendas        ADD COLUMN IF NOT EXISTS aluno_id   INTEGER REFERENCES alunos(id) ON DELETE SET NULL`,
+    `ALTER TABLE manutencao_vendas ADD COLUMN IF NOT EXISTS aluno_id   INTEGER REFERENCES alunos(id) ON DELETE SET NULL`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>

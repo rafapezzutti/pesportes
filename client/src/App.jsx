@@ -1302,39 +1302,52 @@ function CRMReservations({showToast}){
 // ================================================================
 // CRM BAR
 // ================================================================
-function VendasForm({titulo,labelItem,onSave,clientes,loading,showFoto=false}){
-  const [clienteNome,setClienteNome]=useState('');
-  const [clienteInput,setClienteInput]=useState('');
+function VendasForm({titulo,labelItem,onSave,alunos=[],loading,showFoto=false}){
+  // Modo avulso (cliente não cadastrado) ou busca de aluno
+  const [avulso,setAvulso]=useState(false);
+  const [avulsoNome,setAvulsoNome]=useState('');
+  // Busca de aluno cadastrado
+  const [alunoInput,setAlunoInput]=useState('');
+  const [alunoSel,setAlunoSel]=useState(null);  // {id,nome,est_name}
   const [showSugg,setShowSugg]=useState(false);
+  // Itens / totais
   const [itens,setItens]=useState([{nome:'',quantidade:1,valor_unitario:''}]);
   const [obs,setObs]=useState('');
   const [dataVenda,setDataVenda]=useState(TODAY);
   const [foto,setFoto]=useState(null);
   const [saving,setSaving]=useState(false);
 
-  const sugg=clientes.filter(c=>c.toLowerCase().includes(clienteInput.toLowerCase())&&clienteInput.length>0).slice(0,8);
+  const sugg=alunos.filter(a=>alunoInput.length>0&&a.nome.toLowerCase().includes(alunoInput.toLowerCase())).slice(0,8);
+
+  const selAluno=(a)=>{setAlunoSel(a);setAlunoInput(a.nome);setShowSugg(false);};
+  const clearAluno=()=>{setAlunoSel(null);setAlunoInput('');};
+  const toggleAvulso=(v)=>{setAvulso(v);clearAluno();setAvulsoNome('');};
 
   const addItem=()=>setItens(p=>[...p,{nome:'',quantidade:1,valor_unitario:''}]);
   const rmItem=(i)=>setItens(p=>p.filter((_,j)=>j!==i));
   const updItem=(i,k,v)=>setItens(p=>p.map((it,j)=>j===i?{...it,[k]:v}:it));
-
   const total=itens.reduce((s,i)=>s+(Number(i.quantidade)||0)*(Number(i.valor_unitario)||0),0);
 
   const handleFotoChange=async(e)=>{
-    const file=e.target.files?.[0];
-    if(!file)return;
-    const compressed=await compressImage(file,1920,0.88);
-    setFoto(compressed);
+    const file=e.target.files?.[0];if(!file)return;
+    const compressed=await compressImage(file,1920,0.88);setFoto(compressed);
   };
 
   const save=async()=>{
-    const nome=clienteNome||clienteInput;
-    if(!nome){alert('Selecione ou informe o cliente');return;}
+    const nome=avulso?avulsoNome.trim():(alunoSel?.nome||alunoInput.trim());
+    if(!nome){alert(avulso?'Informe o nome do cliente avulso':'Selecione um aluno cadastrado');return;}
     if(!itens[0].nome){alert('Informe ao menos um item');return;}
     setSaving(true);
     try{
-      await onSave({cliente_nome:nome,itens:itens.map(i=>({...i,quantidade:Number(i.quantidade),valor_unitario:Number(i.valor_unitario)})),observacoes:obs,data_venda:dataVenda,foto:foto||null});
-      setClienteNome('');setClienteInput('');setItens([{nome:'',quantidade:1,valor_unitario:''}]);setObs('');setDataVenda(TODAY);setFoto(null);
+      await onSave({
+        cliente_nome:nome,
+        aluno_id:avulso?null:(alunoSel?.id||null),
+        cliente_ref:avulso?'avulso':'aluno',
+        itens:itens.map(i=>({...i,quantidade:Number(i.quantidade),valor_unitario:Number(i.valor_unitario)})),
+        observacoes:obs,data_venda:dataVenda,foto:foto||null,
+      });
+      clearAluno();setAvulsoNome('');setAvulso(false);
+      setItens([{nome:'',quantidade:1,valor_unitario:''}]);setObs('');setDataVenda(TODAY);setFoto(null);
     }finally{setSaving(false);}
   };
 
@@ -1342,11 +1355,39 @@ function VendasForm({titulo,labelItem,onSave,clientes,loading,showFoto=false}){
   return<div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 max-w-2xl">
     <h2 className="font-bold text-gray-700">{titulo}</h2>
 
-    {/* Cliente */}
-    <div className="relative">
-      <label className="block text-sm font-medium text-gray-700 mb-1">Cliente / Aluno <span className="text-red-500">*</span></label>
-      <input value={clienteNome||clienteInput} onChange={e=>{setClienteInput(e.target.value);setClienteNome('');setShowSugg(true);}} onFocus={()=>setShowSugg(true)} onBlur={()=>setTimeout(()=>setShowSugg(false),150)} placeholder="Digite o nome ou selecione..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
-      {showSugg&&sugg.length>0&&<div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-40 overflow-y-auto">{sugg.map(c=><div key={c} onMouseDown={()=>{setClienteNome(c);setClienteInput(c);setShowSugg(false);}} className="px-3 py-2 text-sm hover:bg-emerald-50 cursor-pointer">{c}</div>)}</div>}
+    {/* Cliente / Aluno */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {avulso?'Nome do Cliente Avulso':'Aluno Cadastrado'} <span className="text-red-500">*</span>
+      </label>
+
+      {avulso
+        ?<input value={avulsoNome} onChange={e=>setAvulsoNome(e.target.value)} placeholder="Nome do cliente avulso..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+        :<div className="relative">
+          <input
+            value={alunoSel?alunoSel.nome:alunoInput}
+            onChange={e=>{setAlunoInput(e.target.value);setAlunoSel(null);setShowSugg(true);}}
+            onFocus={()=>setShowSugg(true)}
+            onBlur={()=>setTimeout(()=>setShowSugg(false),150)}
+            placeholder="Buscar aluno cadastrado..."
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-8"/>
+          {(alunoSel||alunoInput)&&<button onClick={clearAluno} className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>}
+          {showSugg&&sugg.length>0&&
+            <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-48 overflow-y-auto">
+              {sugg.map(a=><div key={a.id} onMouseDown={()=>selAluno(a)} className="px-3 py-2 text-sm hover:bg-emerald-50 cursor-pointer flex items-center justify-between">
+                <span className="font-medium text-gray-800">{a.nome}</span>
+                {a.est_name&&<span className="text-xs text-gray-400 ml-2">{a.est_name}</span>}
+              </div>)}
+            </div>}
+          {showSugg&&alunoInput.length>0&&sugg.length===0&&
+            <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 px-3 py-2 text-sm text-gray-400">Nenhum aluno encontrado</div>}
+        </div>}
+
+      {/* Checkbox avulso */}
+      <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+        <input type="checkbox" checked={avulso} onChange={e=>toggleAvulso(e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded"/>
+        <span className="text-sm text-gray-500">Venda avulsa <span className="text-gray-400">(cliente não cadastrado)</span></span>
+      </label>
     </div>
 
     {/* Itens */}
@@ -1522,14 +1563,14 @@ function CRMAlunos({crmUser,showToast}){
 function CRMBar({showToast}){
   const [ests,setEsts]=useState([]);
   const [estId,setEstId]=useState('');
-  const [clientes,setClientes]=useState([]);
+  const [alunos,setAlunos]=useState([]);
   const [vendas,setVendas]=useState([]);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('novo');
 
   const load=()=>{
-    Promise.all([barApi.list(estId?{estId}:{}),estApi.list(),barApi.clientes()])
-      .then(([v,e,c])=>{setVendas(v);setEsts(e);setClientes(c);})
+    Promise.all([barApi.list(estId?{estId}:{}),estApi.list(),alunoApi.list()])
+      .then(([v,e,a])=>{setVendas(v);setEsts(e);setAlunos(a.filter(x=>x.ativo!==false));})
       .catch(()=>{})
       .finally(()=>setLoading(false));
   };
@@ -1555,7 +1596,7 @@ function CRMBar({showToast}){
         {ests.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
       </select>
     </div>
-    {tab==='novo'&&<VendasForm titulo="Registrar Consumo de Bar" labelItem="Bebidas / Itens" onSave={save} clientes={clientes} loading={loading} showFoto={true}/>}
+    {tab==='novo'&&<VendasForm titulo="Registrar Consumo de Bar" labelItem="Bebidas / Itens" onSave={save} alunos={alunos} loading={loading} showFoto={true}/>}
     {tab==='historico'&&(loading?<Spinner/>:<VendasList rows={vendas} onDelete={del} tipo="bar"/>)}
   </div>;
 }
@@ -1566,14 +1607,14 @@ function CRMBar({showToast}){
 function CRMManutencao({showToast}){
   const [ests,setEsts]=useState([]);
   const [estId,setEstId]=useState('');
-  const [clientes,setClientes]=useState([]);
+  const [alunos,setAlunos]=useState([]);
   const [vendas,setVendas]=useState([]);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('novo');
 
   const load=()=>{
-    Promise.all([manutencaoApi.list(estId?{estId}:{}),estApi.list(),barApi.clientes()])
-      .then(([v,e,c])=>{setVendas(v);setEsts(e);setClientes(c);})
+    Promise.all([manutencaoApi.list(estId?{estId}:{}),estApi.list(),alunoApi.list()])
+      .then(([v,e,a])=>{setVendas(v);setEsts(e);setAlunos(a.filter(x=>x.ativo!==false));})
       .catch(()=>{})
       .finally(()=>setLoading(false));
   };
@@ -1599,7 +1640,7 @@ function CRMManutencao({showToast}){
         {ests.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
       </select>
     </div>
-    {tab==='novo'&&<VendasForm titulo="Registrar Manutenção / Equipamento" labelItem="Equipamentos / Serviços" onSave={save} clientes={clientes} loading={loading}/>}
+    {tab==='novo'&&<VendasForm titulo="Registrar Manutenção / Equipamento" labelItem="Equipamentos / Serviços" onSave={save} alunos={alunos} loading={loading}/>}
     {tab==='historico'&&(loading?<Spinner/>:<VendasList rows={vendas} onDelete={del} tipo="manutencao"/>)}
   </div>;
 }

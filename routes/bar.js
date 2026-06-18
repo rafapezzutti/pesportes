@@ -10,9 +10,12 @@ router.get('/clientes', auth, async (req, res) => {
 
     // Filtro por estabelecimento se for gerente/simples
     let estFilter = '';
-    if (req.user.role === 'manager' && req.user.est_ids?.length) {
-      estFilter = `AND est_id = ANY($1)`;
-      params.push(req.user.est_ids);
+    if (req.user.role === 'manager') {
+      const ids = Array.from(new Set([
+        ...(req.user.est_ids || []),
+        ...(req.user.est_id ? [req.user.est_id] : []),
+      ])).map(Number).filter(Boolean);
+      if (ids.length) { estFilter = `AND est_id = ANY($1)`; params.push(ids); }
     } else if (req.user.role === 'simples' && req.user.est_id) {
       estFilter = `AND est_id = $1`;
       params.push(req.user.est_id);
@@ -52,9 +55,12 @@ router.get('/', auth, async (req, res) => {
     const clauses = [];
     const params  = [];
 
-    if (req.user.role === 'manager' && req.user.est_ids?.length) {
-      clauses.push(`est_id = ANY($${params.length + 1})`);
-      params.push(req.user.est_ids);
+    if (req.user.role === 'manager') {
+      const ids = Array.from(new Set([
+        ...(req.user.est_ids || []),
+        ...(req.user.est_id ? [req.user.est_id] : []),
+      ])).map(Number).filter(Boolean);
+      if (ids.length) { clauses.push(`est_id = ANY($${params.length + 1})`); params.push(ids); }
     } else if (req.user.role === 'simples' && req.user.est_id) {
       clauses.push(`est_id = $${params.length + 1}`);
       params.push(req.user.est_id);
@@ -80,7 +86,7 @@ router.get('/', auth, async (req, res) => {
 
 // POST /api/bar
 router.post('/', auth, adminOrManager, async (req, res) => {
-  const { est_id, cliente_nome, cliente_ref, itens, observacoes, data_venda, foto, forma_pgto } = req.body;
+  const { est_id, cliente_nome, aluno_id, cliente_ref, itens, observacoes, data_venda, foto, forma_pgto } = req.body;
   if (!cliente_nome) return res.status(400).json({ error: 'Nome do cliente é obrigatório' });
   if (!itens || !itens.length) return res.status(400).json({ error: 'Adicione ao menos um item' });
 
@@ -89,9 +95,9 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO bar_vendas (est_id, cliente_nome, cliente_ref, itens, total, observacoes, data_venda, foto, forma_pgto, status_pgto)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pendente') RETURNING *`,
-      [est_id || null, cliente_nome, cliente_ref || 'manual',
+      `INSERT INTO bar_vendas (est_id, cliente_nome, aluno_id, cliente_ref, itens, total, observacoes, data_venda, foto, forma_pgto, status_pgto)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pendente') RETURNING *`,
+      [est_id || null, cliente_nome, aluno_id || null, cliente_ref || 'manual',
        JSON.stringify(itens), total, observacoes || null, dataFinal,
        foto || null, forma_pgto || null]
     );
