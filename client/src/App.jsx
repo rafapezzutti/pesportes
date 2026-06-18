@@ -1317,7 +1317,7 @@ function VendasForm({titulo,labelItem,onSave,alunos=[],loading,showFoto=false}){
   const [foto,setFoto]=useState(null);
   const [saving,setSaving]=useState(false);
 
-  const sugg=alunos.filter(a=>alunoInput.length>0&&a.nome.toLowerCase().includes(alunoInput.toLowerCase())).slice(0,8);
+  const sugg=alunos.filter(a=>alunoInput.length>0&&a.nome.toLowerCase().includes(alunoInput.toLowerCase())).slice(0,10);
 
   const selAluno=(a)=>{setAlunoSel(a);setAlunoInput(a.nome);setShowSugg(false);};
   const clearAluno=()=>{setAlunoSel(null);setAlunoInput('');};
@@ -1341,8 +1341,8 @@ function VendasForm({titulo,labelItem,onSave,alunos=[],loading,showFoto=false}){
     try{
       await onSave({
         cliente_nome:nome,
-        aluno_id:avulso?null:(alunoSel?.id||null),
-        cliente_ref:avulso?'avulso':'aluno',
+        aluno_id:avulso?null:(alunoSel?._tipo==='professor'?null:(alunoSel?.id||null)),
+        cliente_ref:avulso?'avulso':(alunoSel?._tipo==='professor'?'professor':'aluno'),
         itens:itens.map(i=>({...i,quantidade:Number(i.quantidade),valor_unitario:Number(i.valor_unitario)})),
         observacoes:obs,data_venda:dataVenda,foto:foto||null,
       });
@@ -1358,7 +1358,7 @@ function VendasForm({titulo,labelItem,onSave,alunos=[],loading,showFoto=false}){
     {/* Cliente / Aluno */}
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">
-        {avulso?'Nome do Cliente Avulso':'Aluno Cadastrado'} <span className="text-red-500">*</span>
+        {avulso?'Nome do Cliente Avulso':'Aluno / Professor Cadastrado'} <span className="text-red-500">*</span>
       </label>
 
       {avulso
@@ -1374,8 +1374,11 @@ function VendasForm({titulo,labelItem,onSave,alunos=[],loading,showFoto=false}){
           {(alunoSel||alunoInput)&&<button onClick={clearAluno} className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>}
           {showSugg&&sugg.length>0&&
             <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-48 overflow-y-auto">
-              {sugg.map(a=><div key={a.id} onMouseDown={()=>selAluno(a)} className="px-3 py-2 text-sm hover:bg-emerald-50 cursor-pointer flex items-center justify-between">
-                <span className="font-medium text-gray-800">{a.nome}</span>
+              {sugg.map((a,i)=><div key={`${a._tipo||'aluno'}-${i}`} onMouseDown={()=>selAluno(a)} className="px-3 py-2 text-sm hover:bg-emerald-50 cursor-pointer flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  {a._tipo==='professor'&&<span className="text-xs text-indigo-500 font-semibold mr-1">🎓</span>}
+                  <span className="font-medium text-gray-800">{a.nome}</span>
+                </div>
                 {a.est_name&&<span className="text-xs text-gray-400 ml-2">{a.est_name}</span>}
               </div>)}
             </div>}
@@ -1576,11 +1579,13 @@ function CRMBar({showToast,crmUser}){
       barApi.list(estId?{estId}:{}),
       estApi.list(),
       alunoApi.list(),
+      professorApi.list(),
     ])
-      .then(([v,e,a])=>{
-        // Filtra dropdown de ests pelo escopo do usuário (quando tem est_ids definidos)
+      .then(([v,e,a,p])=>{
         const filtered=userEstIds.length?e.filter(x=>userEstIds.includes(Number(x.id))):e;
-        setVendas(v);setEsts(filtered);setAlunos(a.filter(x=>x.ativo!==false));
+        const profs=(p||[]).filter(x=>x.ativo!==false).map(x=>({...x,id:null,_tipo:'professor'}));
+        setVendas(v);setEsts(filtered);
+        setAlunos([...a.filter(x=>x.ativo!==false),...profs]);
       })
       .catch(()=>{})
       .finally(()=>setLoading(false));
@@ -1630,10 +1635,13 @@ function CRMManutencao({showToast,crmUser}){
       manutencaoApi.list(estId?{estId}:{}),
       estApi.list(),
       alunoApi.list(),
+      professorApi.list(),
     ])
-      .then(([v,e,a])=>{
+      .then(([v,e,a,p])=>{
         const filtered=userEstIds.length?e.filter(x=>userEstIds.includes(Number(x.id))):e;
-        setVendas(v);setEsts(filtered);setAlunos(a.filter(x=>x.ativo!==false));
+        const profs=(p||[]).filter(x=>x.ativo!==false).map(x=>({...x,id:null,_tipo:'professor'}));
+        setVendas(v);setEsts(filtered);
+        setAlunos([...a.filter(x=>x.ativo!==false),...profs]);
       })
       .catch(()=>{})
       .finally(()=>setLoading(false));
@@ -3032,14 +3040,4 @@ export default function App(){
         <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
           <p className="font-semibold text-gray-800">{confRes.pt.name}</p>
           <p className="text-gray-500">Data: {fmtDate(confRes.date)}</p>
-          <p className="text-gray-500">Horário: {confRes.slots[0]} – {(()=>{const s=confRes.slots[confRes.slots.length-1];const[h,m]=s.split(':').map(Number);return`${String(h+(m===30?0:1)).padStart(2,'0')}:${m===30?'00':'30'}`;})()}</p>
-          <p className="font-bold text-emerald-700 pt-1">Total: {fmt$(confRes.pt.price_per_hour*confRes.slots.length*0.5)}</p>
-        </div>
-        <div className="flex gap-3">
-          <Btn variant="secondary" className="flex-1" onClick={()=>setConfRes(null)}>Cancelar</Btn>
-          <Btn className="flex-1" onClick={confirmReserve} disabled={confLoading}>{confLoading?'Aguarde...':'Confirmar Reserva'}</Btn>
-        </div>
-      </div>}
-    </Modal>
-  </>;
-}
+          <p className="text-gray-500">Horário: {confRes.slots[0]} – {(()=>{const s=confRes.slots[confRes.slots.length-1];const[h,m]=s.split(':').map(Number);return`${String(h
