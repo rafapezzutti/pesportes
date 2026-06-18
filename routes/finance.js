@@ -220,13 +220,17 @@ router.get('/contas-a-receber', auth, adminOrManager, async (req, res) => {
        LEFT JOIN establishments e ON pl.est_id = e.id
        ${w2} ORDER BY pl.data_inicio DESC`, p2);
 
+    // Garante colunas de data e status (idempotente — IF NOT EXISTS)
+    await pool.query(`ALTER TABLE bar_vendas        ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`).catch(()=>{});
+    await pool.query(`ALTER TABLE manutencao_vendas ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`).catch(()=>{});
+
     const { params: p3, ws: w3 } = scopeWhere('b', 'data_venda');
     const { rows: bar } = await pool.query(
       `SELECT b.id, 'bar' AS tipo, b.cliente_nome AS cliente, b.data_venda AS data,
               b.total, b.status_pgto, b.forma_pgto, e.name AS est_name, b.foto
        FROM bar_vendas b
        LEFT JOIN establishments e ON b.est_id = e.id
-       ${w3} ORDER BY b.data_venda DESC`, p3);
+       ${w3} ORDER BY b.data_venda DESC`, p3).catch(e => { console.error('[contas-a-receber] bar query:', e.message); return { rows: [] }; });
 
     const { params: p4, ws: w4 } = scopeWhere('m', 'data_venda');
     const { rows: manut } = await pool.query(
@@ -234,7 +238,7 @@ router.get('/contas-a-receber', auth, adminOrManager, async (req, res) => {
               m.total, m.status_pgto, m.forma_pgto, e.name AS est_name
        FROM manutencao_vendas m
        LEFT JOIN establishments e ON m.est_id = e.id
-       ${w4} ORDER BY m.data_venda DESC`, p4);
+       ${w4} ORDER BY m.data_venda DESC`, p4).catch(e => { console.error('[contas-a-receber] manut query:', e.message); return { rows: [] }; });
 
     const all = [...reservas, ...aulas, ...bar, ...manut]
       .sort((a, b) => new Date(b.data) - new Date(a.data));
