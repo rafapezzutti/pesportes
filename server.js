@@ -175,6 +175,34 @@ async function runMigrations() {
     `ALTER TABLE manutencao_vendas ADD COLUMN IF NOT EXISTS aluno_id   INTEGER REFERENCES alunos(id) ON DELETE SET NULL`,
     `ALTER TABLE bar_vendas        ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`,
     `ALTER TABLE manutencao_vendas ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`,
+    `ALTER TABLE planos_aula       ADD COLUMN IF NOT EXISTS tipo       TEXT DEFAULT 'mensal'`,
+    `CREATE TABLE IF NOT EXISTS expenses (
+      id          SERIAL PRIMARY KEY,
+      est_id      INTEGER REFERENCES establishments(id) ON DELETE SET NULL,
+      categoria   TEXT NOT NULL DEFAULT 'outro',
+      descricao   TEXT,
+      valor       NUMERIC(10,2) NOT NULL DEFAULT 0,
+      vencimento  DATE NOT NULL,
+      pago        BOOLEAN DEFAULT FALSE,
+      pago_em     DATE,
+      recorrencia TEXT DEFAULT 'nenhuma',
+      observacoes TEXT,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_expenses_vencimento ON expenses(vencimento)`,
+    `CREATE INDEX IF NOT EXISTS idx_expenses_est_id     ON expenses(est_id)`,
+    `CREATE TABLE IF NOT EXISTS audit_logs (
+      id         BIGSERIAL PRIMARY KEY,
+      user_id    INTEGER,
+      user_name  TEXT,
+      user_role  TEXT,
+      method     TEXT,
+      path       TEXT,
+      body       JSONB,
+      ip         TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC)`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>

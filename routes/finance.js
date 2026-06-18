@@ -43,9 +43,10 @@ router.get('/cashflow', auth, adminOrManager, async (req, res) => {
 
     // despesas pagas no período (por vencimento)
     const ex = build(req, 'vencimento', q, 'pago = TRUE');
-    const { rows: exRows } = await pool.query(
-      `SELECT COALESCE(SUM(valor),0)::numeric AS v, COUNT(*)::int AS c FROM expenses ${ex.whereSql}`, ex.params);
-    const despesas = { total: Number(exRows[0].v), count: exRows[0].c };
+    const expResult = await pool.query(
+      `SELECT COALESCE(SUM(valor),0)::numeric AS v, COUNT(*)::int AS c FROM expenses ${ex.whereSql}`, ex.params
+    ).catch(() => ({ rows: [{ v: 0, c: 0 }] }));
+    const despesas = { total: Number(expResult.rows[0].v), count: expResult.rows[0].c };
 
     const receita = reservas.total + bar.total + manutencao.total + planos.total;
     res.json({
@@ -105,18 +106,19 @@ router.get('/projecao', auth, adminOrManager, async (req, res) => {
     // Despesas recorrentes mensais (mensal = valor; anual = valor/12)
     const p3 = []; const w3 = estScope(req, p3, estId);
     w3.push(`recorrencia IN ('mensal','anual')`);
-    const { rows: drec } = await pool.query(
+    const drecResult = await pool.query(
       `SELECT COALESCE(SUM(CASE recorrencia WHEN 'mensal' THEN valor WHEN 'anual' THEN valor/12.0 ELSE 0 END),0) AS v
-        FROM expenses ${'WHERE ' + w3.join(' AND ')}`, p3);
-    const despesaRecMensal = Number(drec[0].v);
+        FROM expenses ${'WHERE ' + w3.join(' AND ')}`, p3).catch(() => ({ rows: [{ v: 0 }] }));
+    const despesaRecMensal = Number(drecResult.rows[0].v);
 
     const liquidoMensal = receitaMensal - folhaMensal - despesaRecMensal;
 
     // Despesas pontuais futuras não pagas (únicas), por vencimento
     const p4 = []; const w4 = estScope(req, p4, estId);
     w4.push(`pago = FALSE`, `recorrencia = 'nenhuma'`, `vencimento >= CURRENT_DATE`);
-    const { rows: pontuais } = await pool.query(
-      `SELECT vencimento, valor FROM expenses ${'WHERE ' + w4.join(' AND ')}`, p4);
+    const pontuaisResult = await pool.query(
+      `SELECT vencimento, valor FROM expenses ${'WHERE ' + w4.join(' AND ')}`, p4).catch(() => ({ rows: [] }));
+    const pontuais = pontuaisResult.rows;
 
     const horizontes = [30, 60, 90, 180, 360];
     const hoje = new Date();
@@ -215,10 +217,10 @@ router.get('/contas-a-receber', auth, adminOrManager, async (req, res) => {
     const { rows: aulas } = await pool.query(
       `SELECT pl.id, 'aula' AS tipo, pl.nome_aluno AS cliente, pl.data_inicio AS data,
               pl.valor AS total, pl.status_pgto, pl.forma_pgto, e.name AS est_name,
-              pl.tipo AS subtipo
+              COALESCE(pl.tipo, 'avulso') AS subtipo
        FROM planos_aula pl
        LEFT JOIN establishments e ON pl.est_id = e.id
-       ${w2} ORDER BY pl.data_inicio DESC`, p2);
+       ${w2} ORDER BY pl.data_inicio DESC`, p2).catch(e => { console.error('[contas-a-receber] aulas query:', e.message); return { rows: [] }; });
 
     // Garante colunas de data e status (idempotente — IF NOT EXISTS)
     await pool.query(`ALTER TABLE bar_vendas        ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`).catch(()=>{});
@@ -283,7 +285,7 @@ router.get('/resumo-aluno', auth, adminOrManager, async (req, res) => {
 
   try {
     const { rows: aulas } = await pool.query(
-      `SELECT pl.id, pl.tipo, pl.data_inicio AS data, pl.valor AS total,
+      `SELECT pl.id, COALESCE(pl.tipo,'avulso') AS tipo, pl.data_inicio AS data, pl.valor AS total,
               pl.status_pgto, pl.forma_pgto, e.name AS est_name
        FROM planos_aula pl
        LEFT JOIN establishments e ON pl.est_id = e.id
