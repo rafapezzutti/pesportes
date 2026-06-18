@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
-const { auth, adminOrManager } = require('../middleware/auth');
+const { auth, adminOrManager, crmOnly } = require('../middleware/auth');
 
 // GET /api/manutencao?estId=&clienteNome=
 router.get('/', auth, async (req, res) => {
@@ -39,7 +39,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/manutencao
-router.post('/', auth, adminOrManager, async (req, res) => {
+router.post('/', auth, crmOnly, async (req, res) => {
   const { est_id, cliente_nome, aluno_id, cliente_ref, itens, observacoes, data_venda } = req.body;
   if (!cliente_nome) return res.status(400).json({ error: 'Nome do cliente é obrigatório' });
   if (!itens || !itens.length) return res.status(400).json({ error: 'Adicione ao menos um item' });
@@ -70,7 +70,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 });
 
 // DELETE /api/manutencao/:id
-router.delete('/:id', auth, adminOrManager, async (req, res) => {
+router.delete('/:id', auth, crmOnly, async (req, res) => {
   try {
     await pool.query('DELETE FROM manutencao_vendas WHERE id=$1', [req.params.id]);
     res.json({ message: 'Registro excluído' });

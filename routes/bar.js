@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
-const { auth, adminOrManager } = require('../middleware/auth');
+const { auth, adminOrManager, crmOnly } = require('../middleware/auth');
 
 // Retorna lista combinada de clientes (para dropdown)
 router.get('/clientes', auth, async (req, res) => {
@@ -85,7 +85,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/bar
-router.post('/', auth, adminOrManager, async (req, res) => {
+router.post('/', auth, crmOnly, async (req, res) => {
   const { est_id, cliente_nome, aluno_id, cliente_ref, itens, observacoes, data_venda, foto, forma_pgto } = req.body;
   if (!cliente_nome) return res.status(400).json({ error: 'Nome do cliente é obrigatório' });
   if (!itens || !itens.length) return res.status(400).json({ error: 'Adicione ao menos um item' });
@@ -133,7 +133,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 });
 
 // PATCH /api/bar/:id/pgto — atualiza status e forma de pagamento
-router.patch('/:id/pgto', auth, adminOrManager, async (req, res) => {
+router.patch('/:id/pgto', auth, crmOnly, async (req, res) => {
   const { status_pgto, forma_pgto } = req.body;
   try {
     const { rows } = await pool.query(
@@ -151,7 +151,7 @@ router.patch('/:id/pgto', auth, adminOrManager, async (req, res) => {
 });
 
 // DELETE /api/bar/:id
-router.delete('/:id', auth, adminOrManager, async (req, res) => {
+router.delete('/:id', auth, crmOnly, async (req, res) => {
   try {
     await pool.query('DELETE FROM bar_vendas WHERE id=$1', [req.params.id]);
     res.json({ message: 'Venda excluída' });
