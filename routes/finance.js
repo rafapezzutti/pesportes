@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
-const { auth, adminOrManager } = require('../middleware/auth');
+const { auth, adminOrManager, crmOnly } = require('../middleware/auth');
 
 // Monta filtro de estabelecimento + período para uma coluna de data
 function build(req, dateCol, { estId, from, to }, extra = '') {
@@ -152,7 +152,7 @@ router.get('/projecao', auth, adminOrManager, async (req, res) => {
 
 // ── GET /api/finance/contas-a-receber ─────────────────────────────
 // Agrega reservas, planos_aula e bar_vendas com status de pgto
-router.get('/contas-a-receber', auth, adminOrManager, async (req, res) => {
+router.get('/contas-a-receber', auth, crmOnly, async (req, res) => {
   const { from, to, estId, status } = req.query;
   try {
     const scopeWhere = (table, dateCol) => {
@@ -275,7 +275,7 @@ router.patch('/contas-a-receber/:tipo/:id', auth, adminOrManager, async (req, re
 });
 
 // ── GET /api/finance/resumo-aluno ─────────────────────────────────
-router.get('/resumo-aluno', auth, adminOrManager, async (req, res) => {
+router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
   const { aluno_nome, mes } = req.query;
   if (!aluno_nome || !mes) return res.status(400).json({ error: 'aluno_nome e mes são obrigatórios' });
 
