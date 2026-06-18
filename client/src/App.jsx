@@ -1068,7 +1068,7 @@ function CRMPlanosAula({showToast}){
 // ================================================================
 // CRM RESERVATIONS
 // ================================================================
-function CRMReservations({showToast}){
+function CRMReservations({showToast,crmUser}){
   const [reservations,setReservations]=useState([]);
   const [loading,setLoading]=useState(true);
   const [dateF,setDateF]=useState(TODAY);
@@ -1187,8 +1187,8 @@ function CRMReservations({showToast}){
     </div>
     <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'aulas',label:'📚 Planos de Aula'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🔧 Manutenção'}]} active={resTab} onChange={setResTab}/>
     {resTab==='aulas'&&<CRMPlanosAula showToast={showToast}/>}
-    {resTab==='bar'&&<CRMBar showToast={showToast}/>}
-    {resTab==='manutencao'&&<CRMManutencao showToast={showToast}/>}
+    {resTab==='bar'&&<CRMBar showToast={showToast} crmUser={crmUser}/>}
+    {resTab==='manutencao'&&<CRMManutencao showToast={showToast} crmUser={crmUser}/>}
     {resTab==='reservas'&&<div>
     <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-4 items-end">
       <div><p className="text-xs text-gray-400 mb-1 font-medium">Data</p><input type="date" value={dateF} onChange={e=>{setDateF(e.target.value);setLoading(true);}} className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></div>
@@ -1560,17 +1560,28 @@ function CRMAlunos({crmUser,showToast}){
   </div>;
 }
 
-function CRMBar({showToast}){
+function CRMBar({showToast,crmUser}){
   const [ests,setEsts]=useState([]);
-  const [estId,setEstId]=useState('');
+  // Auto-seleciona o estabelecimento do usuário impersonado (se tiver apenas um)
+  const userEstIds=(crmUser?.est_ids||[]).map(Number).filter(Boolean);
+  const defaultEstId=userEstIds.length===1?String(userEstIds[0]):'';
+  const [estId,setEstId]=useState(defaultEstId);
   const [alunos,setAlunos]=useState([]);
   const [vendas,setVendas]=useState([]);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('novo');
 
   const load=()=>{
-    Promise.all([barApi.list(estId?{estId}:{}),estApi.list(),alunoApi.list()])
-      .then(([v,e,a])=>{setVendas(v);setEsts(e);setAlunos(a.filter(x=>x.ativo!==false));})
+    Promise.all([
+      barApi.list(estId?{estId}:{}),
+      estApi.list(),
+      alunoApi.list(),
+    ])
+      .then(([v,e,a])=>{
+        // Filtra dropdown de ests pelo escopo do usuário (quando tem est_ids definidos)
+        const filtered=userEstIds.length?e.filter(x=>userEstIds.includes(Number(x.id))):e;
+        setVendas(v);setEsts(filtered);setAlunos(a.filter(x=>x.ativo!==false));
+      })
       .catch(()=>{})
       .finally(()=>setLoading(false));
   };
@@ -1604,17 +1615,26 @@ function CRMBar({showToast}){
 // ================================================================
 // CRM MANUTENÇÃO
 // ================================================================
-function CRMManutencao({showToast}){
+function CRMManutencao({showToast,crmUser}){
   const [ests,setEsts]=useState([]);
-  const [estId,setEstId]=useState('');
+  const userEstIds=(crmUser?.est_ids||[]).map(Number).filter(Boolean);
+  const defaultEstId=userEstIds.length===1?String(userEstIds[0]):'';
+  const [estId,setEstId]=useState(defaultEstId);
   const [alunos,setAlunos]=useState([]);
   const [vendas,setVendas]=useState([]);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('novo');
 
   const load=()=>{
-    Promise.all([manutencaoApi.list(estId?{estId}:{}),estApi.list(),alunoApi.list()])
-      .then(([v,e,a])=>{setVendas(v);setEsts(e);setAlunos(a.filter(x=>x.ativo!==false));})
+    Promise.all([
+      manutencaoApi.list(estId?{estId}:{}),
+      estApi.list(),
+      alunoApi.list(),
+    ])
+      .then(([v,e,a])=>{
+        const filtered=userEstIds.length?e.filter(x=>userEstIds.includes(Number(x.id))):e;
+        setVendas(v);setEsts(filtered);setAlunos(a.filter(x=>x.ativo!==false));
+      })
       .catch(()=>{})
       .finally(()=>setLoading(false));
   };
