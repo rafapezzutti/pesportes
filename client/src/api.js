@@ -21,6 +21,16 @@ async function req(method, path, body) {
   });
 
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    // Sessão expirada — limpa credenciais e força reload para a tela de login
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('userType');
+    localStorage.removeItem('token_admin_backup');
+    localStorage.removeItem('user_admin_backup');
+    window.dispatchEvent(new CustomEvent('crm:session-expired'));
+    throw new Error('Sessão expirada. Faça login novamente.');
+  }
   if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
   return data;
 }

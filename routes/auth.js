@@ -6,7 +6,7 @@ const pool   = require('../db/pool');
 const { sendPasswordResetEmail } = require('../services/email');
 
 const sign = (payload) =>
-  jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+  jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '30d' });
 
 // Tabela de eventos de login (painel de atividade no Master) — autocria
 pool.query(`CREATE TABLE IF NOT EXISTS login_events (

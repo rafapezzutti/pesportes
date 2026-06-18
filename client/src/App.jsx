@@ -2766,6 +2766,17 @@ export default function App(){
     return()=>window.removeEventListener('popstate',handler);
   },[]);
 
+  // Detecta sessão expirada (401) e força logout automático
+  useEffect(()=>{
+    const handleExpired=()=>{
+      setCrmUser(null);setIsImpersonating(false);
+      setPage('crm-login');setView('crm');
+      setTimeout(()=>showToast('Sessão expirada. Faça login novamente.','error'),100);
+    };
+    window.addEventListener('crm:session-expired',handleExpired);
+    return()=>window.removeEventListener('crm:session-expired',handleExpired);
+  },[showToast]);
+
   const loadMkt=useCallback(()=>{
     estApi.list().then(setEstablishments).catch(()=>{});
     pointApi.list().then(setPoints).catch(()=>{});
