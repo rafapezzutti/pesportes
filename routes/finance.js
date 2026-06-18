@@ -228,7 +228,15 @@ router.get('/contas-a-receber', auth, adminOrManager, async (req, res) => {
        LEFT JOIN establishments e ON b.est_id = e.id
        ${w3} ORDER BY b.data_venda DESC`, p3);
 
-    const all = [...reservas, ...aulas, ...bar]
+    const { params: p4, ws: w4 } = scopeWhere('m', 'data_venda');
+    const { rows: manut } = await pool.query(
+      `SELECT m.id, 'manutencao' AS tipo, m.cliente_nome AS cliente, m.data_venda AS data,
+              m.total, m.status_pgto, m.forma_pgto, e.name AS est_name
+       FROM manutencao_vendas m
+       LEFT JOIN establishments e ON m.est_id = e.id
+       ${w4} ORDER BY m.data_venda DESC`, p4);
+
+    const all = [...reservas, ...aulas, ...bar, ...manut]
       .sort((a, b) => new Date(b.data) - new Date(a.data));
 
     res.json(all);
@@ -242,7 +250,7 @@ router.get('/contas-a-receber', auth, adminOrManager, async (req, res) => {
 router.patch('/contas-a-receber/:tipo/:id', auth, adminOrManager, async (req, res) => {
   const { tipo, id } = req.params;
   const { status_pgto, forma_pgto } = req.body;
-  const tableMap = { reserva: 'reservations', aula: 'planos_aula', bar: 'bar_vendas' };
+  const tableMap = { reserva: 'reservations', aula: 'planos_aula', bar: 'bar_vendas', manutencao: 'manutencao_vendas' };
   const table = tableMap[tipo];
   if (!table) return res.status(400).json({ error: 'Tipo inválido' });
   try {
@@ -301,14 +309,25 @@ router.get('/resumo-aluno', auth, adminOrManager, async (req, res) => {
        ORDER BY b.data_venda`,
       [aluno_nome, from, to]);
 
+    const { rows: manutencao } = await pool.query(
+      `SELECT m.id, m.data_venda AS data, m.total, m.status_pgto, m.forma_pgto,
+              m.itens, e.name AS est_name
+       FROM manutencao_vendas m
+       LEFT JOIN establishments e ON m.est_id = e.id
+       WHERE LOWER(m.cliente_nome) = LOWER($1)
+         AND m.data_venda >= $2 AND m.data_venda <= $3
+       ORDER BY m.data_venda`,
+      [aluno_nome, from, to]);
+
     const totalAulas    = aulas.reduce((s, r) => s + Number(r.total), 0);
     const totalReservas = reservas.reduce((s, r) => s + Number(r.total), 0);
     const totalBar      = bar.reduce((s, r) => s + Number(r.total), 0);
+    const totalManut    = manutencao.reduce((s, r) => s + Number(r.total), 0);
 
     res.json({
-      aluno_nome, mes, aulas, reservas, bar,
-      totais: { aulas: totalAulas, reservas: totalReservas, bar: totalBar,
-                geral: totalAulas + totalReservas + totalBar },
+      aluno_nome, mes, aulas, reservas, bar, manutencao,
+      totais: { aulas: totalAulas, reservas: totalReservas, bar: totalBar, manutencao: totalManut,
+                geral: totalAulas + totalReservas + totalBar + totalManut },
     });
   } catch (err) {
     console.error('[GET /finance/resumo-aluno]', err);
@@ -318,7 +337,7 @@ router.get('/resumo-aluno', auth, adminOrManager, async (req, res) => {
 
 // ── POST /api/finance/resumo-aluno/email ─────────────────────────
 router.post('/resumo-aluno/email', auth, adminOrManager, async (req, res) => {
-  const { aluno_nome, aluno_email, mes, resumo } = req.body;
+  const { aluno_nome, aluno_email, mes, resumo = {} } = req.body;
   if (!aluno_email) return res.status(400).json({ error: 'Email do aluno é obrigatório' });
 
   const { Resend } = require('resend');
@@ -354,12 +373,14 @@ router.post('/resumo-aluno/email', auth, adminOrManager, async (req, res) => {
             ${makeRows(resumo.aulas || [], a => `Aula/Plano${a.tipo ? ' — ' + a.tipo : ''}`)}
             ${makeRows(resumo.reservas || [], r => `Reserva${r.ponto_name ? ' — ' + r.ponto_name : ''}`)}
             ${makeRows(resumo.bar || [], () => 'Consumo Bar')}
+            ${makeRows(resumo.manutencao || [], () => 'Manutenção/Equipamento')}
           </tbody>
         </table>
         <div style="margin-top:20px;padding:16px;background:#f9fafb;border-radius:8px">
           <p style="margin:4px 0">Aulas/Planos: <strong>${fmtMoney(resumo.totais?.aulas || 0)}</strong></p>
           <p style="margin:4px 0">Reservas: <strong>${fmtMoney(resumo.totais?.reservas || 0)}</strong></p>
           <p style="margin:4px 0">Bar: <strong>${fmtMoney(resumo.totais?.bar || 0)}</strong></p>
+          ${(resumo.totais?.manutencao > 0) ? `<p style="margin:4px 0">Manutenção: <strong>${fmtMoney(resumo.totais?.manutencao || 0)}</strong></p>` : ''}
           <p style="margin:12px 0 4px;font-size:16px;font-weight:bold;color:#16a34a">
             Total Geral: ${fmtMoney(resumo.totais?.geral || 0)}</p>
         </div>

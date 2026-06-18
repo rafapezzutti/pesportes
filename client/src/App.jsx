@@ -2212,9 +2212,9 @@ function monthRange(){
   const f=d=>d.toISOString().split('T')[0];return{from:f(from),to:f(to)};
 }
 const PGTO_STATUS_OPTS=[{value:'pendente',label:'Pendente'},{value:'pago',label:'Pago'},{value:'em_atraso',label:'Em Atraso'}];
-const PGTO_FORMA_OPTS=[{value:'pix',label:'💠 Pix'},{value:'debito',label:'🏦 Débito'},{value:'credito',label:'💳 Crédito'},{value:'boleto',label:'📄 Boleto'}];
+const PGTO_FORMA_OPTS=[{value:'pix',label:'💠 Pix'},{value:'debito',label:'🏦 Débito'},{value:'credito',label:'💳 Crédito'},{value:'dinheiro',label:'💵 Dinheiro'},{value:'boleto',label:'📄 Boleto'}];
 const PGTO_STATUS_BADGE={pendente:'bg-amber-100 text-amber-700',pago:'bg-emerald-100 text-emerald-700',em_atraso:'bg-red-100 text-red-700'};
-const TIPO_LABEL={reserva:'📅 Reserva',aula:'📚 Aula/Plano',bar:'🍺 Bar'};
+const TIPO_LABEL={reserva:'📅 Reserva',aula:'📚 Aula/Plano',bar:'🍺 Bar',manutencao:'🔧 Manutenção'};
 
 function CRMFinanceiro({crmUser,showToast}){
   const [tab,setTab]=useState('fluxo');
@@ -2381,6 +2381,20 @@ function CRMFinanceiro({crmUser,showToast}){
 
     {/* aba contas a receber */}
     {tab==='contas'&&<div>
+      {/* cards resumo por status */}
+      {contas.length>0&&(()=>{
+        const totPago=contas.filter(c=>c.status_pgto==='pago').reduce((s,c)=>s+Number(c.total),0);
+        const totPendente=contas.filter(c=>!c.status_pgto||c.status_pgto==='pendente').reduce((s,c)=>s+Number(c.total),0);
+        const totAtrasado=contas.filter(c=>c.status_pgto==='em_atraso').reduce((s,c)=>s+Number(c.total),0);
+        const totGeral=contas.reduce((s,c)=>s+Number(c.total),0);
+        return<div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          {[['Total do Período',totGeral,'#374151'],['✅ Recebido',totPago,'#16a34a'],['⏳ Pendente',totPendente,'#b45309'],['🔴 Em Atraso',totAtrasado,'#dc2626']].map(([l,v,c])=>
+            <div key={l} className="bg-white rounded-2xl border border-gray-100 p-3 shadow-sm">
+              <p className="text-xs text-gray-400 mb-0.5">{l}</p>
+              <p className="text-lg font-black" style={{color:c}}>{fmt$(v)}</p>
+            </div>)}
+        </div>;
+      })()}
       <div className="flex flex-wrap gap-3 items-end mb-4">
         <div className="w-48">
           <p className="text-xs text-gray-400 mb-1 font-medium">Filtrar por status</p>
@@ -2477,8 +2491,8 @@ function CRMFinanceiro({crmUser,showToast}){
           </div>
 
           {/* totais */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-            {[['Aulas/Planos',resumo.totais.aulas,'#7c3aed'],['Reservas',resumo.totais.reservas,'#0284c7'],['Bar',resumo.totais.bar,'#b45309'],['Total Geral',resumo.totais.geral,'#16a34a']].map(([l,v,c])=>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
+            {[['Aulas/Planos',resumo.totais.aulas,'#7c3aed'],['Reservas',resumo.totais.reservas,'#0284c7'],['Bar',resumo.totais.bar,'#b45309'],['Manutenção',resumo.totais.manutencao||0,'#4b5563'],['Total Geral',resumo.totais.geral,'#16a34a']].map(([l,v,c])=>
               <div key={l} className="bg-white rounded-2xl border border-gray-100 p-4">
                 <p className="text-xs text-gray-400 mb-1">{l}</p>
                 <p className="text-xl font-black" style={{color:c}}>{fmt$(v)}</p>
@@ -2527,7 +2541,21 @@ function CRMFinanceiro({crmUser,showToast}){
             </tbody></table>
           </div>}
 
-          {resumo.aulas.length===0&&resumo.reservas.length===0&&resumo.bar.length===0&&
+          {/* manutenção */}
+          {resumo.manutencao?.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200"><h3 className="font-bold text-gray-700 text-sm">🔧 Manutenção / Equipamentos ({resumo.manutencao.length})</h3></div>
+            <table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
+              {resumo.manutencao.map(m=><tr key={m.id} className="hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-gray-600 text-xs">{(m.itens||[]).map(i=>`${i.nome} ×${i.quantidade}`).join(', ')||'—'}</td>
+                <td className="px-4 py-2.5 text-gray-500">{m.data?fmtDate(m.data.split('T')[0]):'—'}</td>
+                <td className="px-4 py-2.5 text-gray-500">{m.est_name||'—'}</td>
+                <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(m.total)}</td>
+                <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[m.status_pgto||'pendente']}`}>{m.status_pgto||'pendente'}</span></td>
+              </tr>)}
+            </tbody></table>
+          </div>}
+
+          {resumo.aulas.length===0&&resumo.reservas.length===0&&resumo.bar.length===0&&!(resumo.manutencao?.length>0)&&
             <div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🔍</p><p>Nenhum registro para <strong>{resumo.aluno_nome}</strong> em {new Date(selMes+'-15').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</p></div>}
         </div>
       </div>}
