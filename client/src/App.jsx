@@ -1578,7 +1578,7 @@ function CRMBar({showToast}){
 
   const save=async(data)=>{
     try{await barApi.create({...data,est_id:estId||null});showToast('Venda registrada!','success');setTab('historico');load();}
-    catch(e){showToast(e.message,'error');}
+    catch(e){showToast(e.message,'error');throw e;}
   };
   const del=async(id)=>{
     try{await barApi.remove(id);showToast('Excluído','info');load();}
@@ -1622,7 +1622,7 @@ function CRMManutencao({showToast}){
 
   const save=async(data)=>{
     try{await manutencaoApi.create({...data,est_id:estId||null});showToast('Registro salvo!','success');setTab('historico');load();}
-    catch(e){showToast(e.message,'error');}
+    catch(e){showToast(e.message,'error');throw e;}
   };
   const del=async(id)=>{
     try{await manutencaoApi.remove(id);showToast('Excluído','info');load();}
@@ -2245,14 +2245,16 @@ function CRMFinanceiro({crmUser,showToast}){
   const [resumoLoading,setResumoLoading]=useState(false);
   const [emailSending,setEmailSending]=useState(false);
 
-  const loadFluxo=useCallback(()=>{financeApi.cashflow({from,to}).then(setCf).catch(()=>{});},[from,to]);
+  const CF_EMPTY={receitas:{reservas:{total:0,count:0},bar:{total:0,count:0},manutencao:{total:0,count:0},planos:{total:0,count:0},total:0},despesas:{total:0,count:0},saldo:0};
+  const [cfLoading,setCfLoading]=useState(false);
+  const loadFluxo=useCallback(()=>{setCfLoading(true);setCf(null);financeApi.cashflow({from,to}).then(d=>{setCf(d);setCfLoading(false);}).catch(()=>{setCf(CF_EMPTY);setCfLoading(false);});},[from,to]);
   const loadExps =useCallback(()=>{expenseApi.list({from,to}).then(setExps).catch(()=>{});},[from,to]);
   const loadRep  =useCallback(()=>{repasseApi.list({from,to}).then(setRep).catch(()=>{});},[from,to]);
   const loadProj =useCallback(()=>{financeApi.projecao({saldoInicial:parseFloat(saldoIni)||0}).then(setProj).catch(()=>{});},[saldoIni]);
   const loadContas=useCallback(()=>{
     setContasLoading(true);
     const p={from,to};if(contasFiltStatus)p.status=contasFiltStatus;
-    contasApi.list(p).then(setContas).catch(()=>{}).finally(()=>setContasLoading(false));
+    contasApi.list(p).then(setContas).catch(()=>setContas([])).finally(()=>setContasLoading(false));
   },[from,to,contasFiltStatus]);
 
   useEffect(()=>{
@@ -2303,17 +2305,25 @@ function CRMFinanceiro({crmUser,showToast}){
         <button key={t.k} onClick={()=>setTab(t.k)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${tab===t.k?'border-emerald-600 text-emerald-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>{t.l}</button>)}
     </nav></div>
 
-    {tab==='fluxo'&&(cf?<div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        {[['Receita Total',cf.receitas.total,'#16a34a'],['Despesas',cf.despesas.total,'#dc2626'],['Saldo',cf.saldo,cf.saldo>=0?'#0284c7':'#dc2626']].map(([l,v,c])=>
-          <div key={l} className="bg-white rounded-2xl border border-gray-100 p-4"><p className="text-xs text-gray-400 mb-1">{l}</p><p className="text-xl font-black" style={{color:c}}>{fmt$(v)}</p></div>)}
-      </div>
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h3 className="font-bold text-gray-700 mb-3">Composição da Receita</h3>
-        {[['Reservas',cf.receitas.reservas],['Bar',cf.receitas.bar],['Manutenção',cf.receitas.manutencao],['Planos/Aulas',cf.receitas.planos]].map(([l,o])=>
-          <div key={l} className="flex justify-between py-1.5 border-b border-gray-50 text-sm"><span className="text-gray-600">{l} <span className="text-gray-400">({o.count})</span></span><span className="font-semibold text-gray-800">{fmt$(o.total)}</span></div>)}
-      </div>
-    </div>:<div className="text-center py-10 text-gray-400">Carregando...</div>)}
+    {tab==='fluxo'&&(cfLoading
+      ?<div className="text-center py-10 text-gray-400"><Spinner/></div>
+      :cf
+        ?<div>
+          {cf.receitas.total===0&&cf.despesas.total===0
+            ?<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">📊</p><p className="text-lg font-medium">Sem atividade no período</p><p className="text-sm mt-1">Nenhuma receita ou despesa registrada entre as datas selecionadas.</p></div>
+            :<div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+                {[['Receita Total',cf.receitas.total,'#16a34a'],['Despesas',cf.despesas.total,'#dc2626'],['Saldo',cf.saldo,cf.saldo>=0?'#0284c7':'#dc2626']].map(([l,v,c])=>
+                  <div key={l} className="bg-white rounded-2xl border border-gray-100 p-4"><p className="text-xs text-gray-400 mb-1">{l}</p><p className="text-xl font-black" style={{color:c}}>{fmt$(v)}</p></div>)}
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h3 className="font-bold text-gray-700 mb-3">Composição da Receita</h3>
+                {[['Reservas',cf.receitas.reservas],['Bar',cf.receitas.bar],['Manutenção',cf.receitas.manutencao||{total:0,count:0}],['Planos/Aulas',cf.receitas.planos]].map(([l,o])=>
+                  <div key={l} className="flex justify-between py-1.5 border-b border-gray-50 text-sm"><span className="text-gray-600">{l} <span className="text-gray-400">({o?.count||0})</span></span><span className="font-semibold text-gray-800">{fmt$(o?.total||0)}</span></div>)}
+              </div>
+            </div>}
+        </div>
+        :<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">📊</p><p>Sem atividade no período</p></div>)}
 
     {tab==='projecao'&&<div>
       <div className="flex items-end gap-3 mb-5">
