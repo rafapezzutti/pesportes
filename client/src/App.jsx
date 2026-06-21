@@ -630,7 +630,7 @@ function CRMDashboard(){
             {label:'Aulas',value:clienteData.totais.aulas,icon:'🎓',color:'bg-blue-50'},
             {label:'Reservas',value:clienteData.totais.reservas,icon:'📅',color:'bg-emerald-50'},
             {label:'Bar',value:clienteData.totais.bar,icon:'🍺',color:'bg-amber-50'},
-            {label:'Manutenção',value:clienteData.totais.manutencao,icon:'🔧',color:'bg-purple-50'},
+            {label:'Loja & Equipamentos',value:clienteData.totais.manutencao,icon:'🛒',color:'bg-purple-50'},
           ].map(c=><div key={c.label} className={`${c.color} rounded-xl p-3 text-center`}>
             <p className="text-xl">{c.icon}</p>
             <p className="text-xs text-gray-500">{c.label}</p>
@@ -678,7 +678,7 @@ function CRMDashboard(){
         </tr>)}</tbody></table></div></>}
 
         {/* Manutenção */}
-        {clienteData.manutencao.length>0&&<><h2 className="font-bold text-gray-700 mb-2">🔧 Manutenção / Equipamentos ({clienteData.manutencao.length})</h2>
+        {clienteData.manutencao.length>0&&<><h2 className="font-bold text-gray-700 mb-2">🛒 Loja & Equipamentos ({clienteData.manutencao.length})</h2>
         <div className="overflow-x-auto mb-5"><table className="w-full text-sm"><thead className="bg-gray-50"><tr>{['Data','Local','Itens','Total'].map(h=><th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>)}</tr></thead>
         <tbody className="divide-y divide-gray-50">{clienteData.manutencao.map(m=><tr key={m.id}>
           <td className="px-3 py-2">{new Date(m.created_at).toLocaleDateString('pt-BR')}</td>
@@ -1185,7 +1185,7 @@ function CRMReservations({showToast,crmUser}){
       <h1 className="text-2xl font-black text-gray-900">Gestão de Reservas</h1>
       {resTab==='reservas'&&<Btn onClick={()=>{setShowManual(true);setMb(MBL);}}>+ Nova Reserva</Btn>}
     </div>
-    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'aulas',label:'📚 Planos de Aula'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🔧 Manutenção'}]} active={resTab} onChange={setResTab}/>
+    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'aulas',label:'📚 Planos de Aula'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'}]} active={resTab} onChange={setResTab}/>
     {resTab==='aulas'&&<CRMPlanosAula showToast={showToast}/>}
     {resTab==='bar'&&<CRMBar showToast={showToast} crmUser={crmUser}/>}
     {resTab==='manutencao'&&<CRMManutencao showToast={showToast} crmUser={crmUser}/>}
@@ -1668,7 +1668,7 @@ function CRMManutencao({showToast,crmUser}){
         {ests.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
       </select>
     </div>
-    {tab==='novo'&&<VendasForm titulo="Registrar Manutenção / Equipamento" labelItem="Equipamentos / Serviços" onSave={save} alunos={alunos} loading={loading}/>}
+    {tab==='novo'&&<VendasForm titulo="Registrar Loja & Equipamentos" labelItem="Equipamentos / Serviços" onSave={save} alunos={alunos} loading={loading}/>}
     {tab==='historico'&&(loading?<Spinner/>:<VendasList rows={vendas} onDelete={del} tipo="manutencao"/>)}
   </div>;
 }
@@ -2242,7 +2242,7 @@ function monthRange(){
 const PGTO_STATUS_OPTS=[{value:'pendente',label:'Pendente'},{value:'pago',label:'Pago'},{value:'em_atraso',label:'Em Atraso'}];
 const PGTO_FORMA_OPTS=[{value:'pix',label:'💠 Pix'},{value:'debito',label:'🏦 Débito'},{value:'credito',label:'💳 Crédito'},{value:'dinheiro',label:'💵 Dinheiro'},{value:'boleto',label:'📄 Boleto'}];
 const PGTO_STATUS_BADGE={pendente:'bg-amber-100 text-amber-700',pago:'bg-emerald-100 text-emerald-700',em_atraso:'bg-red-100 text-red-700'};
-const TIPO_LABEL={reserva:'📅 Reserva',aula:'📚 Aula/Plano',bar:'🍺 Bar',manutencao:'🔧 Manutenção'};
+const TIPO_LABEL={reserva:'📅 Reserva',aula:'📚 Aula/Plano',bar:'🍺 Bar',manutencao:'🛒 Loja & Equip.'};
 
 function CRMFinanceiro({crmUser,showToast}){
   const [tab,setTab]=useState('fluxo');
@@ -2346,7 +2346,7 @@ function CRMFinanceiro({crmUser,showToast}){
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 p-5">
                 <h3 className="font-bold text-gray-700 mb-3">Composição da Receita</h3>
-                {[['Reservas',cf.receitas.reservas],['Bar',cf.receitas.bar],['Manutenção',cf.receitas.manutencao||{total:0,count:0}],['Planos/Aulas',cf.receitas.planos]].map(([l,o])=>
+                {[['Reservas',cf.receitas.reservas],['Bar',cf.receitas.bar],['Loja & Equip.',cf.receitas.manutencao||{total:0,count:0}],['Planos/Aulas',cf.receitas.planos]].map(([l,o])=>
                   <div key={l} className="flex justify-between py-1.5 border-b border-gray-50 text-sm"><span className="text-gray-600">{l} <span className="text-gray-400">({o?.count||0})</span></span><span className="font-semibold text-gray-800">{fmt$(o?.total||0)}</span></div>)}
               </div>
             </div>}
@@ -2530,7 +2530,7 @@ function CRMFinanceiro({crmUser,showToast}){
 
           {/* totais */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
-            {[['Aulas/Planos',resumo.totais.aulas,'#7c3aed'],['Reservas',resumo.totais.reservas,'#0284c7'],['Bar',resumo.totais.bar,'#b45309'],['Manutenção',resumo.totais.manutencao||0,'#4b5563'],['Total Geral',resumo.totais.geral,'#16a34a']].map(([l,v,c])=>
+            {[['Aulas/Planos',resumo.totais.aulas,'#7c3aed'],['Reservas',resumo.totais.reservas,'#0284c7'],['Bar',resumo.totais.bar,'#b45309'],['Loja & Equip.',resumo.totais.manutencao||0,'#4b5563'],['Total Geral',resumo.totais.geral,'#16a34a']].map(([l,v,c])=>
               <div key={l} className="bg-white rounded-2xl border border-gray-100 p-4">
                 <p className="text-xs text-gray-400 mb-1">{l}</p>
                 <p className="text-xl font-black" style={{color:c}}>{fmt$(v)}</p>
@@ -2581,7 +2581,7 @@ function CRMFinanceiro({crmUser,showToast}){
 
           {/* manutenção */}
           {resumo.manutencao?.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200"><h3 className="font-bold text-gray-700 text-sm">🔧 Manutenção / Equipamentos ({resumo.manutencao.length})</h3></div>
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200"><h3 className="font-bold text-gray-700 text-sm">🛒 Loja & Equipamentos ({resumo.manutencao.length})</h3></div>
             <table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
               {resumo.manutencao.map(m=><tr key={m.id} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-gray-600 text-xs">{(m.itens||[]).map(i=>`${i.nome} ×${i.quantidade}`).join(', ')||'—'}</td>
@@ -2728,7 +2728,7 @@ const AUDIT_ACTIONS={
 const AUDIT_ENTITY={
   auth:'Autenticação',establishments:'Estabelecimentos',points:'Pontos','crm-users':'Usuários',
   reservations:'Reservas',professores:'Professores',planos:'Planos de Aula',bar:'Bar',
-  manutencao:'Manutenção','profissionais-ef':'Profissionais EF',
+  manutencao:'Loja & Equipamentos','profissionais-ef':'Profissionais EF',
 };
 function CRMAudit({showToast}){
   const [logs,setLogs]=useState([]);
