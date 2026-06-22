@@ -2291,7 +2291,10 @@ function CRMFinanceiro({crmUser,showToast}){
     if(tab==='repasse')loadRep();
     if(tab==='projecao')loadProj();
     if(tab==='contas')loadContas();
-    if(tab==='resumo')alunoApi.list().then(setAlunos).catch(()=>{});
+    if(tab==='resumo')Promise.all([alunoApi.list(),professorApi.list()]).then(([al,pr])=>{
+      const profs=(pr||[]).filter(p=>p.ativo!==false).map(p=>({...p,_tipo:'professor'}));
+      setAlunos([...(al||[]).filter(a=>a.ativo!==false),...profs]);
+    }).catch(()=>{});
   },[tab,loadFluxo,loadExps,loadRep,loadProj,loadContas]);
 
   const saveExp=async()=>{
@@ -2490,11 +2493,11 @@ function CRMFinanceiro({crmUser,showToast}){
     {tab==='resumo'&&<div>
       <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-3 items-end">
         <div className="w-64">
-          <p className="text-xs text-gray-400 mb-1 font-medium">Aluno</p>
+          <p className="text-xs text-gray-400 mb-1 font-medium">Aluno / Professor</p>
           <select value={selAluno} onChange={e=>setSelAluno(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
-            <option value="">Selecione um aluno...</option>
-            {alunos.map(a=><option key={a.id} value={a.nome}>{a.nome}{a.email?` — ${a.email}`:''}</option>)}
+            <option value="">Selecione...</option>
+            {alunos.map(a=><option key={`${a._tipo||'aluno'}-${a.id}`} value={a.nome}>{a._tipo==='professor'?'🎓 ':''}{a.nome}{a.email?` — ${a.email}`:''}</option>)}
           </select>
         </div>
         <div className="w-40">
