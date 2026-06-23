@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
-const { auth, adminOrManager } = require('../middleware/auth');
+const { auth, adminManagerOrSimples } = require('../middleware/auth');
 
 // ── Planos de Aula ────────────────────────────────────────────────
 
@@ -63,12 +63,15 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // POST /api/planos
-router.post('/', auth, adminOrManager, async (req, res) => {
+router.post('/', auth, adminManagerOrSimples, async (req, res) => {
   const {
-    est_id, professor_id, nome_aluno, telefone_aluno, email_aluno,
+    professor_id, nome_aluno, telefone_aluno, email_aluno,
     tipo_plano, valor, recorrencia, dias_semana,
     horario_inicio, horario_fim, data_inicio, data_fim, observacoes,
   } = req.body;
+
+  // Professores (simples) só podem criar planos na própria unidade
+  const est_id = req.user.role === 'simples' ? req.user.est_id : req.body.est_id;
 
   if (!nome_aluno) return res.status(400).json({ error: 'Nome do aluno é obrigatório' });
   if (!tipo_plano) return res.status(400).json({ error: 'Tipo do plano é obrigatório' });
@@ -106,7 +109,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 });
 
 // PUT /api/planos/:id
-router.put('/:id', auth, adminOrManager, async (req, res) => {
+router.put('/:id', auth, adminManagerOrSimples, async (req, res) => {
   const {
     est_id, professor_id, nome_aluno, telefone_aluno, email_aluno,
     tipo_plano, valor, recorrencia, dias_semana,
@@ -138,7 +141,7 @@ router.put('/:id', auth, adminOrManager, async (req, res) => {
 });
 
 // DELETE /api/planos/:id
-router.delete('/:id', auth, adminOrManager, async (req, res) => {
+router.delete('/:id', auth, adminManagerOrSimples, async (req, res) => {
   try {
     await pool.query('DELETE FROM planos_aula WHERE id=$1', [req.params.id]);
     res.json({ message: 'Plano excluído' });

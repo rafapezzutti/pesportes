@@ -58,6 +58,13 @@ function adminOrManager(req, res, next) {
   next();
 }
 
+/** Admin, Gerente ou Simples (professor/funcionário) */
+function adminManagerOrSimples(req, res, next) {
+  if (req.user?.type !== 'crm' || !['admin','manager','simples'].includes(req.user?.role))
+    return res.status(403).json({ error: 'Acesso restrito' });
+  next();
+}
+
 /** Admin ou Profissional EF autenticado (qualquer profissional logado) */
 function profissionalOrAdmin(req, res, next) {
   if (req.user?.type !== 'crm') return res.status(403).json({ error: 'Acesso restrito' });
@@ -65,4 +72,4 @@ function profissionalOrAdmin(req, res, next) {
   return res.status(403).json({ error: 'Acesso restrito' });
 }
 
-module.exports = { auth, crmOnly, adminOnly, adminOrManager, anyAuth, profissionalOrAdmin };
+module.exports = { auth, crmOnly, adminOnly, adminOrManager, adminManagerOrSimples, anyAuth, profissionalOrAdmin };
