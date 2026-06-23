@@ -58,9 +58,9 @@ function adminOrManager(req, res, next) {
   next();
 }
 
-/** Admin, Gerente ou Simples (professor/funcionário) */
+/** Qualquer usuário CRM autenticado (admin, manager, simples, profissional) */
 function adminManagerOrSimples(req, res, next) {
-  if (req.user?.type !== 'crm' || !['admin','manager','simples'].includes(req.user?.role))
+  if (req.user?.type !== 'crm')
     return res.status(403).json({ error: 'Acesso restrito' });
   next();
 }
