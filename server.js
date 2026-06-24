@@ -75,7 +75,8 @@ app.use('/api/bar-produtos',     require('./routes/bar_produtos'));
 app.use('/api/reports',          require('./routes/reports'));
 app.use('/api/employees',        require('./routes/employees'));
 app.use('/api/ponto',            require('./routes/ponto'));
-app.use('/api/alunos',           require('./routes/alunos'));
+app.use('/api/alunos',                require('./routes/alunos'));
+app.use('/api/recurring-reservations', require('./routes/recurring-reservations'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));
@@ -220,6 +221,28 @@ async function runMigrations() {
     // Backfill: preenche data_venda com created_at para registros antigos que ficaram NULL
     `UPDATE bar_vendas        SET data_venda = created_at::date WHERE data_venda IS NULL`,
     `UPDATE manutencao_vendas SET data_venda = created_at::date WHERE data_venda IS NULL`,
+    // Reservas recorrentes
+    `CREATE TABLE IF NOT EXISTS recurring_reservations (
+      id              SERIAL PRIMARY KEY,
+      est_id          INTEGER REFERENCES establishments(id) ON DELETE CASCADE,
+      point_id        INTEGER REFERENCES points(id)         ON DELETE CASCADE,
+      day_of_week     INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+      start_time      TEXT    NOT NULL,
+      end_time        TEXT    NOT NULL,
+      hours           INTEGER NOT NULL DEFAULT 1,
+      client_name     TEXT    NOT NULL,
+      client_phone    TEXT,
+      client_email    TEXT,
+      participantes   JSONB   DEFAULT '[]',
+      payment_method  TEXT    DEFAULT 'dinheiro',
+      ativo           BOOLEAN DEFAULT TRUE,
+      start_date      DATE,
+      observacoes     TEXT,
+      created_by      INTEGER,
+      created_at      TIMESTAMPTZ DEFAULT NOW()
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_recurring_est_id ON recurring_reservations(est_id)`,
+    `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS recurring_id INTEGER REFERENCES recurring_reservations(id) ON DELETE SET NULL`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>

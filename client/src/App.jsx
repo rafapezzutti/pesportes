@@ -3,7 +3,8 @@ import {
   authApi, estApi, pointApi, userApi, resApi, dashboardApi,
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
-  employeeApi, pontoApi, alunoApi, contasApi, impersonateApi, downloadReport, saveToken, clearToken,
+  employeeApi, pontoApi, alunoApi, contasApi, impersonateApi, recurringApi,
+  downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -927,6 +928,350 @@ function CRMUsers({crmUser,showToast}){
 }
 
 // ================================================================
+// CRM RECORRENTES (aba dentro de Reservas)
+// ================================================================
+const DOW_LABELS=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const DOW_OPTIONS=[{value:1,label:'Segunda-feira'},{value:2,label:'Terça-feira'},{value:3,label:'Quarta-feira'},{value:4,label:'Quinta-feira'},{value:5,label:'Sexta-feira'},{value:6,label:'Sábado'},{value:0,label:'Domingo'}];
+const MONTH_NAMES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function CRMRecorrentes({showToast}){
+  const [items,setItems]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [ests,setEsts]=useState([]);
+  const [alunos,setAlunos]=useState([]);
+
+  // Modal nova recorrência
+  const RNEW={estId:'',pointId:'',dayOfWeek:'',startTime:'',endTime:'',hours:1,clientName:'',clientPhone:'',clientEmail:'',participantes:[],pm:'dinheiro',startDate:'',obs:''};
+  const [showNew,setShowNew]=useState(false);
+  const [rn,setRn]=useState(RNEW);
+  const [rnPoints,setRnPoints]=useState([]);
+  const [rnSlots,setRnSlots]=useState([]);
+  const [saving,setSaving]=useState(false);
+  // autocomplete de cliente
+  const [rnNameInput,setRnNameInput]=useState('');
+  const [rnShowSugg,setRnShowSugg]=useState(false);
+  const rnSugg=alunos.filter(a=>rnNameInput.length>0&&a.nome.toLowerCase().includes(rnNameInput.toLowerCase())).slice(0,8);
+  const selRnAluno=(a)=>{setRn(r=>({...r,clientName:a.nome,clientPhone:a.telefone||''}));setRnNameInput(a.nome);setRnShowSugg(false);};
+  const updRn=(k,v)=>setRn(r=>({...r,[k]:v}));
+  const resetNew=()=>{setShowNew(false);setRn(RNEW);setRnNameInput('');setRnPoints([]);setRnSlots([]);};
+
+  // Modal fatura
+  const [invoiceTarget,setInvoiceTarget]=useState(null); // item recorrente
+  const [invoiceYear,setInvoiceYear]=useState(new Date().getFullYear());
+  const [invoiceMonth,setInvoiceMonth]=useState(new Date().getMonth()+1);
+  const [invoiceData,setInvoiceData]=useState(null);
+  const [invoiceLoading,setInvoiceLoading]=useState(false);
+
+  const load=useCallback(()=>{
+    setLoading(true);
+    recurringApi.list().then(setItems).catch(()=>{}).finally(()=>setLoading(false));
+  },[]);
+
+  useEffect(()=>{load();},[load]);
+  useEffect(()=>{
+    if(!showNew)return;
+    estApi.list().then(setEsts).catch(()=>{});
+    alunoApi.list().then(setAlunos).catch(()=>{});
+  },[showNew]);
+  useEffect(()=>{
+    if(!rn.estId){setRnPoints([]);updRn('pointId','');return;}
+    pointApi.list(rn.estId).then(setRnPoints).catch(()=>{});
+    updRn('pointId','');
+  },[rn.estId]);
+  // Gerar slots de horário baseado no ponto
+  useEffect(()=>{
+    if(!rn.pointId)return;
+    // Pega slots de uma data qualquer (não importa qual, só pra listar horários disponíveis)
+    const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
+    const ds=tomorrow.toISOString().split('T')[0];
+    pointApi.slots(rn.pointId,ds).then(s=>setRnSlots(s.map(x=>x.time))).catch(()=>setRnSlots([]));
+  },[rn.pointId]);
+
+  const saveNew=async()=>{
+    if(!rn.estId||!rn.pointId||rn.dayOfWeek===''||!rn.startTime||!rn.endTime||!rn.clientName||!rn.clientPhone){
+      showToast('Preencha: estabelecimento, ponto, dia da semana, horário, nome e telefone','error');return;
+    }
+    setSaving(true);
+    try{
+      await recurringApi.create({
+        est_id:Number(rn.estId),point_id:Number(rn.pointId),
+        day_of_week:Number(rn.dayOfWeek),
+        start_time:rn.startTime,end_time:rn.endTime,hours:Number(rn.hours)||1,
+        client_name:rn.clientName,client_phone:rn.clientPhone,client_email:rn.clientEmail||undefined,
+        participantes:rn.participantes.filter(p=>p.nome),
+        payment_method:rn.pm,start_date:rn.startDate||undefined,observacoes:rn.obs||undefined,
+      });
+      showToast('Recorrência criada!','success');resetNew();load();
+    }catch(e){showToast(e.message,'error');}finally{setSaving(false);}
+  };
+
+  const toggleActive=async(item)=>{
+    try{
+      await recurringApi.update(item.id,{ativo:!item.ativo});
+      showToast(item.ativo?'Recorrência pausada':'Recorrência ativada','success');load();
+    }catch(e){showToast(e.message,'error');}
+  };
+
+  const removeItem=async(item)=>{
+    if(!window.confirm(`Excluir recorrência de ${item.client_name}?`))return;
+    try{await recurringApi.remove(item.id);showToast('Removida','success');load();}
+    catch(e){showToast(e.message,'error');}
+  };
+
+  const openInvoice=(item)=>{
+    setInvoiceTarget(item);
+    setInvoiceData(null);
+    const now=new Date();
+    setInvoiceYear(now.getFullYear());
+    setInvoiceMonth(now.getMonth()+1);
+  };
+
+  const generateInvoice=async()=>{
+    if(!invoiceTarget)return;
+    setInvoiceLoading(true);
+    try{
+      const data=await recurringApi.generate(invoiceTarget.id,invoiceYear,invoiceMonth);
+      setInvoiceData(data);
+    }catch(e){showToast(e.message,'error');}finally{setInvoiceLoading(false);}
+  };
+
+  const printInvoice=()=>{
+    if(!invoiceData)return;
+    const d=invoiceData;
+    const PAY_LABEL_MAP={pix:'Pix',credito:'Crédito',debito:'Débito',dinheiro:'Dinheiro'};
+    const fmtCur=v=>`R$ ${Number(v).toFixed(2).replace('.',',')}`;
+    const fmtDate=ds=>{const[y,m,day]=ds.split('-');return`${day}/${m}/${y}`;};
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<title>Fatura ${MONTH_NAMES[d.month-1]}/${d.year} — ${d.recurring.client_name}</title>
+<style>
+  body{font-family:sans-serif;padding:32px;color:#111;max-width:700px;margin:0 auto;}
+  h1{font-size:22px;margin-bottom:4px;}
+  .sub{color:#666;font-size:14px;margin-bottom:24px;}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px;}
+  th,td{border:1px solid #ddd;padding:8px 10px;font-size:13px;}
+  th{background:#f5f5f5;font-weight:600;}
+  .total-row td{font-weight:700;background:#f0fdf4;}
+  .section{margin-bottom:24px;}
+  .label{font-size:12px;color:#666;margin-bottom:2px;}
+  .value{font-size:15px;font-weight:600;}
+  @media print{button{display:none;}}
+</style></head><body>
+<h1>Fatura de Reserva Recorrente</h1>
+<p class="sub">${MONTH_NAMES[d.month-1]} ${d.year}</p>
+<div class="section" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+  <div><p class="label">Cliente</p><p class="value">${d.recurring.client_name}</p></div>
+  <div><p class="label">Telefone</p><p class="value">${d.recurring.client_phone||'—'}</p></div>
+  <div><p class="label">Estabelecimento</p><p class="value">${d.recurring.est_name}</p></div>
+  <div><p class="label">Espaço</p><p class="value">${d.recurring.point_name}</p></div>
+  <div><p class="label">Dia da semana</p><p class="value">${DOW_LABELS[d.recurring.day_of_week]}</p></div>
+  <div><p class="label">Horário</p><p class="value">${d.recurring.start_time} – ${d.recurring.end_time} (${d.recurring.hours}h)</p></div>
+  <div><p class="label">Valor por sessão</p><p class="value">${fmtCur(d.price_per_session)}</p></div>
+  <div><p class="label">Forma de pagamento</p><p class="value">${PAY_LABEL_MAP[d.recurring.payment_method]||d.recurring.payment_method}</p></div>
+</div>
+<h3>Sessões do mês (${d.sessions} ${d.sessions===1?'sessão':'sessões'})</h3>
+<table>
+  <thead><tr><th>#</th><th>Data</th><th>Horário</th><th>Valor</th></tr></thead>
+  <tbody>
+    ${d.reservations.map((r,i)=>`<tr><td>${i+1}</td><td>${fmtDate(typeof r.date==='string'?r.date:r.date.split('T')[0])}</td><td>${d.recurring.start_time} – ${d.recurring.end_time}</td><td>${fmtCur(d.price_per_session)}</td></tr>`).join('')}
+    <tr class="total-row"><td colspan="3">Total</td><td>${fmtCur(d.total)}</td></tr>
+  </tbody>
+</table>
+${d.participantes&&d.participantes.length>0?`
+<h3>Divisão entre participantes</h3>
+<table>
+  <thead><tr><th>Participante</th><th>%</th><th>Valor</th></tr></thead>
+  <tbody>
+    ${d.participantes.map(p=>`<tr><td>${p.nome}</td><td>${p.percentual}%</td><td>${fmtCur(p.valor)}</td></tr>`).join('')}
+  </tbody>
+</table>`:''}
+${d.dates_skipped&&d.dates_skipped.length>0?`<p style="color:#999;font-size:12px;">⚠ Datas não geradas por conflito: ${d.dates_skipped.map(fmtDate).join(', ')}</p>`:''}
+<p style="color:#999;font-size:11px;margin-top:32px;">Gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
+</body></html>`;
+    const w=window.open('','_blank');
+    w.document.write(html);
+    w.document.close();
+    setTimeout(()=>w.print(),400);
+  };
+
+  const rnPt=rnPoints.find(p=>String(p.id)===String(rn.pointId));
+  const rnTotal=rnPt&&rn.hours?rnPt.price_per_hour*Number(rn.hours):0;
+
+  return<div className="mt-4 space-y-4">
+    <div className="flex justify-between items-center">
+      <p className="text-sm text-gray-500">Gerencie reservas que se repetem semanalmente. Gere a fatura no fim do mês.</p>
+      <Btn onClick={()=>{setShowNew(true);setRn(RNEW);setRnNameInput('');}}>+ Nova Recorrência</Btn>
+    </div>
+
+    {loading?<Spinner/>:items.length===0?
+      <div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🔄</p><p>Nenhuma reserva recorrente cadastrada</p></div>
+    :<div className="space-y-3">
+      {items.map(it=><div key={it.id} className={`bg-white rounded-2xl border p-4 shadow-sm ${it.ativo?'border-gray-100':'border-gray-200 opacity-60'}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h3 className="font-bold text-gray-800">{it.client_name}</h3>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${it.ativo?'bg-emerald-100 text-emerald-700':'bg-gray-100 text-gray-500'}`}>{it.ativo?'Ativo':'Pausado'}</span>
+            </div>
+            <div className="text-sm text-gray-500 space-y-0.5">
+              <p>🏢 {it.est_name} — {it.point_name}</p>
+              <p>📅 Toda {DOW_LABELS[it.day_of_week]} • {it.start_time} – {it.end_time} ({it.hours}h)</p>
+              <p>💰 {fmt$(it.price_per_hour*it.hours)}/semana • {PAY_LABEL[it.payment_method]||it.payment_method}</p>
+              {it.client_phone&&<p>📞 {it.client_phone}</p>}
+              {Array.isArray(it.participantes)&&it.participantes.length>0&&
+                <p>👥 {it.participantes.map(p=>`${p.nome} (${p.percentual}%)`).join(' · ')}</p>}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Btn variant="secondary" size="sm" onClick={()=>openInvoice(it)}>📄 Fatura</Btn>
+            <Btn variant="secondary" size="sm" onClick={()=>toggleActive(it)}>{it.ativo?'Pausar':'Ativar'}</Btn>
+            <Btn variant="danger" size="sm" onClick={()=>removeItem(it)}>Excluir</Btn>
+          </div>
+        </div>
+      </div>)}
+    </div>}
+
+    {/* Modal Nova Recorrência */}
+    <Modal open={showNew} onClose={resetNew} title="Nova Reserva Recorrente" maxW="max-w-lg">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Nome do cliente" required>
+            <div className="relative">
+              <Inp value={rnNameInput} onChange={e=>{setRnNameInput(e.target.value);updRn('clientName',e.target.value);setRnShowSugg(true);}} placeholder="Digite para buscar..." onBlur={()=>setTimeout(()=>setRnShowSugg(false),150)} onFocus={()=>{if(rnNameInput)setRnShowSugg(true);}}/>
+              {rnShowSugg&&rnSugg.length>0&&<div className="absolute z-50 top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-40 overflow-y-auto">
+                {rnSugg.map(a=><button key={a.id} type="button" onMouseDown={()=>selRnAluno(a)} className="w-full text-left px-3 py-2 hover:bg-emerald-50 text-sm border-b border-gray-50 last:border-0">
+                  <span className="font-medium">{a.nome}</span>
+                  {a.telefone&&<span className="text-gray-400 ml-2 text-xs">{a.telefone}</span>}
+                </button>)}
+              </div>}
+            </div>
+          </Field>
+          <Field label="Telefone" required>
+            <Inp value={rn.clientPhone} onChange={e=>updRn('clientPhone',e.target.value)} placeholder="(00) 00000-0000"/>
+          </Field>
+        </div>
+        <Field label="Email (opcional)">
+          <Inp value={rn.clientEmail} onChange={e=>updRn('clientEmail',e.target.value)} placeholder="email@cliente.com"/>
+        </Field>
+        <Field label="Estabelecimento" required>
+          <Sel value={rn.estId} onChange={e=>updRn('estId',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>
+        </Field>
+        {rn.estId&&<Field label="Espaço / Ponto" required>
+          <Sel value={rn.pointId} onChange={e=>updRn('pointId',e.target.value)} options={rnPoints.map(p=>({value:p.id,label:`${p.name} — ${fmt$(p.price_per_hour)}/h`}))} placeholder="Selecione..."/>
+        </Field>}
+        <Field label="Dia da semana" required>
+          <Sel value={rn.dayOfWeek} onChange={e=>updRn('dayOfWeek',e.target.value)} options={DOW_OPTIONS} placeholder="Selecione..."/>
+        </Field>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Início" required>
+            <Sel value={rn.startTime} onChange={e=>{updRn('startTime',e.target.value);if(!rn.endTime||rn.endTime<=e.target.value)updRn('endTime','');}} options={rnSlots.map(t=>({value:t,label:t}))} placeholder="—"/>
+          </Field>
+          <Field label="Fim" required>
+            <Sel value={rn.endTime} onChange={e=>updRn('endTime',e.target.value)} options={rnSlots.filter(t=>t>rn.startTime).map(t=>({value:t,label:t}))} placeholder="—"/>
+          </Field>
+          <Field label="Horas">
+            <input type="number" min="1" max="8" value={rn.hours} onChange={e=>updRn('hours',e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+          </Field>
+        </div>
+        {rn.startTime&&rn.endTime&&rnPt&&<div className="bg-emerald-50 rounded-xl p-3 text-sm flex justify-between items-center">
+          <span className="text-gray-500">Valor por sessão</span>
+          <span className="font-bold text-emerald-700">{fmt$(rnTotal)}</span>
+        </div>}
+        <Field label="Forma de pagamento">
+          <Sel value={rn.pm} onChange={e=>updRn('pm',e.target.value)} options={[{value:'pix',label:'Pix'},{value:'credito',label:'Crédito'},{value:'debito',label:'Débito'},{value:'dinheiro',label:'Dinheiro'}]}/>
+        </Field>
+        <Field label="Início da recorrência (opcional)">
+          <input type="date" value={rn.startDate} min={TODAY} onChange={e=>updRn('startDate',e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+        </Field>
+
+        {/* Participantes */}
+        <div className="border border-gray-200 rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-700">👥 Participantes <span className="text-xs font-normal text-gray-400">(opcional, máx. 4)</span></p>
+            {rn.participantes.length<4&&<button onClick={()=>updRn('participantes',[...rn.participantes,{nome:'',percentual:''}])} className="text-xs text-emerald-600 hover:underline font-medium">+ Adicionar</button>}
+          </div>
+          {rn.participantes.length===0&&<p className="text-xs text-gray-400">Adicione para dividir a fatura entre múltiplos clientes.</p>}
+          {rn.participantes.map((p,i)=>{
+            const eachPct=rn.participantes.length?Math.round(100/rn.participantes.length):100;
+            const pct=Number(p.percentual)||eachPct;
+            const valor=rnTotal>0?rnTotal*pct/100:0;
+            return<div key={i} className="flex gap-2 items-center">
+              <select value={p.nome} onChange={e=>{const np=[...rn.participantes];np[i]={...np[i],nome:e.target.value};updRn('participantes',np);}}
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                <option value="">— Selecione aluno —</option>
+                {alunos.map(a=><option key={a.id} value={a.nome}>{a.nome}</option>)}
+              </select>
+              <input type="number" value={p.percentual||eachPct} min="1" max="100"
+                onChange={e=>{const np=[...rn.participantes];np[i]={...np[i],percentual:Number(e.target.value)};updRn('participantes',np);}}
+                className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-emerald-500" placeholder="%"/>
+              <span className="text-xs text-gray-500 w-20 text-right">{fmt$(valor)}</span>
+              <button onClick={()=>updRn('participantes',rn.participantes.filter((_,j)=>j!==i))} className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+            </div>;
+          })}
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <Btn variant="secondary" className="flex-1" onClick={resetNew}>Cancelar</Btn>
+          <Btn className="flex-1" disabled={saving} onClick={saveNew}>{saving?'Salvando...':'Criar Recorrência'}</Btn>
+        </div>
+      </div>
+    </Modal>
+
+    {/* Modal Fatura */}
+    <Modal open={!!invoiceTarget} onClose={()=>{setInvoiceTarget(null);setInvoiceData(null);}} title="Gerar Fatura Mensal" maxW="max-w-lg">
+      {invoiceTarget&&<div className="space-y-4">
+        <div className="bg-gray-50 rounded-xl p-3 text-sm">
+          <p className="font-semibold">{invoiceTarget.client_name}</p>
+          <p className="text-gray-500">{invoiceTarget.point_name} • Toda {DOW_LABELS[invoiceTarget.day_of_week]} {invoiceTarget.start_time}–{invoiceTarget.end_time}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Mês">
+            <Sel value={invoiceMonth} onChange={e=>setInvoiceMonth(Number(e.target.value))} options={MONTH_NAMES.map((n,i)=>({value:i+1,label:n}))}/>
+          </Field>
+          <Field label="Ano">
+            <input type="number" value={invoiceYear} onChange={e=>setInvoiceYear(Number(e.target.value))} min="2024" max="2030" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+          </Field>
+        </div>
+        <Btn className="w-full" disabled={invoiceLoading} onClick={generateInvoice}>{invoiceLoading?'Gerando...':'Gerar Fatura'}</Btn>
+
+        {invoiceData&&<div className="space-y-3">
+          <div className="bg-emerald-50 rounded-xl p-4 space-y-2">
+            <div className="flex justify-between text-sm"><span className="text-gray-500">Sessões no mês</span><span className="font-semibold">{invoiceData.sessions}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-gray-500">Valor por sessão</span><span className="font-semibold">{fmt$(invoiceData.price_per_session)}</span></div>
+            <div className="flex justify-between font-bold text-emerald-700 pt-2 border-t border-emerald-100 text-base"><span>Total</span><span>{fmt$(invoiceData.total)}</span></div>
+          </div>
+
+          {invoiceData.reservations&&invoiceData.reservations.length>0&&<div>
+            <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Datas</p>
+            <div className="flex flex-wrap gap-1.5">
+              {invoiceData.reservations.map(r=>{
+                const ds=typeof r.date==='string'?r.date:r.date.split('T')[0];
+                const[y,m,d]=ds.split('-');
+                return<span key={r.id||ds} className="text-xs bg-white border border-emerald-200 text-emerald-700 px-2 py-1 rounded-lg font-medium">{d}/{m}</span>;
+              })}
+            </div>
+          </div>}
+
+          {invoiceData.participantes&&invoiceData.participantes.length>0&&<div>
+            <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Divisão</p>
+            <div className="space-y-1">
+              {invoiceData.participantes.map((p,i)=><div key={i} className="flex justify-between text-sm bg-gray-50 rounded-lg px-3 py-2">
+                <span className="text-gray-700">{p.nome} <span className="text-gray-400">({p.percentual}%)</span></span>
+                <span className="font-semibold text-gray-800">{fmt$(p.valor)}</span>
+              </div>)}
+            </div>
+          </div>}
+
+          {invoiceData.dates_skipped&&invoiceData.dates_skipped.length>0&&
+            <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">⚠ {invoiceData.dates_skipped.length} data(s) com conflito não gerada(s)</p>}
+
+          <Btn className="w-full" onClick={printInvoice}>📥 Baixar / Imprimir PDF</Btn>
+        </div>}
+      </div>}
+    </Modal>
+  </div>;
+}
+
+// ================================================================
 // CRM PLANOS DE AULA (aba dentro de Reservas)
 // ================================================================
 function CRMPlanosAula({showToast}){
@@ -1088,6 +1433,12 @@ function CRMReservations({showToast,crmUser}){
   const [mbSlots,setMbSlots]=useState([]);
   const [mbSaving,setMbSaving]=useState(false);
   const updMb=(k,v)=>setMb(m=>({...m,[k]:v}));
+  const [mbNameInput,setMbNameInput]=useState('');
+  const [mbShowSugg,setMbShowSugg]=useState(false);
+  const [mbVisitante,setMbVisitante]=useState(false);
+  const mbSugg=mbAlunos.filter(a=>mbNameInput.length>0&&a.nome.toLowerCase().includes(mbNameInput.toLowerCase())).slice(0,8);
+  const selectMbAluno=(a)=>{updMb('name',a.nome);updMb('phone',a.telefone||'');setMbNameInput(a.nome);setMbShowSugg(false);};
+  const resetMbModal=()=>{setShowManual(false);setMb(MBL);setMbNameInput('');setMbShowSugg(false);setMbVisitante(false);};
 
   const load=useCallback(()=>{
     const params={};
@@ -1133,7 +1484,12 @@ function CRMReservations({showToast,crmUser}){
   };
 
   const saveManual=async()=>{
-    if(!mb.name||!mb.phone||!mb.estId||!mb.pointId||!mb.date||!mb.slots.length){showToast('Nome, telefone e horário são obrigatórios','error');return;}
+    if(mbVisitante){
+      if(!mb.phone||!mb.estId||!mb.pointId||!mb.date||!mb.slots.length){showToast('Telefone e horário são obrigatórios','error');return;}
+    } else {
+      if(!mb.name||!mb.phone||!mb.estId||!mb.pointId||!mb.date||!mb.slots.length){showToast('Nome, telefone e horário são obrigatórios','error');return;}
+    }
+    const clientName=mbVisitante?(mb.name.trim()||'Visitante'):mb.name;
     const s=mb.slots[0];
     const e=`${String(parseInt(mb.slots[mb.slots.length-1])+1).padStart(2,'0')}:00`;
     setMbSaving(true);
@@ -1141,11 +1497,11 @@ function CRMReservations({showToast,crmUser}){
       await resApi.manualCreate({
         point_id:Number(mb.pointId),est_id:Number(mb.estId),
         date:mb.date,start_time:s,end_time:e,hours:mb.slots.length,
-        payment_method:mb.pm,client_name:mb.name,client_phone:mb.phone,client_email:mb.email||undefined,
+        payment_method:mb.pm,client_name:clientName,client_phone:mb.phone,client_email:mb.email||undefined,
         participantes:mb.participantes.filter(p=>p.nome),
       });
       showToast('Reserva criada com sucesso!','success');
-      setShowManual(false);setMb(MBL);load();
+      resetMbModal();load();
     }catch(err){showToast(err.message,'error');}finally{setMbSaving(false);}
   };
 
@@ -1183,10 +1539,11 @@ function CRMReservations({showToast,crmUser}){
   return<div className="p-6">
     <div className="flex items-center justify-between mb-4">
       <h1 className="text-2xl font-black text-gray-900">Gestão de Reservas</h1>
-      {resTab==='reservas'&&<Btn onClick={()=>{setShowManual(true);setMb(MBL);}}>+ Nova Reserva</Btn>}
+      {resTab==='reservas'&&<Btn onClick={()=>{setShowManual(true);setMb(MBL);setMbNameInput('');setMbVisitante(false);}}>+ Nova Reserva</Btn>}
     </div>
-    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'aulas',label:'📚 Planos de Aula'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'}]} active={resTab} onChange={setResTab}/>
+    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'recorrentes',label:'🔄 Recorrentes'},{key:'aulas',label:'📚 Planos de Aula'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'}]} active={resTab} onChange={setResTab}/>
     {resTab==='aulas'&&<CRMPlanosAula showToast={showToast}/>}
+    {resTab==='recorrentes'&&<CRMRecorrentes showToast={showToast}/>}
     {resTab==='bar'&&<CRMBar showToast={showToast} crmUser={crmUser}/>}
     {resTab==='manutencao'&&<CRMManutencao showToast={showToast} crmUser={crmUser}/>}
     {resTab==='reservas'&&<div>
@@ -1223,12 +1580,31 @@ function CRMReservations({showToast,crmUser}){
     <Modal open={!!reschRes} onClose={()=>setReschRes(null)} title="Remarcar Reserva">{reschRes&&<div className="space-y-4"><div className="bg-gray-50 rounded-xl p-3 text-sm"><p className="font-semibold">{reschRes.point_name}</p><p className="text-gray-500">Atual: {fmtDate(dateStr(reschRes))} • {reschRes.start_time}–{reschRes.end_time}</p></div><Field label="Nova data"><input type="date" value={newDate} onChange={e=>{setNewDate(e.target.value);setNewSlots([]);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></Field>{newDate&&<div><p className="text-sm font-medium text-gray-700 mb-2">Novo horário</p><div className="grid grid-cols-4 gap-1.5">{rSlots.map(s=><button key={s.time} onClick={()=>toggleSlot(s)} disabled={!s.available} className={`py-2 text-xs rounded-lg border font-medium ${newSlots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'}`}>{s.time}</button>)}</div></div>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setReschRes(null)}>Cancelar</Btn><Btn className="flex-1" disabled={!newDate||!newSlots.length} onClick={handleReschedule}>Confirmar</Btn></div></div>}</Modal>
 
     {/* Modal Nova Reserva Manual */}
-    <Modal open={showManual} onClose={()=>setShowManual(false)} title="Nova Reserva Manual" maxW="max-w-lg">
+    <Modal open={showManual} onClose={()=>resetMbModal()} title="Nova Reserva Manual" maxW="max-w-lg">
       <div className="space-y-4">
+        {/* Checkbox Visitante */}
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none w-fit">
+          <input type="checkbox" checked={mbVisitante} onChange={e=>{setMbVisitante(e.target.checked);updMb('name','');updMb('phone','');setMbNameInput('');setMbShowSugg(false);}} className="w-4 h-4 rounded accent-emerald-600"/>
+          <span>Visitante <span className="text-gray-400 text-xs">(sem cadastro)</span></span>
+        </label>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Nome completo" required>
-            <Inp value={mb.name} onChange={e=>updMb('name',e.target.value)} placeholder="João Silva"/>
-          </Field>
+          {mbVisitante?(
+            <Field label="Nome (opcional)">
+              <Inp value={mb.name} onChange={e=>updMb('name',e.target.value)} placeholder="João Silva"/>
+            </Field>
+          ):(
+            <Field label="Nome completo" required>
+              <div className="relative">
+                <Inp value={mbNameInput} onChange={e=>{setMbNameInput(e.target.value);updMb('name',e.target.value);setMbShowSugg(true);}} placeholder="Digite para buscar..." onBlur={()=>setTimeout(()=>setMbShowSugg(false),150)} onFocus={()=>{if(mbNameInput)setMbShowSugg(true);}}/>
+                {mbShowSugg&&mbSugg.length>0&&<div className="absolute z-50 top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-48 overflow-y-auto">
+                  {mbSugg.map(a=><button key={a.id} type="button" onMouseDown={()=>selectMbAluno(a)} className="w-full text-left px-3 py-2 hover:bg-emerald-50 text-sm border-b border-gray-50 last:border-0">
+                    <span className="font-medium text-gray-800">{a.nome}</span>
+                    {a.telefone&&<span className="text-gray-400 ml-2 text-xs">{a.telefone}</span>}
+                  </button>)}
+                </div>}
+              </div>
+            </Field>
+          )}
           <Field label="Telefone" required>
             <Inp value={mb.phone} onChange={e=>updMb('phone',e.target.value)} placeholder="(00) 00000-0000"/>
           </Field>
@@ -1289,8 +1665,8 @@ function CRMReservations({showToast,crmUser}){
         </div>
 
         <div className="flex gap-3 pt-1">
-          <Btn variant="secondary" className="flex-1" onClick={()=>setShowManual(false)}>Cancelar</Btn>
-          <Btn className="flex-1" disabled={mbSaving||!mb.name||!mb.phone||!mb.slots.length} onClick={saveManual}>{mbSaving?'Salvando...':'Confirmar Reserva'}</Btn>
+          <Btn variant="secondary" className="flex-1" onClick={()=>resetMbModal()}>Cancelar</Btn>
+          <Btn className="flex-1" disabled={mbSaving||(!mbVisitante&&!mb.name)||!mb.phone||!mb.slots.length} onClick={saveManual}>{mbSaving?'Salvando...':'Confirmar Reserva'}</Btn>
         </div>
       </div>
     </Modal>

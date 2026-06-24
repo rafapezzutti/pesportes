@@ -231,6 +231,15 @@ export const alunoApi = {
   remove: (id)         => del(`/alunos/${id}`),
 };
 
+// ── Reservas Recorrentes ──────────────────────────────────────────
+export const recurringApi = {
+  list:     ()             => get('/recurring-reservations'),
+  create:   (data)         => post('/recurring-reservations', data),
+  update:   (id, data)     => patch(`/recurring-reservations/${id}`, data),
+  remove:   (id)           => del(`/recurring-reservations/${id}`),
+  generate: (id, year, m)  => post(`/recurring-reservations/${id}/generate/${year}/${m}`, {}),
+};
+
 // ── Contas a Receber / Resumo por Aluno ───────────────────────────
 export const contasApi = {
   list:       (params={}) => get('/finance/contas-a-receber?' + new URLSearchParams(params).toString()),
