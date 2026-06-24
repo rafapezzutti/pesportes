@@ -1437,7 +1437,7 @@ function CRMReservations({showToast,crmUser}){
   const [mbShowSugg,setMbShowSugg]=useState(false);
   const [mbVisitante,setMbVisitante]=useState(false);
   const mbSugg=mbAlunos.filter(a=>mbNameInput.length>0&&a.nome.toLowerCase().includes(mbNameInput.toLowerCase())).slice(0,8);
-  const selectMbAluno=(a)=>{updMb('name',a.nome);updMb('phone',a.telefone||'');setMbNameInput(a.nome);setMbShowSugg(false);};
+  const selectMbAluno=(a)=>{setMb(m=>({...m,name:a.nome,phone:a.telefone||''}));setMbNameInput(a.nome);setMbShowSugg(false);};
   const resetMbModal=()=>{setShowManual(false);setMb(MBL);setMbNameInput('');setMbShowSugg(false);setMbVisitante(false);};
 
   const load=useCallback(()=>{
@@ -1633,10 +1633,6 @@ function CRMReservations({showToast,crmUser}){
           <div className="flex justify-between"><span className="text-gray-500">Duração</span><span className="font-medium">{mb.slots.length}h</span></div>
           <div className="flex justify-between font-bold text-emerald-700 pt-1 border-t border-emerald-100"><span>Total</span><span>{fmt$(mbTotal)}</span></div>
         </div>}
-        <Field label="Forma de pagamento">
-          <Sel value={mb.pm} onChange={e=>updMb('pm',e.target.value)} options={PAY_OPTS}/>
-        </Field>
-
         {/* Participantes em grupo */}
         <div className="border border-gray-200 rounded-xl p-3 space-y-2">
           <div className="flex items-center justify-between">
