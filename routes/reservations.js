@@ -109,26 +109,38 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
           payment_method, client_name, client_phone, client_email,
           participantes, price_per_hour: priceOverride } = req.body;
 
-  if (!point_id || !est_id || !date || !start_time || !end_time || !hours || !client_name || !client_phone)
-    return res.status(400).json({ error: 'Nome e telefone do cliente sao obrigatorios' });
+  if (!est_id || !client_name || !client_phone)
+    return res.status(400).json({ error: 'Nome, telefone e estabelecimento são obrigatórios' });
 
   try {
-    const { rows: conflicts } = await pool.query(`
-      SELECT id FROM reservations
-      WHERE point_id=$1 AND date=$2 AND status != 'cancelled'
-        AND start_time < $4 AND end_time > $3
-    `, [point_id, date, start_time, end_time]);
-    if (conflicts.length)
-      return res.status(409).json({ error: 'Horario indisponivel' });
+    // Só verifica conflito se data e horário foram informados
+    if (point_id && date && start_time && end_time) {
+      const { rows: conflicts } = await pool.query(`
+        SELECT id FROM reservations
+        WHERE point_id=$1 AND date=$2 AND status != 'cancelled'
+          AND start_time < $4 AND end_time > $3
+      `, [point_id, date, start_time, end_time]);
+      if (conflicts.length)
+        return res.status(409).json({ error: 'Horario indisponivel' });
+    }
 
-    const { rows: ptRows } = await pool.query(
-      'SELECT price_per_hour FROM points WHERE id=$1', [point_id]
-    );
-    if (!ptRows.length) return res.status(404).json({ error: 'Ponto nao encontrado' });
-    const effectivePrice = (priceOverride != null && !isNaN(Number(priceOverride)))
-      ? Number(priceOverride)
-      : ptRows[0].price_per_hour;
-    const total = effectivePrice * hours;
+    // Calcula total (só se tiver ponto e horas)
+    let total = 0;
+    if (point_id) {
+      const { rows: ptRows } = await pool.query(
+        'SELECT price_per_hour FROM points WHERE id=$1', [point_id]
+      );
+      if (ptRows.length) {
+        const effectivePrice = (priceOverride != null && !isNaN(Number(priceOverride)))
+          ? Number(priceOverride)
+          : ptRows[0].price_per_hour;
+        total = effectivePrice * (hours || 1);
+      }
+    }
+    // Permite total manual via price_per_hour sem ponto/horas
+    if (!total && priceOverride != null && !isNaN(Number(priceOverride))) {
+      total = Number(priceOverride) * (hours || 1);
+    }
 
     const pm = ['pix','credito','debito','dinheiro'].includes(payment_method) ? payment_method : 'dinheiro';
 
@@ -147,7 +159,7 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
         (point_id, est_id, user_id, date, start_time, end_time, hours, total,
          payment_method, client_name, client_phone, client_email, participantes)
       VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-      [point_id, est_id, date, start_time, end_time, hours, total, pm,
+      [point_id || null, est_id, date || null, start_time || null, end_time || null, hours || null, total, pm,
        client_name.trim(), client_phone.trim(), client_email ? client_email.trim() : null,
        JSON.stringify(parts)]
     );
