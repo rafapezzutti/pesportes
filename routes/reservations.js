@@ -107,7 +107,7 @@ router.post('/', auth, async (req, res) => {
 router.post('/manual', auth, crmOnly, async (req, res) => {
   const { point_id, est_id, date, start_time, end_time, hours,
           payment_method, client_name, client_phone, client_email,
-          participantes } = req.body;
+          participantes, price_per_hour: priceOverride } = req.body;
 
   if (!point_id || !est_id || !date || !start_time || !end_time || !hours || !client_name || !client_phone)
     return res.status(400).json({ error: 'Nome e telefone do cliente sao obrigatorios' });
@@ -125,7 +125,10 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
       'SELECT price_per_hour FROM points WHERE id=$1', [point_id]
     );
     if (!ptRows.length) return res.status(404).json({ error: 'Ponto nao encontrado' });
-    const total = ptRows[0].price_per_hour * hours;
+    const effectivePrice = (priceOverride != null && !isNaN(Number(priceOverride)))
+      ? Number(priceOverride)
+      : ptRows[0].price_per_hour;
+    const total = effectivePrice * hours;
 
     const pm = ['pix','credito','debito','dinheiro'].includes(payment_method) ? payment_method : 'dinheiro';
 

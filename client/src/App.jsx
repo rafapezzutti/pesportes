@@ -1425,7 +1425,7 @@ function CRMReservations({showToast,crmUser}){
 
   // ── Nova reserva manual ──
   const [showManual,setShowManual]=useState(false);
-  const MBL={name:'',phone:'',email:'',estId:'',pointId:'',date:'',slots:[],pm:'dinheiro',participantes:[]};
+  const MBL={name:'',phone:'',email:'',estId:'',pointId:'',date:'',slots:[],pm:'dinheiro',participantes:[],pricePerHour:''};
   const [mb,setMb]=useState(MBL);
   const [mbAlunos,setMbAlunos]=useState([]);
   const [mbEsts,setMbEsts]=useState([]);
@@ -1470,6 +1470,12 @@ function CRMReservations({showToast,crmUser}){
     pointApi.slots(mb.pointId,mb.date).then(setMbSlots).catch(()=>setMbSlots([]));
     updMb('slots',[]);
   },[mb.pointId,mb.date]);
+  // Preenche valor/hora padrão do ponto ao selecioná-lo
+  useEffect(()=>{
+    if(!mb.pointId){updMb('pricePerHour','');return;}
+    const pt=mbPoints.find(p=>String(p.id)===String(mb.pointId));
+    if(pt)updMb('pricePerHour',pt.price_per_hour);
+  },[mb.pointId,mbPoints]);
 
 
 
@@ -1499,6 +1505,7 @@ function CRMReservations({showToast,crmUser}){
         date:mb.date,start_time:s,end_time:e,hours:mb.slots.length,
         payment_method:mb.pm,client_name:clientName,client_phone:mb.phone,client_email:mb.email||undefined,
         participantes:mb.participantes.filter(p=>p.nome),
+        price_per_hour:mb.pricePerHour!==''?Number(mb.pricePerHour):undefined,
       });
       showToast('Reserva criada com sucesso!','success');
       resetMbModal();load();
@@ -1532,7 +1539,9 @@ function CRMReservations({showToast,crmUser}){
   const mbStartT=mb.slots[0]||'';
   const mbEndT=mb.slots.length?`${String(parseInt(mb.slots[mb.slots.length-1])+1).padStart(2,'0')}:00`:'';
   const mbPt=mbPoints.find(p=>String(p.id)===String(mb.pointId));
-  const mbTotal=mbPt&&mb.slots.length?mbPt.price_per_hour*mb.slots.length:0;
+  const mbEffectivePrice=mb.pricePerHour!==''?Number(mb.pricePerHour):(mbPt?.price_per_hour||0);
+  const mbTotal=mbEffectivePrice*mb.slots.length;
+  const mbPriceOverridden=mbPt&&Number(mb.pricePerHour)!==mbPt.price_per_hour;
 
   const [resTab,setResTab]=useState('reservas');
 
@@ -1628,10 +1637,18 @@ function CRMReservations({showToast,crmUser}){
             {mbSlots.map(s=><button key={s.time} onClick={()=>toggleMbSlot(s)} disabled={!s.available} className={`py-2 text-xs rounded-lg border font-medium ${mb.slots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'}`}>{s.time}</button>)}
           </div>}
         </div>}
-        {mb.slots.length>0&&<div className="bg-emerald-50 rounded-xl p-3 text-sm space-y-1">
+        {mb.slots.length>0&&<div className="bg-emerald-50 rounded-xl p-3 text-sm space-y-2">
           <div className="flex justify-between"><span className="text-gray-500">Período</span><span className="font-medium">{mbStartT} – {mbEndT}</span></div>
           <div className="flex justify-between"><span className="text-gray-500">Duração</span><span className="font-medium">{mb.slots.length}h</span></div>
-          <div className="flex justify-between font-bold text-emerald-700 pt-1 border-t border-emerald-100"><span>Total</span><span>{fmt$(mbTotal)}</span></div>
+          <div className="flex justify-between items-center">
+            <span className="text-gray-500">Valor/hora{mbPriceOverridden&&<span className="ml-1 text-xs text-amber-600 font-normal">(ajustado)</span>}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-gray-400 text-xs">R$</span>
+              <input type="number" min="0" step="0.01" value={mb.pricePerHour} onChange={e=>updMb('pricePerHour',e.target.value)}
+                className="w-24 text-right border border-emerald-200 rounded-lg px-2 py-0.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"/>
+            </div>
+          </div>
+          <div className="flex justify-between font-bold text-emerald-700 pt-1 border-t border-emerald-100 text-base"><span>Total</span><span>{fmt$(mbTotal)}</span></div>
         </div>}
         {/* Participantes em grupo */}
         <div className="border border-gray-200 rounded-xl p-3 space-y-2">
