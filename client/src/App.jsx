@@ -1637,7 +1637,7 @@ function CRMReservations({showToast,crmUser}){
             {mbSlots.map(s=><button key={s.time} onClick={()=>toggleMbSlot(s)} disabled={!s.available} className={`py-2 text-xs rounded-lg border font-medium ${mb.slots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'}`}>{s.time}</button>)}
           </div>}
         </div>}
-        {(mb.slots.length>0||mb.pricePerHour!=='')&&<div className="bg-emerald-50 rounded-xl p-3 text-sm space-y-2">
+        <div className="bg-emerald-50 rounded-xl p-3 text-sm space-y-2">
           {mb.slots.length>0&&<><div className="flex justify-between"><span className="text-gray-500">Período</span><span className="font-medium">{mbStartT} – {mbEndT}</span></div>
           <div className="flex justify-between"><span className="text-gray-500">Duração</span><span className="font-medium">{mb.slots.length}h</span></div></>}
           <div className="flex justify-between items-center">
@@ -1649,7 +1649,7 @@ function CRMReservations({showToast,crmUser}){
             </div>
           </div>
           {mb.slots.length>0&&<div className="flex justify-between font-bold text-emerald-700 pt-1 border-t border-emerald-100 text-base"><span>Total</span><span>{fmt$(mbTotal)}</span></div>}
-        </div>}
+        </div>
         {/* Participantes em grupo */}
         <div className="border border-gray-200 rounded-xl p-3 space-y-2">
           <div className="flex items-center justify-between">
