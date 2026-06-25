@@ -218,6 +218,12 @@ async function runMigrations() {
     // Colunas de lembrete que o cron precisa mas podem estar faltando em reservations
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS reminded_1h  BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS reminded_15m BOOLEAN DEFAULT FALSE`,
+    // Permite reservas manuais sem ponto/data/horário (clientes que não usam o calendário)
+    `ALTER TABLE reservations ALTER COLUMN point_id    DROP NOT NULL`,
+    `ALTER TABLE reservations ALTER COLUMN date        DROP NOT NULL`,
+    `ALTER TABLE reservations ALTER COLUMN start_time  DROP NOT NULL`,
+    `ALTER TABLE reservations ALTER COLUMN end_time    DROP NOT NULL`,
+    `ALTER TABLE reservations ALTER COLUMN hours       DROP NOT NULL`,
     // Backfill: preenche data_venda com created_at para registros antigos que ficaram NULL
     `UPDATE bar_vendas        SET data_venda = created_at::date WHERE data_venda IS NULL`,
     `UPDATE manutencao_vendas SET data_venda = created_at::date WHERE data_venda IS NULL`,

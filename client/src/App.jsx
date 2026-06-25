@@ -1496,13 +1496,13 @@ function CRMReservations({showToast,crmUser}){
       if(!mb.name||!mb.phone||!mb.estId){showToast('Nome, telefone e estabelecimento são obrigatórios','error');return;}
     }
     const clientName=mbVisitante?(mb.name.trim()||'Visitante'):mb.name;
-    const s=mb.slots[0];
-    const e=`${String(parseInt(mb.slots[mb.slots.length-1])+1).padStart(2,'0')}:00`;
+    const s=mb.slots.length?mb.slots[0]:undefined;
+    const e=mb.slots.length?`${String(parseInt(mb.slots[mb.slots.length-1])+1).padStart(2,'0')}:00`:undefined;
     setMbSaving(true);
     try{
       await resApi.manualCreate({
-        point_id:Number(mb.pointId),est_id:Number(mb.estId),
-        date:mb.date,start_time:s,end_time:e,hours:mb.slots.length,
+        point_id:mb.pointId?Number(mb.pointId):undefined,est_id:Number(mb.estId),
+        date:mb.date||undefined,start_time:s,end_time:e,hours:mb.slots.length||undefined,
         payment_method:mb.pm,client_name:clientName,client_phone:mb.phone,client_email:mb.email||undefined,
         participantes:mb.participantes.filter(p=>p.nome),
         price_per_hour:mb.pricePerHour!==''?Number(mb.pricePerHour):undefined,
