@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fluxo das Tarefas Agendadas — Pezzutti Soluções</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #1a202c; }
+
+  .page { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, #1a1a2e 0%, #1E4D8C 100%); border-radius: 12px; padding: 28px 32px; color: white; margin-bottom: 28px; }
+  .header h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  .header p { font-size: 13px; opacity: 0.75; }
+  .header .meta { display: flex; gap: 24px; margin-top: 16px; }
+  .header .meta-item { font-size: 12px; opacity: 0.8; }
+  .header .meta-item strong { display: block; font-size: 18px; font-weight: 700; opacity: 1; }
+
+  /* Section titles */
+  .section-title { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #718096; margin: 28px 0 12px; display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+
+  /* Flow grid */
+  .flow-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 4px; }
+  .flow-col-title { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 12px; border-radius: 6px; margin-bottom: 8px; }
+
+  /* Task card */
+  .task { border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; position: relative; border: 1.5px solid transparent; }
+  .task-time { font-size: 22px; font-weight: 800; line-height: 1; }
+  .task-name { font-size: 12px; font-weight: 700; margin: 4px 0 2px; }
+  .task-days { font-size: 10px; opacity: 0.65; margin-bottom: 10px; }
+  .task-row { font-size: 11px; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  .task-row:last-child { border: none; }
+  .task-row .label { font-weight: 600; min-width: 50px; display: inline-block; }
+  .task-arrow { text-align: center; font-size: 18px; color: #a0aec0; margin: 2px 0; line-height: 1; }
+
+  /* Variants */
+  .task-blue  { background: #ebf8ff; border-color: #3182ce; }
+  .task-blue .task-time { color: #2b6cb0; }
+  .task-blue .task-name { color: #1a365d; }
+
+  .task-green { background: #f0fff4; border-color: #38a169; }
+  .task-green .task-time { color: #276749; }
+  .task-green .task-name { color: #1c4532; }
+
+  .task-orange { background: #fffaf0; border-color: #dd6b20; }
+  .task-orange .task-time { color: #c05621; }
+  .task-orange .task-name { color: #7b341e; }
+
+  .task-purple { background: #faf5ff; border-color: #805ad5; }
+  .task-purple .task-time { color: #553c9a; }
+  .task-purple .task-name { color: #44337a; }
+
+  .task-red { background: #fff5f5; border-color: #fc8181; }
+  .task-red .task-time { color: #c53030; }
+  .task-red .task-name { color: #742a2a; }
+
+  /* Column headers */
+  .col-blue   { background: #bee3f8; color: #2b6cb0; }
+  .col-green  { background: #c6f6d5; color: #276749; }
+  .col-purple { background: #e9d8fd; color: #553c9a; }
+  .col-red    { background: #fed7d7; color: #c53030; }
+
+  /* Badges */
+  .badge { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+  .badge-red    { background: #fc8181; color: white; }
+  .badge-orange { background: #f6ad55; color: #7b341e; }
+  .badge-green  { background: #68d391; color: #1c4532; }
+  .badge-fixed  { background: #48bb78; color: white; }
+
+  /* Dependency table */
+  .dep-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .dep-table th { background: #2d3748; color: white; padding: 8px 12px; text-align: left; font-size: 11px; }
+  .dep-table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  .dep-table tr:nth-child(even) td { background: #f7fafc; }
+  .dep-table .task-id { font-family: monospace; font-size: 11px; background: #edf2f7; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+  .dep-table .reads { color: #2b6cb0; }
+  .dep-table .writes { color: #276749; }
+  .dep-table .syncs { color: #553c9a; }
+
+  /* Files section */
+  .files-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .file-group { background: white; border-radius: 8px; padding: 14px 16px; border: 1px solid #e2e8f0; }
+  .file-group h4 { font-size: 11px; font-weight: 700; color: #4a5568; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .file-item { font-size: 11px; color: #2d3748; padding: 4px 0; border-bottom: 1px solid #f0f0f0; font-family: monospace; }
+  .file-item:last-child { border: none; }
+  .file-item .who { font-family: 'Segoe UI', sans-serif; font-size: 10px; color: #718096; margin-top: 2px; }
+
+  /* Issues */
+  .issue { border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .issue-critical { background: #fff5f5; border-left: 4px solid #e53e3e; }
+  .issue-warning  { background: #fffaf0; border-left: 4px solid #dd6b20; }
+  .issue-ok       { background: #f0fff4; border-left: 4px solid #38a169; }
+  .issue h4 { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .issue-critical h4 { color: #c53030; }
+  .issue-warning  h4 { color: #c05621; }
+  .issue-ok       h4 { color: #276749; }
+  .issue p { font-size: 11.5px; color: #4a5568; line-height: 1.5; }
+  .issue code { background: #edf2f7; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 11px; }
+
+  /* Endpoints */
+  .endpoint-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .endpoint { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
+  .endpoint .method { font-size: 10px; font-weight: 700; background: #1E4D8C; color: white; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 6px; }
+  .endpoint .path { font-family: monospace; font-size: 11px; color: #2d3748; margin-bottom: 4px; word-break: break-all; }
+  .endpoint .desc { font-size: 10.5px; color: #718096; }
+  .endpoint .users { font-size: 10px; color: #805ad5; margin-top: 4px; font-style: italic; }
+
+  /* Tokens */
+  .token-list { display: flex; flex-direction: column; gap: 8px; }
+  .token-item { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 12px; }
+  .token-item .token-label { font-size: 11px; font-weight: 700; color: #4a5568; min-width: 160px; }
+  .token-item .token-val { font-family: monospace; font-size: 11px; color: #2b6cb0; }
+
+  /* Footer */
+  .footer { text-align: center; font-size: 11px; color: #a0aec0; margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+
+  /* Print */
+  @media print {
+    body { background: white; }
+    .page { padding: 16px; }
+    .header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>🕐 Fluxo das Tarefas Agendadas</h1>
+    <p>Pezzutti Soluções — Prospecção CRM (4 segmentos) + Unimidia (cliente)</p>
+    <div class="meta">
+      <div class="meta-item"><strong>12</strong>tarefas ativas</div>
+      <div class="meta-item"><strong>4</strong>segmentos (Pets, Saúde, Esportes, Estética)</div>
+      <div class="meta-item"><strong>200</strong>leads/dia (50 × 4)</div>
+      <div class="meta-item"><strong>2</strong>bugs críticos corrigidos</div>
+    </div>
+  </div>
+
+  <!-- ======= FLUXO SEG-QUI ======= -->
+  <div class="section-title">Fluxo Diário — Segunda a Quinta</div>
+  <div class="flow-grid">
+    <!-- Coluna 1: Madrugada/Manhã -->
+    <div>
+      <div class="flow-col-title col-blue">🌙 Madrugada / Manhã</div>
+
+      <div class="task task-blue">
+        <div class="task-time">03h</div>
+        <div class="task-name">Prospecção Diária</div>
+        <div class="task-days">Seg–Qui • cron: 0 3 * * 1-4</div>
+        <div class="task-row"><span class="label">📖 Lê</span> analise_[ontem]_18h.json (×4 seg.)</div>
+        <div class="task-row"><span class="label">📖 Lê</span> prospects_[ontem].json</div>
+        <div class="task-row"><span class="label">📖 Lê</span> prospecting_state.json</div>
+        <div class="task-row"><span class="label">💾 Gera</span> prospects_[hoje].json</div>
+        <div class="task-row"><span class="label">💾 Gera</span> lista_[hoje].xlsx (4 abas)</div>
+        <div class="task-row"><span class="label">💾 Salva</span> prospecting_state.json</div>
+        <div class="task-row"><span class="label">🔗 Sync</span> /api/prospecting/daily-sync</div>
+        <div class="task-row"><span class="label">📧 Email</span> CRM Master (Chrome nav)</div>
+      </div>
+
+      <div class="task-arrow">↓</div>
+
+      <div class="task task-orange">
+        <div class="task-time">07h</div>
+        <div class="task-name">Follow-ups D2 / D5 / D10</div>
+        <div class="task-days">Seg–Sex • cron: 0 7 * * 1-5</div>
+        <div class="task-row"><span class="label">📖 Lê</span> prospects_[d2/d5/d10].json</div>
+        <div class="task-row"><span class="label">📖 Lê</span> analise_[d2/d5/d10]_18h.json</div>
+        <div class="task-row"><span class="label">🔗 Sync</span> /api/leads/register-followup</div>
+        <div class="task-row"><span class="label">📧 Email</span> CRM Master (Chrome nav)</div>
+      </div>
+    </div>
+
+    <!-- Coluna 2: Tarde -->
+    <div>
+      <div class="flow-col-title col-green">☀️ Tarde</div>
+
+      <div class="task task-green">
+        <div class="task-time">12h <span style="font-size:12px;font-weight:400;opacity:.7">(nomeado 15h)</span></div>
+        <div class="task-name">1ª Revisão WhatsApp</div>
+        <div class="task-days">Seg–Qui • cron: 0 12 * * 1-4</div>
+        <div class="task-row"><span class="label">📖 Lê</span> prospects_[hoje].json</div>
+        <div class="task-row"><span class="label">🌐 Busca</span> inbox WhatsApp (Pfunil API)</div>
+        <div class="task-row"><span class="label">🌐 Verifica</span> visualizado (Evolution API)</div>
+        <div class="task-row"><span class="label">💾 Gera</span> analise_[hoje]_15h.json (×4)</div>
+        <div class="task-row"><span class="label">🔗 Sync</span> /api/leads/prospecting-sync</div>
+        <div class="task-row"><span class="label">📧 Email</span> pfunil.ia.br/api/robots</div>
+      </div>
+
+      <div class="task-arrow">↓</div>
+
+      <div class="task task-green">
+        <div class="task-time">16h <span style="font-size:12px;font-weight:400;opacity:.7">(nomeado 18h)</span></div>
+        <div class="task-name">2ª Revisão WhatsApp</div>
+        <div class="task-days">Seg–Qui • cron: 0 16 * * 1-4</div>
+        <div class="task-row"><span class="label">📖 Lê</span> prospects_[hoje].json</div>
+        <div class="task-row"><span class="label">📖 Lê</span> analise_[hoje]_15h.json (×4)</div>
+        <div class="task-row"><span class="label">🌐 Busca</span> inbox WhatsApp (novas desde 12h)</div>
+        <div class="task-row"><span class="label">💾 Gera</span> analise_[hoje]_18h.json (×4)</div>
+        <div class="task-row"><span class="label">✏️ Atualiza</span> prospects_[hoje].json (abordado)</div>
+        <div class="task-row"><span class="label">🔗 Sync</span> /api/leads/prospecting-sync</div>
+        <div class="task-row"><span class="label">📧 Email</span> pfunil.ia.br/api/robots</div>
+      </div>
+    </div>
+
+    <!-- Coluna 3: Noite -->
+    <div>
+      <div class="flow-col-title col-blue">🌆 Noite</div>
+
+      <div class="task task-blue">
+        <div class="task-time">21h</div>
+        <div class="task-name">Relatório Diário PDF</div>
+        <div class="task-days">Seg–Qui • cron: 0 21 * * 1-4</div>
+        <div class="task-row"><span class="label">📖 Lê</span> prospects_[hoje].json</div>
+        <div class="task-row"><span class="label">📖 Lê</span> analise_[hoje]_15h.json (×4)</div>
+        <div class="task-row"><span class="label">📖 Lê</span> analise_[hoje]_18h.json (×4)</div>
+        <div class="task-row"><span class="label">📖 Lê</span> prospecting_state.json</div>
+        <div class="task-row"><span class="label">💾 Gera</span> relatorio_[hoje].pdf</div>
+        <div class="task-row"><span class="label">✏️ Atualiza</span> prospecting_state.json</div>
+        <div class="task-row"><span class="label">📧 Email</span> CRM Master (Chrome nav)</div>
+      </div>
+
+      <div style="margin-top:16px; background:#edf2f7; border-radius:8px; padding:12px 14px; font-size:11px; color:#4a5568;">
+        <strong style="display:block;margin-bottom:6px;">♻️ Ciclo de Pendentes</strong>
+        O JSON <code style="background:#e2e8f0;padding:1px 4px;border-radius:3px;font-family:monospace;">analise_[hoje]_18h.json</code>
+        gerado às 16h alimenta a prospecção do dia seguinte às 03h:
+        leads com <code style="background:#e2e8f0;padding:1px 4px;border-radius:3px;font-family:monospace;">sem_resposta</code> → pendentes amanhã,
+        <code style="background:#e2e8f0;padding:1px 4px;border-radius:3px;font-family:monospace;">nao_entregue</code> → libera vaga extra.
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= FLUXO SEXTA ======= -->
+  <div class="section-title">Fluxo de Fechamento — Sexta-Feira</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+    <div class="task task-purple">
+      <div class="task-time">16h</div>
+      <div class="task-name">Revisão Final da Semana</div>
+      <div class="task-days">Sexta • cron: 0 16 * * 5</div>
+      <div class="task-row"><span class="label">📖 Lê</span> prospects_*.json (seg–qui, todos os dias)</div>
+      <div class="task-row"><span class="label">📖 Lê</span> analise_*_18h.json (todos os dias × 4 seg.)</div>
+      <div class="task-row"><span class="label">🌐 Busca</span> inbox WhatsApp da semana inteira</div>
+      <div class="task-row"><span class="label">💾 Gera</span> analise_[sex]_sexta16h.json (×4 seg.)</div>
+      <div class="task-row"><span class="label">🔗 Sync</span> /api/leads/prospecting-sync (semana)</div>
+      <div class="task-row"><span class="label">📧 Email</span> CRM Master (Chrome nav)</div>
+    </div>
+
+    <div class="task task-purple">
+      <div class="task-time">18h</div>
+      <div class="task-name">Relatório Executivo Semanal PDF</div>
+      <div class="task-days">Sexta • cron: 0 18 * * 5 — aguarda 2h após revisão</div>
+      <div class="task-row"><span class="label">📖 Lê</span> analise_*_15h.json + _18h.json (semana × 4)</div>
+      <div class="task-row"><span class="label">📖 Lê</span> analise_[sex]_sexta16h.json (×4) ← <em>dep. crítica</em></div>
+      <div class="task-row"><span class="label">📖 Lê</span> prospecting_state.json</div>
+      <div class="task-row"><span class="label">💾 Gera</span> relatorio_semanal_[sex].pdf (10 páginas)</div>
+      <div class="task-row"><span class="label">📧 Email</span> CRM Master (Chrome nav)</div>
+    </div>
+  </div>
+
+  <!-- ======= UNIMIDIA ======= -->
+  <div class="section-title">Fluxo Unimidia — Cliente (Independente)</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+
+    <div class="task task-red">
+      <div class="task-time">04h</div>
+      <div class="task-name">Robô 1 — Prospecção Ativa</div>
+      <div class="task-days">Seg–Sex • cron: 0 4 * * 1-5</div>
+      <div style="font-size:10px;color:#742a2a;margin-top:8px;">
+        <div>🔧 Robô ID: 14</div>
+        <div>🚀 execute-server (backend)</div>
+        <div>📍 Google Places → Excel → Email</div>
+        <div style="color:#276749;margin-top:4px;">✓ Autônomo — sem deps externas</div>
+      </div>
+    </div>
+
+    <div class="task task-red">
+      <div class="task-time">14h</div>
+      <div class="task-name">Robô 2 — Revisão Meio Dia</div>
+      <div class="task-days">Seg–Sex • cron: 0 14 * * 1-5</div>
+      <div style="font-size:10px;color:#742a2a;margin-top:8px;">
+        <div>🔧 Robô ID: 15</div>
+        <div>📋 Enfileira → contexto API</div>
+        <div>💬 Analisa WhatsApp (Evolution)</div>
+        <div>📊 Relatório por vendedor</div>
+        <div>📧 Email via Resend (pfunil)</div>
+      </div>
+    </div>
+
+    <div class="task task-red">
+      <div class="task-time">20h</div>
+      <div class="task-name">Robô 3 — Fim do Dia</div>
+      <div class="task-days">Seg–Sex • cron: 0 20 * * 1-5</div>
+      <div style="font-size:10px;color:#742a2a;margin-top:8px;">
+        <div>🔧 Robô ID: 16</div>
+        <div>📋 Enfileira → contexto API</div>
+        <div>💬 Analisa WhatsApp (Evolution)</div>
+        <div>💾 Salva conversas_[hoje].json</div>
+        <div style="color:#276749;margin-top:4px;">✓ Gera histórico para Robô 4</div>
+      </div>
+    </div>
+
+    <div class="task task-red">
+      <div class="task-time">22h</div>
+      <div class="task-name">Robô 4 — Semanal</div>
+      <div class="task-days">Sexta • cron: 0 22 * * 5</div>
+      <div style="font-size:10px;color:#742a2a;margin-top:8px;">
+        <div>🔧 Robô ID: 17</div>
+        <div>📖 Lê conversas_*.json (Robô 3)</div>
+        <div>📊 Gera PDF executivo (6 pgs)</div>
+        <div>📎 Envia PDF por email</div>
+        <div>🔄 Ajusta notas do Robô 1</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= ARQUIVOS COMPARTILHADOS ======= -->
+  <div class="section-title">Arquivos e Dependências</div>
+  <div class="files-grid">
+
+    <div class="file-group">
+      <h4>📁 OneDrive / Prospecção Diaria / listas /</h4>
+      <div class="file-item">
+        prospects_[YYYY-MM-DD].json
+        <div class="who">✍️ Criado: 03h • Atualizado: 16h (abordado) • Lido: 07h, 12h, 16h, 21h</div>
+      </div>
+      <div class="file-item">
+        lista_[YYYY-MM-DD].xlsx
+        <div class="who">✍️ Criado: 03h</div>
+      </div>
+    </div>
+
+    <div class="file-group">
+      <h4>📁 OneDrive / Prospecção Diaria / Historico de Conversas / {seg} /</h4>
+      <div class="file-item">
+        analise_[YYYY-MM-DD]_15h.json (×4 segmentos)
+        <div class="who">✍️ Criado: 12h (roda às 12h) • Lido: 16h, 21h, sexta-18h</div>
+      </div>
+      <div class="file-item">
+        analise_[YYYY-MM-DD]_18h.json (×4 segmentos)
+        <div class="who">✍️ Criado: 16h (roda às 16h) • Lido: 03h (dia seguinte), 07h, 21h, sexta-16h, sexta-18h</div>
+      </div>
+      <div class="file-item">
+        analise_[YYYY-MM-DD]_sexta16h.json (×4 segmentos)
+        <div class="who">✍️ Criado: sexta-16h • Lido: sexta-18h ← dependência crítica!</div>
+      </div>
+      <div class="file-item">
+        relatorio_[YYYY-MM-DD].pdf
+        <div class="who">✍️ Criado: 21h</div>
+      </div>
+      <div class="file-item">
+        relatorio_semanal_[YYYY-MM-DD].pdf
+        <div class="who">✍️ Criado: sexta-18h</div>
+      </div>
+    </div>
+
+    <div class="file-group">
+      <h4>📁 OneDrive / Prospecção Diaria / sistema /</h4>
+      <div class="file-item">
+        prospecting_state.json
+        <div class="who">📖 Lido: 03h, 21h, sexta-18h • ✏️ Atualizado: 03h, 21h</div>
+      </div>
+      <div class="file-item" style="font-size:10px;color:#718096;padding-top:6px;">
+        Contém: current_municipality_idx, contacted_history (lista de strings),
+        last_run_date, yesterday_unapproached
+      </div>
+    </div>
+
+    <div class="file-group">
+      <h4>📁 OneDrive / CRM Funil / unimidia / historico /</h4>
+      <div class="file-item">
+        conversas_[YYYY-MM-DD].json
+        <div class="who">✍️ Criado: Robô 3 (20h) • Lido: Robô 4 (sexta 22h)</div>
+      </div>
+      <div class="file-group" style="margin-top:8px;padding:0;border:none;">
+        <h4 style="margin-bottom:6px;">📁 OneDrive / CRM Funil / unimidia / relatorios /</h4>
+        <div class="file-item">
+          relatorio_semanal_unimidia_[YYYY-MM-DD].pdf
+          <div class="who">✍️ Criado: Robô 4 (sexta 22h)</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ======= ENDPOINTS E TOKENS ======= -->
+  <div class="section-title">Endpoints da API e Tokens</div>
+  <div class="endpoint-grid">
+
+    <div class="endpoint">
+      <div class="method">POST</div>
+      <div class="path">api.pfunil.ia.br/api/prospecting/daily-sync</div>
+      <div class="desc">Registra os 200 leads do dia (4 segmentos)</div>
+      <div class="users">Usado por: 03h</div>
+    </div>
+
+    <div class="endpoint">
+      <div class="method">POST</div>
+      <div class="path">api.pfunil.ia.br/api/leads/prospecting-sync</div>
+      <div class="desc">Sincroniza quentes/mornos com o funil</div>
+      <div class="users">Usado por: 12h, 16h, sexta-16h</div>
+    </div>
+
+    <div class="endpoint">
+      <div class="method">POST</div>
+      <div class="path">api.pfunil.ia.br/api/leads/register-followup</div>
+      <div class="desc">Registra atividades de follow-up D2/D5/D10</div>
+      <div class="users">Usado por: 07h</div>
+    </div>
+
+    <div class="endpoint">
+      <div class="method">GET</div>
+      <div class="path">api.pfunil.ia.br/api/whatsapp/inbox?date=&instance=pezzutti</div>
+      <div class="desc">Busca mensagens recebidas do dia</div>
+      <div class="users">Usado por: 12h, 16h, sexta-16h</div>
+    </div>
+
+    <div class="endpoint">
+      <div class="method">POST</div>
+      <div class="path">api.pfunil.ia.br/api/robots/send-email</div>
+      <div class="desc">Envia e-mail via Resend (pfunil backend)</div>
+      <div class="users">Usado por: 12h, 16h, Robô 3</div>
+    </div>
+
+    <div class="endpoint">
+      <div class="method">POST</div>
+      <div class="path">crm-master-psolucoes.onrender.com/api/notify</div>
+      <div class="desc">Envia e-mail HTML via CRM Master</div>
+      <div class="users">Usado por: 03h, 07h, 21h, sextas</div>
+    </div>
+
+    <div class="endpoint">
+      <div class="method">POST</div>
+      <div class="path">pezzutti-whatsapp.fly.dev/chat/findMessages/pezzutti</div>
+      <div class="desc">Verifica status de entrega/leitura (Evolution)</div>
+      <div class="users">Usado por: 12h, 16h, sexta-16h</div>
+    </div>
+
+    <div class="endpoint">
+      <div class="method">POST</div>
+      <div class="path">api.pfunil.ia.br/api/robots/{id}/execute-server</div>
+      <div class="desc">Dispara robô em background (Unimidia)</div>
+      <div class="users">Usado por: Robô 1 (ID 14)</div>
+    </div>
+
+    <div class="endpoint">
+      <div class="method">GET/POST</div>
+      <div class="path">api.pfunil.ia.br/api/robots/{id}/context|queued|log-cowork</div>
+      <div class="desc">Contexto, fila e log dos robôs Unimidia</div>
+      <div class="users">Usado por: Robôs 2 (15), 3 (16), 4 (17)</div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:14px;">
+    <div class="token-list">
+      <div class="token-item">
+        <span class="token-label">Token Prospecção Sync</span>
+        <span class="token-val">psol_prosp_sync_7x4k2m9q</span>
+        <span style="font-size:10px;color:#718096;margin-left:auto;">daily-sync, prospecting-sync, register-followup</span>
+      </div>
+      <div class="token-item">
+        <span class="token-label">Token CRM Master (email)</span>
+        <span class="token-val">psol_notify_a8c4f2e7d91b4c63</span>
+        <span style="font-size:10px;color:#718096;margin-left:auto;">03h, 07h, 21h, sextas</span>
+      </div>
+      <div class="token-item">
+        <span class="token-label">Token Robôs Unimidia</span>
+        <span class="token-val">RoboFunil2026Secret</span>
+        <span style="font-size:10px;color:#718096;margin-left:auto;">inbox API + robôs 14–17 + send-email</span>
+      </div>
+      <div class="token-item">
+        <span class="token-label">API Key Evolution WhatsApp</span>
+        <span class="token-val">5579ee64ebdd3dbaf6f20a87d3920955527d9f457fe6027f197a8c31efada893</span>
+        <span style="font-size:10px;color:#718096;margin-left:auto;">verificar leitura</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= BUGS E STATUS ======= -->
+  <div class="section-title">Bugs Encontrados e Status</div>
+
+  <div class="issue issue-critical">
+    <h4>🔴 BUG #1 — crm:'esporte' vs 'esportes' &nbsp;<span class="badge badge-fixed">✓ CORRIGIDO</span></h4>
+    <p>
+      <strong>Onde:</strong> <code>prospeccao-diaria-03h</code> — PASSO 8 — mapeamento de segmentos<br>
+      <strong>Problema:</strong> O campo <code>crm</code> para esportes era <code>"esporte"</code> (sem 's') no <code>daily-sync</code>.
+      Todas as outras tarefas (revisões 12h, 16h, sexta-16h e follow-up) usavam <code>"esportes"</code>.
+      Os leads criados pela prospecção ficavam com um valor de CRM diferente dos atualizados pelas análises — podendo
+      gerar registros duplicados ou leads "perdidos" no funil.<br>
+      <strong>Correção:</strong> Alterado para <code>"esportes"</code> em todas as ocorrências do mapeamento.
+    </p>
+  </div>
+
+  <div class="issue issue-critical">
+    <h4>🔴 BUG #2 — fs.readFileSync no browser (Unimidia Robô 4) &nbsp;<span class="badge badge-fixed">✓ CORRIGIDO</span></h4>
+    <p>
+      <strong>Onde:</strong> <code>unimidia-robo4-relatorio-semanal</code> — Passo 4 — envio do PDF por e-mail<br>
+      <strong>Problema:</strong> O código usava <code>require('fs')</code> e <code>fs.readFileSync()</code>
+      dentro do <code>javascript_tool</code> (contexto browser/Chrome), onde APIs Node.js não existem.
+      O envio do PDF anexado sempre falharia.<br>
+      <strong>Correção:</strong> O PDF agora é lido via <strong>bash (Python + base64)</strong> primeiro,
+      e o conteúdo base64 resultante é passado manualmente para o <code>javascript_tool</code> que faz o POST do e-mail.
+    </p>
+  </div>
+
+  <div class="issue issue-warning">
+    <h4>🟡 AVISO — Nomes das tarefas vs horário real de execução</h4>
+    <p>
+      <code>revisao-whatsapp-15h</code> executa às <strong>12h</strong> (cron <code>0 12 * * 1-4</code>) mas salva os arquivos como <code>_15h.json</code>.<br>
+      <code>revisao-whatsapp-18h</code> executa às <strong>16h</strong> (cron <code>0 16 * * 1-4</code>) mas salva os arquivos como <code>_18h.json</code>.<br>
+      O fluxo funciona corretamente porque a nomenclatura dos arquivos é consistente internamente — mas os nomes das tarefas são confusos.
+      Não requer correção urgente.
+    </p>
+  </div>
+
+  <div class="issue issue-warning">
+    <h4>🟡 AVISO — Transporte de e-mail inconsistente</h4>
+    <p>
+      <strong>03h, 07h, 21h, sexta-16h, sexta-18h</strong> → CRM Master via navegação Chrome (base64url encoded).<br>
+      <strong>12h, 16h</strong> → <code>pfunil.ia.br/api/robots/send-email</code> via <code>javascript_tool</code> direto na aba do CRM.<br>
+      Ambos têm fallback para rascunho Gmail. Funcional, mas pode gerar dúvida em troubleshooting.
+    </p>
+  </div>
+
+  <div class="issue issue-warning">
+    <h4>🟡 AVISO — Path do arquivo temporário de e-mail inconsistente</h4>
+    <p>
+      <code>relatorio-diario-21h</code> usa <code>sistema\mail_tmp.json</code> (caminho Windows).<br>
+      <code>relatorio-semanal-sexta-18h</code> usa <code>/tmp/mail.json</code> (caminho Linux/bash).<br>
+      Funcional em ambos os contextos, mas vale padronizar para <code>sistema\mail_tmp.json</code>.
+    </p>
+  </div>
+
+  <div class="issue issue-ok">
+    <h4>🟢 OK — Fluxo de interdependências correto</h4>
+    <p>
+      Toda a cadeia de arquivos está íntegra: 03h lê _18h de ontem ✓ • 12h lê prospects de hoje ✓ •
+      16h lê _15h de hoje e atualiza abordado ✓ • 21h lê _15h e _18h ✓ •
+      Follow-up lê D2/D5/D10 com seus _18h ✓ • Relatório semanal aguarda sexta-16h ✓ •
+      Robô 4 lê históricos do Robô 3 ✓ • prospecting_state.json lido por 03h e atualizado por 03h e 21h ✓ •
+      contacted_history filtra corrompidos (apenas strings) ✓.
+    </p>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Gerado em 24/06/2026 · Pezzutti Soluções · 12 tarefas agendadas · 2 bugs críticos corrigidos
+  </div>
+
+</div>
+</body>
+</html>

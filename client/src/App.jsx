@@ -1628,7 +1628,7 @@ function CRMReservations({showToast,crmUser}){
           <Sel value={mb.pointId} onChange={e=>updMb('pointId',e.target.value)} options={mbPoints.map(p=>({value:p.id,label:p.name}))} placeholder={mb.estId?'Selecione...':'Selecione o estabelecimento primeiro'} disabled={!mb.estId}/>
         </Field>
         <Field label="Data (opcional)">
-          <input type="date" value={mb.date} min={TODAY} onChange={e=>updMb('date',e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+          <input type="date" value={mb.date} onChange={e=>updMb('date',e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
         </Field>
         {mb.date&&mb.pointId&&<div>
           <p className="text-sm font-medium text-gray-700 mb-2">Horários disponíveis <span className="text-xs font-normal text-gray-400">(opcional)</span></p>
