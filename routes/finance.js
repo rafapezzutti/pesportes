@@ -276,12 +276,15 @@ router.patch('/contas-a-receber/:tipo/:id', auth, adminOrManager, async (req, re
 
 // ── GET /api/finance/resumo-aluno ─────────────────────────────────
 router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
-  const { aluno_nome, mes } = req.query;
+  const { aluno_nome, mes, status_pgto } = req.query;
   if (!aluno_nome || !mes) return res.status(400).json({ error: 'aluno_nome e mes são obrigatórios' });
 
   const from = `${mes}-01`;
   const toDate = new Date(new Date(from).getFullYear(), new Date(from).getMonth() + 1, 0);
   const to = toDate.toISOString().split('T')[0];
+
+  // Parâmetros base, com status_pgto opcional como $4
+  const p = (extra=[]) => status_pgto ? [aluno_nome, from, to, status_pgto, ...extra] : [aluno_nome, from, to, ...extra];
 
   try {
     const { rows: aulas } = await pool.query(
@@ -292,8 +295,9 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
        WHERE LOWER(pl.nome_aluno) = LOWER($1)
          AND pl.data_inicio <= $3
          AND (pl.data_fim IS NULL OR pl.data_fim >= $2)
+         ${status_pgto ? `AND COALESCE(pl.status_pgto,'pendente') = $4` : ''}
        ORDER BY pl.data_inicio`,
-      [aluno_nome, from, to]);
+      p());
 
     const { rows: reservas } = await pool.query(
       `SELECT r.id, r.date AS data, r.total, r.status_pgto, r.forma_pgto,
@@ -303,8 +307,9 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
        LEFT JOIN points p ON r.point_id = p.id
        WHERE LOWER(r.client_name) = LOWER($1)
          AND r.date >= $2 AND r.date <= $3
+         ${status_pgto ? `AND COALESCE(r.status_pgto,'pendente') = $4` : ''}
        ORDER BY r.date`,
-      [aluno_nome, from, to]);
+      p());
 
     const { rows: bar } = await pool.query(
       `SELECT b.id, b.data_venda AS data, b.total, b.status_pgto, b.forma_pgto,
@@ -313,8 +318,9 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
        LEFT JOIN establishments e ON b.est_id = e.id
        WHERE LOWER(b.cliente_nome) = LOWER($1)
          AND b.data_venda >= $2 AND b.data_venda <= $3
+         ${status_pgto ? `AND COALESCE(b.status_pgto,'pendente') = $4` : ''}
        ORDER BY b.data_venda`,
-      [aluno_nome, from, to]);
+      p());
 
     const { rows: manutencao } = await pool.query(
       `SELECT m.id, m.data_venda AS data, m.total, m.status_pgto, m.forma_pgto,
@@ -323,8 +329,9 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
        LEFT JOIN establishments e ON m.est_id = e.id
        WHERE LOWER(m.cliente_nome) = LOWER($1)
          AND m.data_venda >= $2 AND m.data_venda <= $3
+         ${status_pgto ? `AND COALESCE(m.status_pgto,'pendente') = $4` : ''}
        ORDER BY m.data_venda`,
-      [aluno_nome, from, to]);
+      p());
 
     const totalAulas    = aulas.reduce((s, r) => s + Number(r.total), 0);
     const totalReservas = reservas.reduce((s, r) => s + Number(r.total), 0);

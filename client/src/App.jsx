@@ -2659,6 +2659,7 @@ function CRMFinanceiro({crmUser,showToast}){
   const [alunos,setAlunos]=useState([]);
   const [selAluno,setSelAluno]=useState('');
   const [selMes,setSelMes]=useState(TODAY.slice(0,7));
+  const [selResumoStatus,setSelResumoStatus]=useState('');
   const [resumo,setResumo]=useState(null);
   const [resumoLoading,setResumoLoading]=useState(false);
   const [emailSending,setEmailSending]=useState(false);
@@ -2896,10 +2897,22 @@ function CRMFinanceiro({crmUser,showToast}){
           <input type="month" value={selMes} onChange={e=>setSelMes(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
         </div>
+        <div className="w-44">
+          <p className="text-xs text-gray-400 mb-1 font-medium">Status de pagamento</p>
+          <select value={selResumoStatus} onChange={e=>setSelResumoStatus(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+            <option value="">Todos</option>
+            <option value="pendente">Em aberto</option>
+            <option value="pago">Pago</option>
+            <option value="em_atraso">Em atraso</option>
+          </select>
+        </div>
         <Btn disabled={!selAluno||resumoLoading} onClick={()=>{
           if(!selAluno)return;
           setResumoLoading(true);
-          contasApi.resumoAluno({aluno_nome:selAluno,mes:selMes})
+          const params={aluno_nome:selAluno,mes:selMes};
+          if(selResumoStatus)params.status_pgto=selResumoStatus;
+          contasApi.resumoAluno(params)
             .then(setResumo).catch(()=>{}).finally(()=>setResumoLoading(false));
         }}>{resumoLoading?'Buscando...':'🔍 Gerar Resumo'}</Btn>
       </div>
