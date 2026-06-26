@@ -2655,6 +2655,8 @@ function CRMFinanceiro({crmUser,showToast}){
   const [contasLoading,setContasLoading]=useState(false);
   const [contasFiltStatus,setContasFiltStatus]=useState('');
   const [contasFiltCliente,setContasFiltCliente]=useState('');
+  const [contasPage,setContasPage]=useState(0);
+  const CONTAS_PER_PAGE=20;
   // resumo por aluno
   const [alunos,setAlunos]=useState([]);
   const [selAluno,setSelAluno]=useState('');
@@ -2827,55 +2829,71 @@ function CRMFinanceiro({crmUser,showToast}){
       <div className="flex flex-wrap gap-3 items-end mb-4">
         <div className="w-48">
           <p className="text-xs text-gray-400 mb-1 font-medium">Filtrar por status</p>
-          <select value={contasFiltStatus} onChange={e=>{setContasFiltStatus(e.target.value);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+          <select value={contasFiltStatus} onChange={e=>{setContasFiltStatus(e.target.value);setContasPage(0);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
             <option value="">Todos</option>
             {PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <div className="w-56">
           <p className="text-xs text-gray-400 mb-1 font-medium">Filtrar por cliente</p>
-          <input value={contasFiltCliente} onChange={e=>setContasFiltCliente(e.target.value)} placeholder="Nome do cliente..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"/>
+          <input value={contasFiltCliente} onChange={e=>{setContasFiltCliente(e.target.value);setContasPage(0);}} placeholder="Nome do cliente..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"/>
         </div>
         <Btn variant="secondary" size="sm" onClick={loadContas}>🔄 Atualizar</Btn>
         {(()=>{const cf=contas.filter(c=>!contasFiltCliente||((c.cliente||'').toLowerCase().includes(contasFiltCliente.toLowerCase())));return<div className="ml-auto text-sm text-gray-500">{cf.length} registro{cf.length!==1?'s':''} •{' '}<strong className="text-emerald-700">{fmt$(cf.reduce((s,c)=>s+Number(c.total),0))}</strong></div>;})()}
       </div>
-      {contasLoading?<Spinner/>:contas.length===0
-        ?<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">💳</p><p>Nenhum registro encontrado no período</p></div>
-        :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto"><table className="w-full text-sm">
-            <thead><tr className="bg-gray-50 border-b border-gray-100">
-              {['Tipo','Cliente','Estabelecimento','Data','Valor','Status','Forma Pgto'].map(h=><th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>)}
-            </tr></thead>
-            <tbody className="divide-y divide-gray-50">
-              {contas.filter(c=>!contasFiltCliente||((c.cliente||'').toLowerCase().includes(contasFiltCliente.toLowerCase()))).map(c=>{
-                const updatePgto=async(field,val)=>{
-                  await contasApi.updatePgto(c.tipo,c.id,{[field]:val}).catch(()=>{});
-                  loadContas();
-                };
-                return<tr key={`${c.tipo}-${c.id}`} className="hover:bg-gray-50">
-                  <td className="px-3 py-2.5 whitespace-nowrap"><span className="text-xs font-semibold">{TIPO_LABEL[c.tipo]||c.tipo}</span></td>
-                  <td className="px-3 py-2.5 font-medium text-gray-800">{c.cliente||'—'}</td>
-                  <td className="px-3 py-2.5 text-gray-500 text-xs">{c.est_name||'—'}</td>
-                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{c.data?fmtDate(c.data.split('T')[0]):'—'}</td>
-                  <td className="px-3 py-2.5 font-bold text-gray-800 whitespace-nowrap">{fmt$(c.total)}</td>
-                  <td className="px-3 py-2.5">
-                    <select value={c.status_pgto||'pendente'} onChange={e=>updatePgto('status_pgto',e.target.value)}
-                      className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-400 ${PGTO_STATUS_BADGE[c.status_pgto||'pendente']}`}>
-                      {PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <select value={c.forma_pgto||''} onChange={e=>updatePgto('forma_pgto',e.target.value)}
-                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400">
-                      <option value="">— selecione —</option>
-                      {PGTO_FORMA_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  </td>
-                </tr>;
-              })}
-            </tbody>
-          </table></div>
-        </div>}
+      {contasLoading?<Spinner/>:(()=>{
+        const cf=contas.filter(c=>!contasFiltCliente||((c.cliente||'').toLowerCase().includes(contasFiltCliente.toLowerCase())));
+        const totalPages=Math.ceil(cf.length/CONTAS_PER_PAGE)||1;
+        const page=Math.min(contasPage,totalPages-1);
+        const pageItems=cf.slice(page*CONTAS_PER_PAGE,(page+1)*CONTAS_PER_PAGE);
+        if(cf.length===0)return<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">💳</p><p>Nenhum registro encontrado no período</p></div>;
+        return<div>
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
+              <thead><tr className="bg-gray-50 border-b border-gray-100">
+                {['Tipo','Cliente','Estabelecimento','Data','Valor','Status','Forma Pgto'].map(h=><th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>)}
+              </tr></thead>
+              <tbody className="divide-y divide-gray-50">
+                {pageItems.map(c=>{
+                  const updatePgto=async(field,val)=>{
+                    await contasApi.updatePgto(c.tipo,c.id,{[field]:val}).catch(()=>{});
+                    loadContas();
+                  };
+                  return<tr key={`${c.tipo}-${c.id}`} className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5 whitespace-nowrap"><span className="text-xs font-semibold">{TIPO_LABEL[c.tipo]||c.tipo}</span></td>
+                    <td className="px-3 py-2.5 font-medium text-gray-800">{c.cliente||'—'}</td>
+                    <td className="px-3 py-2.5 text-gray-500 text-xs">{c.est_name||'—'}</td>
+                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{c.data?fmtDate(c.data.split('T')[0]):'—'}</td>
+                    <td className="px-3 py-2.5 font-bold text-gray-800 whitespace-nowrap">{fmt$(c.total)}</td>
+                    <td className="px-3 py-2.5">
+                      <select value={c.status_pgto||'pendente'} onChange={e=>updatePgto('status_pgto',e.target.value)}
+                        className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-400 ${PGTO_STATUS_BADGE[c.status_pgto||'pendente']}`}>
+                        {PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <select value={c.forma_pgto||''} onChange={e=>updatePgto('forma_pgto',e.target.value)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400">
+                        <option value="">— selecione —</option>
+                        {PGTO_FORMA_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </td>
+                  </tr>;
+                })}
+              </tbody>
+            </table></div>
+          </div>
+          {totalPages>1&&<div className="flex items-center justify-between mt-3 px-1">
+            <span className="text-xs text-gray-400">Página {page+1} de {totalPages} ({cf.length} registros)</span>
+            <div className="flex gap-1">
+              <button onClick={()=>setContasPage(0)} disabled={page===0} className="px-2 py-1 text-xs rounded border border-gray-200 bg-white text-gray-600 disabled:opacity-30 hover:bg-gray-50">«</button>
+              <button onClick={()=>setContasPage(p=>Math.max(0,p-1))} disabled={page===0} className="px-3 py-1 text-xs rounded border border-gray-200 bg-white text-gray-600 disabled:opacity-30 hover:bg-gray-50">‹ Anterior</button>
+              <button onClick={()=>setContasPage(p=>Math.min(totalPages-1,p+1))} disabled={page>=totalPages-1} className="px-3 py-1 text-xs rounded border border-gray-200 bg-white text-gray-600 disabled:opacity-30 hover:bg-gray-50">Próximo ›</button>
+              <button onClick={()=>setContasPage(totalPages-1)} disabled={page>=totalPages-1} className="px-2 py-1 text-xs rounded border border-gray-200 bg-white text-gray-600 disabled:opacity-30 hover:bg-gray-50">»</button>
+            </div>
+          </div>}
+        </div>;
+      })()}
     </div>}
 
     {/* aba resumo por aluno */}
