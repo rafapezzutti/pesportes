@@ -2654,6 +2654,7 @@ function CRMFinanceiro({crmUser,showToast}){
   const [contas,setContas]=useState([]);
   const [contasLoading,setContasLoading]=useState(false);
   const [contasFiltStatus,setContasFiltStatus]=useState('');
+  const [contasFiltCliente,setContasFiltCliente]=useState('');
   // resumo por aluno
   const [alunos,setAlunos]=useState([]);
   const [selAluno,setSelAluno]=useState('');
@@ -2833,11 +2834,12 @@ function CRMFinanceiro({crmUser,showToast}){
             {PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
-        <Btn variant="secondary" size="sm" onClick={loadContas}>🔄 Atualizar</Btn>
-        <div className="ml-auto text-sm text-gray-500">
-          {contas.length} registro{contas.length!==1?'s':''} •{' '}
-          <strong className="text-emerald-700">{fmt$(contas.reduce((s,c)=>s+Number(c.total),0))}</strong>
+        <div className="w-56">
+          <p className="text-xs text-gray-400 mb-1 font-medium">Filtrar por cliente</p>
+          <input value={contasFiltCliente} onChange={e=>setContasFiltCliente(e.target.value)} placeholder="Nome do cliente..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"/>
         </div>
+        <Btn variant="secondary" size="sm" onClick={loadContas}>🔄 Atualizar</Btn>
+        {(()=>{const cf=contas.filter(c=>!contasFiltCliente||((c.cliente||'').toLowerCase().includes(contasFiltCliente.toLowerCase())));return<div className="ml-auto text-sm text-gray-500">{cf.length} registro{cf.length!==1?'s':''} •{' '}<strong className="text-emerald-700">{fmt$(cf.reduce((s,c)=>s+Number(c.total),0))}</strong></div>;})()}
       </div>
       {contasLoading?<Spinner/>:contas.length===0
         ?<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">💳</p><p>Nenhum registro encontrado no período</p></div>
@@ -2847,7 +2849,7 @@ function CRMFinanceiro({crmUser,showToast}){
               {['Tipo','Cliente','Estabelecimento','Data','Valor','Status','Forma Pgto'].map(h=><th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-gray-50">
-              {contas.map(c=>{
+              {contas.filter(c=>!contasFiltCliente||((c.cliente||'').toLowerCase().includes(contasFiltCliente.toLowerCase()))).map(c=>{
                 const updatePgto=async(field,val)=>{
                   await contasApi.updatePgto(c.tipo,c.id,{[field]:val}).catch(()=>{});
                   loadContas();
