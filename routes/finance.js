@@ -274,6 +274,28 @@ router.patch('/contas-a-receber/:tipo/:id', auth, adminOrManager, async (req, re
   }
 });
 
+// ── GET /api/finance/clientes — nomes únicos de clientes financeiros ─
+router.get('/clientes', auth, crmOnly, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT DISTINCT TRIM(nome) AS nome FROM (
+        SELECT nome_aluno  AS nome FROM planos_aula      WHERE nome_aluno  IS NOT NULL AND nome_aluno  <> ''
+        UNION
+        SELECT client_name AS nome FROM reservations     WHERE client_name IS NOT NULL AND client_name <> ''
+        UNION
+        SELECT cliente_nome AS nome FROM bar_vendas      WHERE cliente_nome IS NOT NULL AND cliente_nome <> ''
+        UNION
+        SELECT cliente_nome AS nome FROM manutencao_vendas WHERE cliente_nome IS NOT NULL AND cliente_nome <> ''
+      ) t
+      ORDER BY nome
+    `);
+    res.json(rows.map(r => r.nome));
+  } catch (err) {
+    console.error('[GET /finance/clientes]', err);
+    res.status(500).json({ error: 'Erro ao listar clientes' });
+  }
+});
+
 // ── GET /api/finance/resumo-aluno ─────────────────────────────────
 router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
   const { aluno_nome, mes, status_pgto } = req.query;
@@ -289,10 +311,10 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
   try {
     const { rows: aulas } = await pool.query(
       `SELECT pl.id, COALESCE(pl.tipo_plano,'avulso') AS tipo, pl.data_inicio AS data, pl.valor AS total,
-              pl.status_pgto, pl.forma_pgto, e.name AS est_name
+              pl.status_pgto, pl.forma_pgto, pl.email_aluno, e.name AS est_name
        FROM planos_aula pl
        LEFT JOIN establishments e ON pl.est_id = e.id
-       WHERE LOWER(pl.nome_aluno) = LOWER($1)
+       WHERE TRIM(pl.nome_aluno) ILIKE TRIM($1)
          AND pl.data_inicio <= $3
          AND (pl.data_fim IS NULL OR pl.data_fim >= $2)
          ${status_pgto ? `AND COALESCE(pl.status_pgto,'pendente') = $4` : ''}
@@ -305,7 +327,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
        FROM reservations r
        LEFT JOIN establishments e ON r.est_id = e.id
        LEFT JOIN points p ON r.point_id = p.id
-       WHERE LOWER(r.client_name) = LOWER($1)
+       WHERE TRIM(r.client_name) ILIKE TRIM($1)
          AND r.date >= $2 AND r.date <= $3
          ${status_pgto ? `AND COALESCE(r.status_pgto,'pendente') = $4` : ''}
        ORDER BY r.date`,
@@ -316,7 +338,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
               b.itens, e.name AS est_name
        FROM bar_vendas b
        LEFT JOIN establishments e ON b.est_id = e.id
-       WHERE LOWER(b.cliente_nome) = LOWER($1)
+       WHERE TRIM(b.cliente_nome) ILIKE TRIM($1)
          AND b.data_venda >= $2 AND b.data_venda <= $3
          ${status_pgto ? `AND COALESCE(b.status_pgto,'pendente') = $4` : ''}
        ORDER BY b.data_venda`,
@@ -327,7 +349,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
               m.itens, e.name AS est_name
        FROM manutencao_vendas m
        LEFT JOIN establishments e ON m.est_id = e.id
-       WHERE LOWER(m.cliente_nome) = LOWER($1)
+       WHERE TRIM(m.cliente_nome) ILIKE TRIM($1)
          AND m.data_venda >= $2 AND m.data_venda <= $3
          ${status_pgto ? `AND COALESCE(m.status_pgto,'pendente') = $4` : ''}
        ORDER BY m.data_venda`,

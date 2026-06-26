@@ -2682,10 +2682,7 @@ function CRMFinanceiro({crmUser,showToast}){
     if(tab==='repasse')loadRep();
     if(tab==='projecao')loadProj();
     if(tab==='contas')loadContas();
-    if(tab==='resumo')Promise.all([alunoApi.list(),professorApi.list()]).then(([al,pr])=>{
-      const profs=(pr||[]).filter(p=>p.ativo!==false).map(p=>({...p,_tipo:'professor'}));
-      setAlunos([...(al||[]).filter(a=>a.ativo!==false),...profs]);
-    }).catch(()=>{});
+    if(tab==='resumo')contasApi.clientesFinanceiros().then(nomes=>setAlunos(nomes.map(n=>({nome:n})))).catch(()=>{});
   },[tab,loadFluxo,loadExps,loadRep,loadProj,loadContas]);
 
   const saveExp=async()=>{
@@ -2889,7 +2886,7 @@ function CRMFinanceiro({crmUser,showToast}){
           <select value={selAluno} onChange={e=>setSelAluno(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
             <option value="">Selecione...</option>
-            {alunos.map(a=><option key={`${a._tipo||'aluno'}-${a.id}`} value={a.nome}>{a._tipo==='professor'?'🎓 ':''}{a.nome}{a.email?` — ${a.email}`:''}</option>)}
+            {alunos.map((a,i)=><option key={i} value={a.nome}>{a.nome}</option>)}
           </select>
         </div>
         <div className="w-40">
@@ -2925,10 +2922,10 @@ function CRMFinanceiro({crmUser,showToast}){
             <div className="flex gap-2">
               <Btn variant="secondary" size="sm" onClick={()=>window.print()}>🖨️ Imprimir</Btn>
               <Btn variant="secondary" size="sm" disabled={emailSending} onClick={async()=>{
-                const al=alunos.find(a=>a.nome===selAluno);
-                if(!al?.email){showToast&&showToast('Aluno sem email cadastrado','error');return;}
+                const email=(resumo.aulas||[]).map(a=>a.email_aluno).find(Boolean)||(resumo.reservas||[]).map(r=>r.client_email).find(Boolean);
+                if(!email){showToast&&showToast('Aluno sem email cadastrado','error');return;}
                 setEmailSending(true);
-                try{await contasApi.emailAluno({aluno_nome:resumo.aluno_nome,aluno_email:al.email,mes:selMes,resumo});showToast&&showToast('Email enviado!','success');}
+                try{await contasApi.emailAluno({aluno_nome:resumo.aluno_nome,aluno_email:email,mes:selMes,resumo});showToast&&showToast('Email enviado!','success');}
                 catch(e){showToast&&showToast(e.message||'Erro ao enviar','error');}
                 finally{setEmailSending(false);}
               }}>{emailSending?'Enviando...':'📧 Enviar por Email'}</Btn>
