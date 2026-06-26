@@ -285,12 +285,13 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
 
   try {
     const { rows: aulas } = await pool.query(
-      `SELECT pl.id, COALESCE(pl.tipo,'avulso') AS tipo, pl.data_inicio AS data, pl.valor AS total,
+      `SELECT pl.id, COALESCE(pl.tipo_plano,'avulso') AS tipo, pl.data_inicio AS data, pl.valor AS total,
               pl.status_pgto, pl.forma_pgto, e.name AS est_name
        FROM planos_aula pl
        LEFT JOIN establishments e ON pl.est_id = e.id
        WHERE LOWER(pl.nome_aluno) = LOWER($1)
-         AND pl.data_inicio >= $2 AND pl.data_inicio <= $3
+         AND pl.data_inicio <= $3
+         AND (pl.data_fim IS NULL OR pl.data_fim >= $2)
        ORDER BY pl.data_inicio`,
       [aluno_nome, from, to]);
 
