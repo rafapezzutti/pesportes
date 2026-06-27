@@ -264,4 +264,7 @@ runMigrations().then(() => {
   app.listen(PORT, () => {
     console.log(`✅ Servidor rodando na porta ${PORT}`);
   });
-}).catch((
+}).catch((err) => {
+  console.error('❌ Falha crítica nas migrações:', err);
+  process.exit(1);
+});
