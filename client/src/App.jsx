@@ -3469,4 +3469,15 @@ export default function App(){
       {confRes&&<div className="space-y-4">
         <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
           <p className="font-semibold text-gray-800">{confRes.pt.name}</p>
-          <p className="text-gray-500">Data: {fmtDate(confRe
+          <p className="text-gray-500">Data: {fmtDate(confRes.date)}</p>
+          <p className="text-gray-500">Horário: {confRes.slots[0]} – {(()=>{const s=confRes.slots[confRes.slots.length-1];const[h,m]=s.split(':').map(Number);return`${String(h+(m===30?0:1)).padStart(2,'0')}:${m===30?'00':'30'}`;})()}</p>
+          <p className="font-bold text-emerald-700 pt-1">Total: {fmt$(confRes.pt.price_per_hour*confRes.slots.length*0.5)}</p>
+        </div>
+        <div className="flex gap-3">
+          <Btn variant="secondary" className="flex-1" onClick={()=>setConfRes(null)}>Cancelar</Btn>
+          <Btn className="flex-1" onClick={confirmReserve} disabled={confLoading}>{confLoading?'Aguarde...':'Confirmar Reserva'}</Btn>
+        </div>
+      </div>}
+    </Modal>
+  </>;
+}
