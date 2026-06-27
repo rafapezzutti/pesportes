@@ -93,7 +93,7 @@ function Spinner({text='Carregando...'}){
 function Btn({onClick,children,variant='primary',size='md',className='',disabled=false,type='button'}){
   const base='font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 inline-flex items-center justify-center gap-1.5';
   const sz={sm:'px-3 py-1.5 text-xs',md:'px-4 py-2 text-sm',lg:'px-6 py-3 text-base'};
-  const vr={primary:'bg-emerald-600 hover:bg-emerald-700 text-white focus:ring-emerald-500',secondary:'bg-white border border-gray-300 hover:bg-gray-50 text-gray-700',danger:'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',ghost:'bg-transparent hover:bg-gray-100 text-gray-600',outline:'border border-emerald-600 text-emerald-600 hover:bg-emerald-50'};
+  const vr={primary:'bg-emerald-600 hover:bg-emerald-700 text-white focus:ring-emerald-500',secondary:'bg-white border border-gray-300 hover:bg-gray-50 text-gray-700',danger:'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',ghost:'bg-transparent hover:bg-gray-100 text-gray-600',outline:'border border-emerald-600 text-emerald-600 hover:bg-emerald-50',warning:'bg-amber-500 hover:bg-amber-600 text-white focus:ring-amber-400',success:'bg-emerald-500 hover:bg-emerald-600 text-white focus:ring-emerald-400'};
   return<button type={type} onClick={onClick} disabled={disabled} className={`${base} ${sz[size]} ${vr[variant]} ${disabled?'opacity-40 cursor-not-allowed':''} ${className}`}>{children}</button>;
 }
 
@@ -859,7 +859,7 @@ function CRMUsers({crmUser,showToast}){
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
   const isAdmin=crmUser?.role==='admin';
   const ROLE_OPTS=isAdmin
-    ?[{value:'admin',label:'Administrador — acesso total'},{value:'manager',label:'Gerente — vários estabelecimentos'},{value:'simples',label:'Usuário Simples — somente reservas'}]
+    ?[{value:'admin',label:'Administrador — acesso total'},{value:'manager',label:'Gerente — vários estabelecimentos'},{value:'simples',label:'Usuário Simples — somente reservas'},{value:'profissional',label:'Profissional EF — personal trainer'}]
     :[{value:'simples',label:'Usuário Simples — somente reservas'}];
   const needsEstMulti=f.role==='manager';
   const needsEstSingle=f.role==='simples';
@@ -897,18 +897,26 @@ function CRMUsers({crmUser,showToast}){
     catch(e){showToast(e.message,'error');}
   };
 
+  const toggleSuspend=async(u)=>{
+    try{
+      await userApi.suspend(u.id);
+      showToast(u.ativo?'Usuário suspenso':'Usuário reativado','info');
+      load();
+    }catch(e){showToast(e.message,'error');}
+  };
+
   if(loading)return<Spinner/>;
 
   return<div className="p-6"><div className="flex items-center justify-between mb-6"><h1 className="text-2xl font-black text-gray-900">Usuários do Sistema</h1><Btn onClick={openNew}>+ Novo Usuário</Btn></div>
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
     <div className="overflow-x-auto">
     <table className="w-full text-sm"><thead className="bg-gray-50 border-b border-gray-100"><tr>{['Nome','Email','Perfil','Estabelecimento(s)','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr></thead>
-    <tbody className="divide-y divide-gray-50">{users.map(u=><tr key={u.id} className="hover:bg-gray-50">
-      <td className="px-4 py-3 font-semibold text-gray-800">{u.name}</td>
+    <tbody className="divide-y divide-gray-50">{users.map(u=><tr key={u.id} className={`hover:bg-gray-50 ${!u.ativo?'opacity-50':''}`}>
+      <td className="px-4 py-3 font-semibold text-gray-800"><span>{u.name}</span>{!u.ativo&&<span className="ml-2 text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-normal">Suspenso</span>}</td>
       <td className="px-4 py-3 text-gray-500">{u.email}</td>
       <td className="px-4 py-3"><Badge color={ROLE_BADGE[u.role]||'gray'}>{ROLE_NAME[u.role]||u.role}</Badge></td>
       <td className="px-4 py-3 text-gray-500 text-xs">{u.role==='manager'?(u.est_ids&&u.est_ids.length>0?ests.filter(e=>u.est_ids.map(Number).includes(Number(e.id))).map(e=>e.name).join(', '):<span className="italic text-gray-300">—</span>):(u.est_name||<span className="italic text-gray-300">—</span>)}</td>
-      <td className="px-4 py-3"><div className="flex gap-2 justify-end">{isAdmin&&<><Btn variant="secondary" size="sm" onClick={()=>openEdit(u)}>Editar</Btn><Btn variant="danger" size="sm" onClick={()=>setDelU(u)}>Excluir</Btn></>}</div></td>
+      <td className="px-4 py-3"><div className="flex gap-2 justify-end">{isAdmin&&<><Btn variant="secondary" size="sm" onClick={()=>openEdit(u)}>Editar</Btn><Btn variant={u.ativo?'warning':'success'} size="sm" onClick={()=>toggleSuspend(u)}>{u.ativo?'Suspender':'Reativar'}</Btn><Btn variant="danger" size="sm" onClick={()=>setDelU(u)}>Excluir</Btn></>}</div></td>
     </tr>)}</tbody></table>
     </div>
     {users.length===0&&<div className="text-center py-12 text-gray-400">Nenhum usuário</div>}
@@ -3461,15 +3469,4 @@ export default function App(){
       {confRes&&<div className="space-y-4">
         <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
           <p className="font-semibold text-gray-800">{confRes.pt.name}</p>
-          <p className="text-gray-500">Data: {fmtDate(confRes.date)}</p>
-          <p className="text-gray-500">Horário: {confRes.slots[0]} – {(()=>{const s=confRes.slots[confRes.slots.length-1];const[h,m]=s.split(':').map(Number);return`${String(h+(m===30?0:1)).padStart(2,'0')}:${m===30?'00':'30'}`;})()}</p>
-          <p className="font-bold text-emerald-700 pt-1">Total: {fmt$(confRes.pt.price_per_hour*confRes.slots.length*0.5)}</p>
-        </div>
-        <div className="flex gap-3">
-          <Btn variant="secondary" className="flex-1" onClick={()=>setConfRes(null)}>Cancelar</Btn>
-          <Btn className="flex-1" onClick={confirmReserve} disabled={confLoading}>{confLoading?'Aguarde...':'Confirmar Reserva'}</Btn>
-        </div>
-      </div>}
-    </Modal>
-  </>;
-}
+          <p className="text-gray-500">Data: {fmtDate(confRe

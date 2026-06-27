@@ -72,10 +72,11 @@ export const pointApi = {
 
 // ── CRM Users ─────────────────────────────────────────────────────
 export const userApi = {
-  list:   ()          => get('/crm-users'),
-  create: (data)      => post('/crm-users', data),
-  update: (id, data)  => put(`/crm-users/${id}`, data),
-  remove: (id)        => del(`/crm-users/${id}`),
+  list:    ()          => get('/crm-users'),
+  create:  (data)      => post('/crm-users', data),
+  update:  (id, data)  => put(`/crm-users/${id}`, data),
+  suspend: (id)        => patch(`/crm-users/${id}/suspend`),
+  remove:  (id)        => del(`/crm-users/${id}`),
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────
@@ -245,6 +246,4 @@ export const contasApi = {
   list:          (params={}) => get('/finance/contas-a-receber?' + new URLSearchParams(params).toString()),
   updatePgto:    (tipo, id, data) => patch(`/finance/contas-a-receber/${tipo}/${id}`, data),
   resumoAluno:   (params={}) => get('/finance/resumo-aluno?' + new URLSearchParams(params).toString()),
-  emailAluno:    (data)      => post('/finance/resumo-aluno/email', data),
-  clientesFinanceiros: ()    => get('/finance/clientes'),
-};
+  emailAluno:    (data)      => post('/finance/resumo-aluno/email', data)

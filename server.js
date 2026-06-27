@@ -179,6 +179,7 @@ async function runMigrations() {
     `ALTER TABLE bar_vendas        ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`,
     `ALTER TABLE manutencao_vendas ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`,
     `ALTER TABLE planos_aula       ADD COLUMN IF NOT EXISTS tipo       TEXT DEFAULT 'mensal'`,
+    `ALTER TABLE crm_users         ADD COLUMN IF NOT EXISTS ativo      BOOLEAN DEFAULT TRUE`,
     `CREATE TABLE IF NOT EXISTS expenses (
       id          SERIAL PRIMARY KEY,
       est_id      INTEGER REFERENCES establishments(id) ON DELETE SET NULL,
@@ -263,7 +264,4 @@ runMigrations().then(() => {
   app.listen(PORT, () => {
     console.log(`✅ Servidor rodando na porta ${PORT}`);
   });
-}).catch((err) => {
-  console.error('❌ Falha crítica nas migrações:', err);
-  process.exit(1);
-});
+}).catch((

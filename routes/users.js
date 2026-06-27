@@ -9,7 +9,8 @@ router.get('/', auth, adminOrManager, async (req, res) => {
     const { rows } = await pool.query(`
       SELECT cu.id, cu.name, cu.email, cu.role, cu.est_id,
              COALESCE(cu.est_ids, '{}') AS est_ids,
-             e.name AS est_name, cu.created_at
+             e.name AS est_name, cu.created_at,
+             COALESCE(cu.ativo, TRUE) AS ativo
       FROM crm_users cu
       LEFT JOIN establishments e ON cu.est_id = e.id
       ORDER BY cu.name
@@ -60,7 +61,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 // PUT /api/crm-users/:id
 router.put('/:id', auth, adminOnly, async (req, res) => {
   const { name, email, password, role, est_id, est_ids } = req.body;
-  if (!['admin', 'manager', 'simples'].includes(role))
+  if (!['admin', 'manager', 'simples', 'profissional'].includes(role))
     return res.status(400).json({ error: 'Role invalido' });
   // Gerente pode ter lista vazia (criado antes de ter estabelecimento)
   if (role === 'simples' && !est_id)
@@ -91,16 +92,11 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
   }
 });
 
-// DELETE /api/crm-users/:id
-router.delete('/:id', auth, adminOnly, async (req, res) => {
+// PATCH /api/crm-users/:id/suspend  — toggle ativo
+router.patch('/:id/suspend', auth, adminOnly, async (req, res) => {
   try {
     if (Number(req.params.id) === req.user.id)
-      return res.status(400).json({ error: 'Voce nao pode excluir sua propria conta' });
-    await pool.query('DELETE FROM crm_users WHERE id=$1', [req.params.id]);
-    res.json({ message: 'Usuario excluido' });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao excluir usuario' });
-  }
-});
-
-module.exports = router;
+      return res.status(400).json({ error: 'Voce nao pode suspender sua propria conta' });
+    const { rows } = await pool.query(
+      `UPDATE crm_users SET ativo = NOT COALESCE(ativo, TRUE)
+       WHERE id=$1 RETURNING id, ativo`,
