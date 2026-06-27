@@ -276,19 +276,30 @@ router.patch('/contas-a-receber/:tipo/:id', auth, adminOrManager, async (req, re
 
 // ── GET /api/finance/clientes — nomes únicos de clientes financeiros ─
 router.get('/clientes', auth, crmOnly, async (req, res) => {
+  // Monta cláusula de escopo por estabelecimento
+  const scopeParams = [];
+  let scopeSql = '';
+  if (req.user.role === 'manager' && req.user.est_ids?.length) {
+    scopeParams.push(req.user.est_ids);
+    scopeSql = `AND est_id = ANY($${scopeParams.length})`;
+  } else if (req.user.role === 'simples' && req.user.est_id) {
+    scopeParams.push(req.user.est_id);
+    scopeSql = `AND est_id = $${scopeParams.length}`;
+  }
+
   try {
     const { rows } = await pool.query(`
       SELECT DISTINCT TRIM(nome) AS nome FROM (
-        SELECT nome_aluno  AS nome FROM planos_aula      WHERE nome_aluno  IS NOT NULL AND nome_aluno  <> ''
+        SELECT nome_aluno   AS nome FROM planos_aula        WHERE nome_aluno   IS NOT NULL AND nome_aluno   <> '' ${scopeSql}
         UNION
-        SELECT client_name AS nome FROM reservations     WHERE client_name IS NOT NULL AND client_name <> ''
+        SELECT client_name  AS nome FROM reservations       WHERE client_name  IS NOT NULL AND client_name  <> '' ${scopeSql}
         UNION
-        SELECT cliente_nome AS nome FROM bar_vendas      WHERE cliente_nome IS NOT NULL AND cliente_nome <> ''
+        SELECT cliente_nome AS nome FROM bar_vendas         WHERE cliente_nome IS NOT NULL AND cliente_nome <> '' ${scopeSql}
         UNION
-        SELECT cliente_nome AS nome FROM manutencao_vendas WHERE cliente_nome IS NOT NULL AND cliente_nome <> ''
+        SELECT cliente_nome AS nome FROM manutencao_vendas  WHERE cliente_nome IS NOT NULL AND cliente_nome <> '' ${scopeSql}
       ) t
       ORDER BY nome
-    `);
+    `, scopeParams);
     res.json(rows.map(r => r.nome));
   } catch (err) {
     console.error('[GET /finance/clientes]', err);
