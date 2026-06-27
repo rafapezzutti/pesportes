@@ -246,4 +246,6 @@ export const contasApi = {
   list:          (params={}) => get('/finance/contas-a-receber?' + new URLSearchParams(params).toString()),
   updatePgto:    (tipo, id, data) => patch(`/finance/contas-a-receber/${tipo}/${id}`, data),
   resumoAluno:   (params={}) => get('/finance/resumo-aluno?' + new URLSearchParams(params).toString()),
-  emailAluno:    (data)      => post('/finance/resumo-aluno/email', data)
+  emailAluno:    (data)      => post('/finance/resumo-aluno/email', data),
+  clientesFinanceiros: ()    => get('/finance/clientes'),
+};
