@@ -432,4 +432,22 @@ router.post('/resumo-aluno/email', auth, adminOrManager, async (req, res) => {
             Total Geral: ${fmtMoney(resumo.totais?.geral || 0)}</p>
         </div>
         <p style="font-size:12px;color:#9ca3af;margin-top:24px">
-          Dúvidas? Fale conosco:
+          Dúvidas? Fale conosco: 11 92044-2015 | rafael.pezzutti@psolucoes-ia.com</p>
+      </div>
+    </div>`;
+
+  try {
+    await resend.emails.send({
+      from: 'P. Soluções Esportes <noreply@pesportes.ia.br>',
+      to: aluno_email,
+      subject: `Resumo financeiro — ${mesLabel} | P. Soluções`,
+      html,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[POST /finance/resumo-aluno/email]', err);
+    res.status(500).json({ error: 'Erro ao enviar email' });
+  }
+});
+
+module.exports = router;
