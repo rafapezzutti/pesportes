@@ -349,7 +349,7 @@ function MyReservations({publicUser,navigate,showToast}){
   },[reschRes,newDate]);
 
   const now=new Date();
-  const resDateTime=(r)=>new Date(`${typeof r.date==='string'?r.date:r.date.toISOString().split('T')[0]}T${(r.end_time||'23:59').slice(0,5)}`);
+  const resDateTime=(r)=>{const d=typeof r.date==='string'?r.date.split('T')[0]:r.date.toISOString().split('T')[0];return new Date(`${d}T${(r.end_time||'23:59').slice(0,5)}`);}
   const upcoming=reservations.filter(r=>r.status==='confirmed'&&resDateTime(r)>now);
   const past=reservations.filter(r=>r.status!=='confirmed'||resDateTime(r)<=now);
 
