@@ -276,4 +276,15 @@ router.patch('/:id', auth, crmOnly, async (req, res) => {
   }
 });
 
+// DELETE /api/reservations/:id — admin/gerente apenas
+router.delete('/:id', auth, crmOnly, async (req, res) => {
+  try {
+    const { rowCount } = await pool.query('DELETE FROM reservations WHERE id=$1', [req.params.id]);
+    if (!rowCount) return res.status(404).json({ error: 'Reserva não encontrada' });
+    res.json({ message: 'Reserva excluída' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao excluir reserva' });
+  }
+});
+
 module.exports = router;

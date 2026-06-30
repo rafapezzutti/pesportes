@@ -357,6 +357,11 @@ function MyReservations({publicUser,navigate,showToast}){
     try{await resApi.cancel(id);showToast('Reserva cancelada. Email enviado.','info');load();}
     catch(e){showToast(e.message,'error');}
   };
+  const handleDelete=async(id)=>{
+    if(!window.confirm('Excluir esta reserva permanentemente?'))return;
+    try{await resApi.remove(id);showToast('Reserva excluída','info');load();}
+    catch(e){showToast(e.message,'error');}
+  };
 
   const toggleRSlot=(s)=>{
     if(!s.available)return;
@@ -1586,10 +1591,11 @@ function CRMReservations({showToast,crmUser}){
               <p>💰 {fmt$(r.total)} {r.payment_method?`• ${PAY_LABEL[r.payment_method]||r.payment_method}`:''}</p>
             </div>
           </div>
-          {r.status==='confirmed'&&<div className="flex gap-2 shrink-0">
-            <Btn variant="secondary" size="sm" onClick={()=>{setReschRes(r);setNewDate('');setNewSlots([]);}}>Remarcar</Btn>
-            <Btn variant="danger" size="sm" onClick={()=>handleCancel(r.id)}>Cancelar</Btn>
-          </div>}
+          <div className="flex gap-2 shrink-0 flex-wrap">
+            {r.status==='confirmed'&&<><Btn variant="secondary" size="sm" onClick={()=>{setReschRes(r);setNewDate('');setNewSlots([]);}}>Remarcar</Btn>
+            <Btn variant="danger" size="sm" onClick={()=>handleCancel(r.id)}>Cancelar</Btn></>}
+            <Btn variant="danger" size="sm" onClick={()=>handleDelete(r.id)}>Excluir</Btn>
+          </div>
         </div>
       </div>)}
     </div>}
