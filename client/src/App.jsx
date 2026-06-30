@@ -3402,20 +3402,16 @@ export default function App(){
     setPublicUser(null);
   };
 
-  const handleReserve=(pt,date,slots,estId)=>{
-    if(!publicUser){setPendRes({pt,date,slots,estId});setShowAuth(true);return;}
-    setConfRes({pt,date,slots,estId});
+  const handleReserve=(res)=>{
+    if(!publicUser){setPendRes(res);setShowAuth(true);return;}
+    setConfRes(res);
   };
   const confirmReserve=async()=>{
     if(!confRes||confLoading)return;
     setConfLoading(true);
     try{
-      const{pt,date,slots,estId}=confRes;
-      const start=slots[0];const end=slots[slots.length-1];
-      const[sh,sm]=start.split(':').map(Number);const[eh,em]=end.split(':').map(Number);
-      const endTime=`${String(eh+(em===30?0:1)).padStart(2,'0')}:${em===30?'00':'30'}`;
-      const hours=slots.length*0.5;
-      await resApi.create({point_id:pt.id,est_id:estId,date,start_time:start,end_time:endTime,hours,total:pt.price_per_hour*hours});
+      const{pt,est,date,startT,endT,hours,total}=confRes;
+      await resApi.create({point_id:pt.id,est_id:est?.id||pt.est_id,date,start_time:startT,end_time:endT,hours,total});
       showToast('Reserva solicitada! Aguarde confirmação.','success');
       setConfRes(null);loadMkt();
     }catch(e){showToast(e.message||'Erro ao reservar','error');}
@@ -3470,8 +3466,8 @@ export default function App(){
         <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
           <p className="font-semibold text-gray-800">{confRes.pt.name}</p>
           <p className="text-gray-500">Data: {fmtDate(confRes.date)}</p>
-          <p className="text-gray-500">Horário: {confRes.slots[0]} – {(()=>{const s=confRes.slots[confRes.slots.length-1];const[h,m]=s.split(':').map(Number);return`${String(h+(m===30?0:1)).padStart(2,'0')}:${m===30?'00':'30'}`;})()}</p>
-          <p className="font-bold text-emerald-700 pt-1">Total: {fmt$(confRes.pt.price_per_hour*confRes.slots.length*0.5)}</p>
+          <p className="text-gray-500">Horário: {confRes.startT} – {confRes.endT}</p>
+          <p className="font-bold text-emerald-700 pt-1">Total: {fmt$(confRes.total)}</p>
         </div>
         <div className="flex gap-3">
           <Btn variant="secondary" className="flex-1" onClick={()=>setConfRes(null)}>Cancelar</Btn>

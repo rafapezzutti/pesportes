@@ -180,6 +180,17 @@ async function runMigrations() {
     `ALTER TABLE manutencao_vendas ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`,
     `ALTER TABLE planos_aula       ADD COLUMN IF NOT EXISTS tipo       TEXT DEFAULT 'mensal'`,
     `ALTER TABLE crm_users         ADD COLUMN IF NOT EXISTS ativo      BOOLEAN DEFAULT TRUE`,
+    `CREATE TABLE IF NOT EXISTS reviews (
+      id          SERIAL PRIMARY KEY,
+      target_type TEXT NOT NULL,
+      target_id   INTEGER NOT NULL,
+      user_id     INTEGER REFERENCES public_users(id) ON DELETE CASCADE,
+      user_name   TEXT,
+      nota        INTEGER NOT NULL CHECK (nota BETWEEN 1 AND 5),
+      comentario  TEXT,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (target_type, target_id, user_id)
+    )`,
     `CREATE TABLE IF NOT EXISTS expenses (
       id          SERIAL PRIMARY KEY,
       est_id      INTEGER REFERENCES establishments(id) ON DELETE SET NULL,
@@ -256,15 +267,15 @@ async function runMigrations() {
       console.warn('[migrate]', e.message.split('\n')[0])
     );
   }
-  console.log('✅ Migrações automáticas aplicadas');
+  console.log('\u2705 Migra\u00e7\u00f5es autom\u00e1ticas aplicadas');
 }
 
-// ── Start ────────────────────────────────────────────────────────
+// \u2500\u2500 Start \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 runMigrations().then(() => {
   app.listen(PORT, () => {
-    console.log(`✅ Servidor rodando na porta ${PORT}`);
+    console.log(`\u2705 Servidor rodando na porta ${PORT}`);
   });
 }).catch((err) => {
-  console.error('❌ Falha crítica nas migrações:', err);
+  console.error('\u274c Falha cr\u00edtica nas migra\u00e7\u00f5es:', err);
   process.exit(1);
 });
