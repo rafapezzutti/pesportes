@@ -3342,7 +3342,7 @@ function CRMWhatsApp({showToast}){
         </div>
       </div>
 
-      {status?.error&&<div className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">Erro: {status.error}</div>}
+      {status?.error&&status.error!=='Not Found'&&<div className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">Erro: {status.error}</div>}
 
       {status?.connected
         ?<div>
