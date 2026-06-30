@@ -27,49 +27,65 @@ function fmt$(v) {
 
 function baseTemplate(title, body) {
   return `
-<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
   body { font-family: Arial, sans-serif; background: #f5f5f5; margin:0; padding:20px; }
-  .box { max-width:560px; margin:auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,.08); }
-  .header { background: linear-gradient(135deg,#059669,#047857); padding:24px; text-align:center; }
-  .header h1 { color:#fff; margin:0; font-size:20px; }
-  .header p  { color:#a7f3d0; margin:4px 0 0; font-size:13px; }
-  .body { padding:28px; }
-  .row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f0f0; font-size:14px; }
-  .row:last-child { border:none; }
-  .label { color:#6b7280; }
-  .value { font-weight:600; color:#111827; text-align:right; }
-  .total { background:#f0fdf4; border-radius:8px; padding:12px 16px; margin:16px 0; display:flex; justify-content:space-between; }
-  .total .label { color:#065f46; font-weight:700; }
-  .total .value { color:#059669; font-size:18px; font-weight:800; }
-  .alert { background:#fffbeb; border-left:4px solid #f59e0b; padding:12px 16px; border-radius:4px; font-size:13px; color:#92400e; margin:16px 0; }
-  .footer { padding:16px 28px; background:#f9fafb; text-align:center; font-size:12px; color:#9ca3af; }
   .btn { display:inline-block; background:#059669; color:#fff !important; text-decoration:none; padding:12px 28px; border-radius:8px; font-weight:700; margin:16px 0; }
-</style></head><body>
-<div class="box">
-  <div class="header">
-    <h1>P. Soluções Esportes &amp; Reservas</h1>
-    <p>pesportes.ia.br</p>
-  </div>
-  <div class="body">
-    <h2 style="margin-top:0;color:#111827">${title}</h2>
-    ${body}
-  </div>
-  <div class="footer">© P. Soluções para Esportes &amp; Reservas · pesportes.ia.br</div>
-</div>
+</style>
+</head>
+<body>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:20px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+      <!-- header -->
+      <tr><td style="background:linear-gradient(135deg,#059669,#047857);padding:24px;text-align:center;">
+        <h1 style="color:#fff;margin:0;font-size:20px;">P. Soluções Esportes &amp; Reservas</h1>
+        <p style="color:#a7f3d0;margin:4px 0 0;font-size:13px;">pesportes.ia.br</p>
+      </td></tr>
+      <!-- body -->
+      <tr><td style="padding:28px;">
+        <h2 style="margin:0 0 20px;color:#111827;">${title}</h2>
+        ${body}
+      </td></tr>
+      <!-- footer -->
+      <tr><td style="padding:16px 28px;background:#f9fafb;text-align:center;font-size:12px;color:#9ca3af;">
+        © P. Soluções para Esportes &amp; Reservas · pesportes.ia.br
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
 </body></html>`;
 }
 
 function reservationRows(res) {
+  const date = typeof res.date === 'string' ? res.date : res.date.toISOString().split('T')[0];
+  const row = (label, value) => `
+    <tr>
+      <td style="padding:9px 0;border-bottom:1px solid #f0f0f0;font-size:14px;color:#6b7280;width:40%;vertical-align:top;">${label}</td>
+      <td style="padding:9px 0 9px 12px;border-bottom:1px solid #f0f0f0;font-size:14px;font-weight:600;color:#111827;text-align:right;">${value}</td>
+    </tr>`;
   return `
-    <div class="row"><span class="label">Estabelecimento</span><span class="value">${res.est_name}</span></div>
-    <div class="row"><span class="label">Espaço</span><span class="value">${res.point_name}</span></div>
-    <div class="row"><span class="label">Data</span><span class="value">${fmtDate(typeof res.date === 'string' ? res.date : res.date.toISOString().split('T')[0])}</span></div>
-    <div class="row"><span class="label">Horário</span><span class="value">${res.start_time} – ${res.end_time}</span></div>
-    <div class="row"><span class="label">Endereço</span><span class="value">${res.street}, ${res.est_number} · ${res.city}/${res.state}</span></div>
-    <div class="row"><span class="label">Telefone</span><span class="value">${res.est_phone || '—'}</span></div>
-    <div class="total"><span class="label">Valor total</span><span class="value">${fmt$(res.total)}</span></div>
-    <div class="alert">💳 Pagamento efetuado <strong>exclusivamente no local</strong> do estabelecimento.</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:16px;">
+      ${row('Estabelecimento', res.est_name)}
+      ${row('Espaço', res.point_name)}
+      ${row('Data', fmtDate(date))}
+      ${row('Horário', `${res.start_time} – ${res.end_time}`)}
+      ${row('Endereço', `${res.street}, ${res.est_number} · ${res.city}/${res.state}`)}
+      ${row('Telefone', res.est_phone || '—')}
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border-radius:8px;margin-bottom:16px;">
+      <tr>
+        <td style="padding:12px 16px;color:#065f46;font-weight:700;font-size:14px;">Valor total</td>
+        <td style="padding:12px 16px;color:#059669;font-size:18px;font-weight:800;text-align:right;">${fmt$(res.total)}</td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:4px;margin-bottom:16px;">
+      <tr><td style="padding:12px 16px;font-size:13px;color:#92400e;">
+        💳 Pagamento efetuado <strong>exclusivamente no local</strong> do estabelecimento.
+      </td></tr>
+    </table>
   `;
 }
 
