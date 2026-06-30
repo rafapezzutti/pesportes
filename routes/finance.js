@@ -450,4 +450,48 @@ router.post('/resumo-aluno/email', auth, adminOrManager, async (req, res) => {
   }
 });
 
+// ── POST /api/finance/resumo-aluno/whatsapp ──────────────────────
+router.post('/resumo-aluno/whatsapp', auth, adminOrManager, async (req, res) => {
+  const { aluno_nome, mes, resumo = {}, telefone: telefoneManual } = req.body;
+  if (!aluno_nome) return res.status(400).json({ error: 'aluno_nome é obrigatório' });
+
+  // Busca telefone no cadastro do aluno (se não for passado manualmente)
+  let telefone = telefoneManual;
+  if (!telefone) {
+    const { rows } = await pool.query(
+      `SELECT telefone FROM alunos WHERE TRIM(nome) ILIKE TRIM($1) LIMIT 1`, [aluno_nome]
+    ).catch(() => ({ rows: [] }));
+    telefone = rows[0]?.telefone;
+  }
+  if (!telefone) return res.status(400).json({ error: 'Aluno sem telefone cadastrado' });
+
+  const wa = require('../services/whatsapp');
+  const fmtMoney = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const mesLabel = new Date(`${mes}-15`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  const totais = resumo.totais || {};
+  const linhas = [];
+
+  if (totais.aulas > 0)     linhas.push(`📚 Aulas/Planos: ${fmtMoney(totais.aulas)}`);
+  if (totais.reservas > 0)  linhas.push(`📅 Reservas: ${fmtMoney(totais.reservas)}`);
+  if (totais.bar > 0)       linhas.push(`🍺 Bar: ${fmtMoney(totais.bar)}`);
+  if (totais.manutencao > 0) linhas.push(`🛒 Loja & Equip.: ${fmtMoney(totais.manutencao)}`);
+
+  const mensagem =
+    `Olá, *${aluno_nome}*! 👋\n\n` +
+    `Segue seu resumo financeiro de *${mesLabel}*:\n\n` +
+    linhas.join('\n') +
+    `\n\n💰 *Total: ${fmtMoney(totais.geral || 0)}*\n\n` +
+    `Dúvidas? Estamos à disposição! 🏃`;
+
+  try {
+    const result = await wa.sendText(telefone, mensagem);
+    res.json({ ok: true, messageId: result.messageId, number: result.number });
+  } catch (err) {
+    console.error('[POST /finance/resumo-aluno/whatsapp]', err);
+    res.status(500).json({ error: err.message || 'Erro ao enviar WhatsApp' });
+  }
+});
+
 module.exports = router;
+

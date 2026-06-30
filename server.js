@@ -77,6 +77,7 @@ app.use('/api/employees',        require('./routes/employees'));
 app.use('/api/ponto',            require('./routes/ponto'));
 app.use('/api/alunos',                require('./routes/alunos'));
 app.use('/api/recurring-reservations', require('./routes/recurring-reservations'));
+app.use('/api/whatsapp',              require('./routes/whatsapp'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));

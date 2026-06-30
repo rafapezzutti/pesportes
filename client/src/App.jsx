@@ -4,7 +4,7 @@ import {
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
   employeeApi, pontoApi, alunoApi, contasApi, impersonateApi, recurringApi,
-  downloadReport, saveToken, clearToken,
+  whatsappApi, downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -471,6 +471,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
     {label:'Administração', items:[
       {key:'crm-users',          label:'Usuários',  icon:'👥',roles:['admin','manager']},
       {key:'crm-audit',          label:'Auditoria', icon:'🛡️',roles:['admin']},
+      {key:'crm-whatsapp',       label:'WhatsApp',  icon:'💬',roles:['admin','manager']},
     ]},
     {label:'Profissional', items:[
       {key:'prof-perfil',        label:'Meu Perfil',  icon:'👤',roles:['profissional']},
@@ -2680,6 +2681,7 @@ function CRMFinanceiro({crmUser,showToast}){
   const [resumo,setResumo]=useState(null);
   const [resumoLoading,setResumoLoading]=useState(false);
   const [emailSending,setEmailSending]=useState(false);
+  const [waSending,setWaSending]=useState(false);
 
   const CF_EMPTY={receitas:{reservas:{total:0,count:0},bar:{total:0,count:0},manutencao:{total:0,count:0},planos:{total:0,count:0},total:0},despesas:{total:0,count:0},saldo:0};
   const [cfLoading,setCfLoading]=useState(false);
@@ -2962,6 +2964,12 @@ function CRMFinanceiro({crmUser,showToast}){
                 catch(e){showToast&&showToast(e.message||'Erro ao enviar','error');}
                 finally{setEmailSending(false);}
               }}>{emailSending?'Enviando...':'📧 Enviar por Email'}</Btn>
+              <Btn variant="secondary" size="sm" disabled={waSending} onClick={async()=>{
+                setWaSending(true);
+                try{await contasApi.whatsappAluno({aluno_nome:resumo.aluno_nome,mes:selMes,resumo});showToast&&showToast('WhatsApp enviado!','success');}
+                catch(e){showToast&&showToast(e.message||'Erro ao enviar WhatsApp','error');}
+                finally{setWaSending(false);}
+              }}>{waSending?'Enviando...':'💬 Enviar por WhatsApp'}</Btn>
             </div>
           </div>
 
@@ -3262,6 +3270,111 @@ function CRMAudit({showToast}){
   </div>;
 }
 
+// ================================================================
+// CRM WHATSAPP — conexão via QR Code (Evolution API)
+// ================================================================
+function CRMWhatsApp({showToast}){
+  const [status,setStatus]=useState(null);
+  const [qrcode,setQrcode]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [qrLoading,setQrLoading]=useState(false);
+  const [disconnecting,setDisconnecting]=useState(false);
+
+  const checkStatus=useCallback(async()=>{
+    try{
+      const s=await whatsappApi.status();
+      setStatus(s);
+      if(s.connected)setQrcode(null);
+    }catch(e){setStatus({connected:false,state:'close',error:e.message});}
+    finally{setLoading(false);}
+  },[]);
+
+  useEffect(()=>{checkStatus();},[checkStatus]);
+
+  // Polling a cada 4s enquanto não conectado e tiver QR
+  useEffect(()=>{
+    if(!qrcode&&!status?.connected)return;
+    if(status?.connected)return;
+    const t=setInterval(()=>{checkStatus();},4000);
+    return()=>clearInterval(t);
+  },[qrcode,status,checkStatus]);
+
+  const handleConnect=async()=>{
+    setQrLoading(true);setQrcode(null);
+    try{
+      const r=await whatsappApi.qrcode();
+      if(r.connected){setStatus(s=>({...s,connected:true}));showToast&&showToast('WhatsApp já conectado!','success');}
+      else if(r.qrcode){setQrcode(r.qrcode);}
+      else{showToast&&showToast('Não foi possível gerar QR Code','error');}
+    }catch(e){showToast&&showToast(e.message||'Erro ao gerar QR Code','error');}
+    finally{setQrLoading(false);}
+  };
+
+  const handleDisconnect=async()=>{
+    if(!confirm('Desconectar o WhatsApp?'))return;
+    setDisconnecting(true);
+    try{await whatsappApi.disconnect();setStatus(s=>({...s,connected:false,state:'close'}));setQrcode(null);showToast&&showToast('WhatsApp desconectado','success');}
+    catch(e){showToast&&showToast(e.message||'Erro ao desconectar','error');}
+    finally{setDisconnecting(false);}
+  };
+
+  const stateLabel={open:'✅ Conectado',close:'⭕ Desconectado',connecting:'🔄 Conectando...'};
+
+  return<div className="p-6 max-w-xl">
+    <div className="mb-6">
+      <h1 className="text-2xl font-black text-gray-900">WhatsApp</h1>
+      <p className="text-sm text-gray-400">Conecte o WhatsApp do estabelecimento para enviar resumos financeiros aos alunos</p>
+    </div>
+
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div className="flex items-center gap-4 mb-5">
+        <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-2xl">💬</div>
+        <div>
+          <p className="font-bold text-gray-800">Status da conexão</p>
+          {loading
+            ?<p className="text-sm text-gray-400">Verificando...</p>
+            :<p className={`text-sm font-semibold ${status?.connected?'text-green-600':'text-gray-500'}`}>
+              {stateLabel[status?.state]||status?.state||'Desconhecido'}
+            </p>}
+        </div>
+        <div className="ml-auto">
+          <Btn variant="secondary" size="sm" onClick={checkStatus} disabled={loading}>↻ Atualizar</Btn>
+        </div>
+      </div>
+
+      {status?.error&&<div className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">Erro: {status.error}</div>}
+
+      {status?.connected
+        ?<div>
+          <div className="bg-green-50 rounded-xl p-4 mb-4 text-center">
+            <p className="text-green-700 font-semibold">✅ WhatsApp conectado com sucesso!</p>
+            <p className="text-green-600 text-sm mt-1">Você já pode enviar resumos financeiros para os alunos pelo Financeiro → Resumo por Aluno.</p>
+          </div>
+          <Btn variant="secondary" className="w-full" disabled={disconnecting} onClick={handleDisconnect}>
+            {disconnecting?'Desconectando...':'🔌 Desconectar'}
+          </Btn>
+        </div>
+        :<div>
+          <p className="text-sm text-gray-500 mb-4">Clique em "Gerar QR Code", depois escaneie com o WhatsApp do estabelecimento em <strong>Aparelhos conectados → Conectar um aparelho</strong>.</p>
+          <Btn className="w-full mb-4" disabled={qrLoading} onClick={handleConnect}>
+            {qrLoading?'Gerando QR Code...':'📱 Gerar QR Code'}
+          </Btn>
+          {qrcode&&<div className="text-center">
+            <p className="text-xs text-gray-400 mb-3">Escaneie o QR Code com o WhatsApp do estabelecimento</p>
+            <img src={qrcode} alt="QR Code WhatsApp" className="mx-auto rounded-xl border-4 border-green-100" style={{maxWidth:260}}/>
+            <p className="text-xs text-gray-400 mt-3">O QR Code expira em ~60 segundos. Se expirar, clique em "Gerar QR Code" novamente.</p>
+            <Btn variant="secondary" size="sm" className="mt-3" onClick={handleConnect} disabled={qrLoading}>🔄 Gerar novo QR Code</Btn>
+          </div>}
+        </div>}
+    </div>
+
+    <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700">
+      <p className="font-semibold mb-1">ℹ️ Como funciona</p>
+      <p>Após conectar, acesse <strong>Financeiro → Resumo por Aluno</strong>, gere o resumo de um aluno e clique em <strong>💬 Enviar por WhatsApp</strong>. O sistema enviará automaticamente a conta para o telefone cadastrado no perfil do aluno.</p>
+    </div>
+  </div>;
+}
+
 export default function App(){
   const [view,setView]=useState('marketplace');
   const [page,setPage]=useState('mkt-home');
@@ -3453,6 +3566,7 @@ export default function App(){
     'crm-financeiro':   <CRMFinanceiro crmUser={crmUser} showToast={showToast}/>,
     'crm-estoque':      <CRMEstoque crmUser={crmUser} showToast={showToast}/>,
     'crm-audit':        <CRMAudit showToast={showToast}/>,
+    'crm-whatsapp':     <CRMWhatsApp showToast={showToast}/>,
     'prof-perfil':      <CRMProfissionalHome crmUser={crmUser} showToast={showToast}/>,
     'prof-alunos':      <CRMPlanosAula showToast={showToast}/>,
   };

@@ -248,5 +248,13 @@ export const contasApi = {
   updatePgto:    (tipo, id, data) => patch(`/finance/contas-a-receber/${tipo}/${id}`, data),
   resumoAluno:   (params={}) => get('/finance/resumo-aluno?' + new URLSearchParams(params).toString()),
   emailAluno:    (data)      => post('/finance/resumo-aluno/email', data),
+  whatsappAluno: (data)      => post('/finance/resumo-aluno/whatsapp', data),
   clientesFinanceiros: ()    => get('/finance/clientes'),
+};
+
+// ── WhatsApp (Evolution API) ──────────────────────────────────────
+export const whatsappApi = {
+  status:     ()     => get('/whatsapp/status'),
+  qrcode:     ()     => get('/whatsapp/qrcode'),
+  disconnect: ()     => post('/whatsapp/disconnect', {}),
 };
