@@ -3307,7 +3307,7 @@ export default function App(){
   // Detecta sessão expirada (401) e força logout automático
   useEffect(()=>{
     const handleExpired=()=>{
-      setCrmUser(null);setIsImpersonating(false);
+      setCrmUser(null);setIsImpersonating(false);setPublicUser(null);
       setPage('crm-login');setView('crm');
       setTimeout(()=>showToast('Sessão expirada. Faça login novamente.','error'),100);
     };
@@ -3352,15 +3352,29 @@ export default function App(){
 
   const crmLogin=async(email,pw)=>{
     const{token,user}=await authApi.crmLogin(email,pw);
+    if(localStorage.getItem('userType')==='public'){
+      localStorage.setItem('public_token_backup',localStorage.getItem('token'));
+      localStorage.setItem('public_user_backup',localStorage.getItem('user'));
+    }
     saveToken(token);localStorage.setItem('user',JSON.stringify(user));localStorage.setItem('userType','crm');
     setCrmUser(user);
     if(user.role==='profissional') navigate('prof-perfil');
     else navigate(user.role==='simples'?'crm-reservations':'crm-dashboard');
   };
   const crmLogout=()=>{
+    const pubTok=localStorage.getItem('public_token_backup');
+    const pubUsr=localStorage.getItem('public_user_backup');
     clearToken();localStorage.removeItem('user');localStorage.removeItem('userType');
     localStorage.removeItem('token_admin_backup');localStorage.removeItem('user_admin_backup');
-    setCrmUser(null);setIsImpersonating(false);navigate('mkt-home');
+    localStorage.removeItem('public_token_backup');localStorage.removeItem('public_user_backup');
+    setCrmUser(null);setIsImpersonating(false);
+    if(pubTok&&pubUsr){
+      saveToken(pubTok);localStorage.setItem('user',pubUsr);localStorage.setItem('userType','public');
+      try{setPublicUser(JSON.parse(pubUsr));}catch{}
+    } else {
+      setPublicUser(null);
+    }
+    navigate('mkt-home');
   };
   const handleImpersonate=async(userId)=>{
     try{
@@ -3477,4 +3491,4 @@ export default function App(){
       </div>}
     </Modal>
   </>;
-}
+}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
