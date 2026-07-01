@@ -461,7 +461,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
       {key:'crm-points',         label:'Pontos',           icon:'📍',roles:['admin','manager']},
       {key:'crm-professors',     label:'Professores',      icon:'🎓',roles:['admin','manager']},
       {key:'crm-profissionais-ef',label:'Profissionais EF',icon:'🏋️',roles:['admin','manager']},
-      {key:'crm-alunos',         label:'Alunos',           icon:'🎽',roles:['admin','manager','simples']},
+      {key:'crm-alunos',         label:'Alunos / Clientes', icon:'🎽',roles:['admin','manager','simples']},
     ]},
     {label:'Financeiro', items:[
       {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager']},
@@ -1983,7 +1983,7 @@ function CRMAlunos({crmUser,showToast}){
 
   return<div className="p-6 max-w-5xl">
     <div className="flex items-center justify-between mb-6">
-      <div><h1 className="text-2xl font-black text-gray-900">Alunos</h1>
+      <div><h1 className="text-2xl font-black text-gray-900">Alunos / Clientes</h1>
       <p className="text-sm text-gray-400">{alunos.length} aluno{alunos.length!==1?'s':''} cadastrado{alunos.length!==1?'s':''}</p></div>
       <Btn onClick={openNew}>+ Novo Aluno</Btn>
     </div>
@@ -3897,6 +3897,7 @@ export default function App(){
     'crm-unimidia':     <CRMUnimidia crmUser={crmUser} showToast={showToast}/>,
     'crm-funcionarios': <CRMFuncionarios crmUser={crmUser} showToast={showToast}/>,
     'crm-financeiro':   <CRMFinanceiro crmUser={crmUser} showToast={showToast}/>,
+    'crm-horarios-livres': <CRMHorariosLivres crmUser={crmUser} showToast={showToast}/>,
     'crm-estoque':      <CRMEstoque crmUser={crmUser} showToast={showToast}/>,
     'crm-audit':        <CRMAudit showToast={showToast}/>,
     'crm-whatsapp':     <CRMWhatsApp showToast={showToast}/>,
