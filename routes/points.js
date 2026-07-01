@@ -91,7 +91,7 @@ router.get('/:id/slots', async (req, res) => {
 
 // ── POST /api/points — criar (admin ou gerente do est) ──────────
 router.post('/', auth, adminOrManager, async (req, res) => {
-  const { est_id, type, name, price_per_hour, custom_hours } = req.body;
+  const { est_id, type, name, price_per_hour, price_per_hour_aluno, custom_hours } = req.body;
   if (!est_id || !type || !name || !price_per_hour)
     return res.status(400).json({ error: 'Campos obrigatórios faltando' });
   if (!managerOwnsEst(req.user, est_id))
@@ -99,9 +99,9 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO points (est_id, type, name, price_per_hour, custom_hours)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [est_id, type, name, price_per_hour, custom_hours ? JSON.stringify(custom_hours) : null]
+      `INSERT INTO points (est_id, type, name, price_per_hour, price_per_hour_aluno, custom_hours)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [est_id, type, name, price_per_hour, price_per_hour_aluno || null, custom_hours ? JSON.stringify(custom_hours) : null]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -111,7 +111,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 
 // ── PUT /api/points/:id — atualizar (admin ou gerente do est) ────
 router.put('/:id', auth, adminOrManager, async (req, res) => {
-  const { type, name, price_per_hour, custom_hours } = req.body;
+  const { type, name, price_per_hour, price_per_hour_aluno, custom_hours } = req.body;
   try {
     const { rows: cur } = await pool.query('SELECT est_id FROM points WHERE id=$1', [req.params.id]);
     if (!cur.length) return res.status(404).json({ error: 'Não encontrado' });
@@ -119,29 +119,4 @@ router.put('/:id', auth, adminOrManager, async (req, res) => {
       return res.status(403).json({ error: 'Sem acesso a este estabelecimento' });
 
     const { rows } = await pool.query(
-      `UPDATE points SET type=$1, name=$2, price_per_hour=$3, custom_hours=$4
-       WHERE id=$5 RETURNING *`,
-      [type, name, price_per_hour, custom_hours ? JSON.stringify(custom_hours) : null, req.params.id]
-    );
-    res.json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao atualizar ponto' });
-  }
-});
-
-// ── DELETE /api/points/:id — excluir (admin ou gerente do est) ───
-router.delete('/:id', auth, adminOrManager, async (req, res) => {
-  try {
-    const { rows: cur } = await pool.query('SELECT est_id FROM points WHERE id=$1', [req.params.id]);
-    if (!cur.length) return res.status(404).json({ error: 'Não encontrado' });
-    if (!managerOwnsEst(req.user, cur[0].est_id))
-      return res.status(403).json({ error: 'Sem acesso a este estabelecimento' });
-
-    await pool.query('DELETE FROM points WHERE id=$1', [req.params.id]);
-    res.json({ message: 'Ponto excluído' });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao excluir ponto' });
-  }
-});
-
-module.exports = router;
+      `UPDATE points SET type=$1, name=$2, price_per_hour=$3, price_per

@@ -263,6 +263,7 @@ async function runMigrations() {
     `CREATE INDEX IF NOT EXISTS idx_recurring_est_id ON recurring_reservations(est_id)`,
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS recurring_id INTEGER REFERENCES recurring_reservations(id) ON DELETE SET NULL`,
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS professor_id  INTEGER REFERENCES professores(id) ON DELETE SET NULL`,
+    `ALTER TABLE points ADD COLUMN IF NOT EXISTS price_per_hour_aluno NUMERIC(10,2)`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
