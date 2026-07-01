@@ -484,6 +484,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
   const roleLabel={admin:'Administrador',manager:'Gerente',simples:'Usuário Simples',profissional:'Profissional EF'};
   const [userList,setUserList]=useState([]);
   const [dropOpen,setDropOpen]=useState(false);
+  const [mobileOpen,setMobileOpen]=useState(false);
   const isRealAdmin=crmUser.role==='admin'&&!isImpersonating;
   useEffect(()=>{if(!isRealAdmin)return;impersonateApi.listUsers().then(setUserList).catch(()=>{});},[isRealAdmin]);
   return<div className="min-h-screen bg-gray-100 flex flex-col">
@@ -491,7 +492,19 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
       <span>Visualizando como <strong>{crmUser.name}</strong></span>
       <button onClick={onStopImpersonating} className="ml-4 bg-white text-amber-700 px-3 py-1 rounded-lg text-xs font-bold hover:bg-amber-50">← Voltar ao Admin</button>
     </div>}
-    <div className="flex flex-1 min-h-0"><aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-2 overflow-y-auto">{groups.map(g=><div key={g.label}><button onClick={()=>toggleGroup(g.label)} className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wide hover:text-gray-600"><span>{g.label}</span><span className="text-gray-300 text-[10px]">{isOpen(g.label)?'▾':'▸'}</span></button>{isOpen(g.label)&&<div className="space-y-0.5 mt-0.5">{g.items.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</div>}</div>)}</nav><div className="p-3 border-t border-gray-100 space-y-2">
+    <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
+      <div className="flex items-center gap-2"><div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black text-sm">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div>
+      <button onClick={()=>setMobileOpen(true)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 text-xl leading-none">☰</button>
+    </div>
+    {mobileOpen&&<div className="fixed inset-0 z-50 md:hidden flex">
+      <div className="fixed inset-0 bg-black/50" onClick={()=>setMobileOpen(false)}/>
+      <aside className="relative w-72 bg-white flex flex-col h-full shadow-2xl overflow-y-auto">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div><button onClick={()=>setMobileOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 text-lg">✕</button></div>
+        <nav className="flex-1 p-3 space-y-2 overflow-y-auto">{groups.map(g=><div key={g.label}><button onClick={()=>toggleGroup(g.label)} className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wide hover:text-gray-600"><span>{g.label}</span><span className="text-gray-300 text-[10px]">{isOpen(g.label)?'▾':'▸'}</span></button>{isOpen(g.label)&&<div className="space-y-0.5 mt-0.5">{g.items.map(m=><button key={m.key} onClick={()=>{navigate(m.key);setMobileOpen(false);}} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</div>}</div>)}</nav>
+        <div className="p-3 border-t border-gray-100 space-y-2"><div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{roleLabel[crmUser.role]||crmUser.role}</p></div><Btn variant="ghost" size="sm" onClick={()=>{onLogout();setMobileOpen(false);}} className="w-full text-gray-500">Sair do CRM</Btn></div>
+      </aside>
+    </div>}
+    <div className="flex flex-1 min-h-0"><aside className="hidden md:flex w-56 bg-white border-r border-gray-200 flex-col shrink-0"><div className="p-4 border-b border-gray-100"><div className="flex items-center gap-2.5"><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center"><span className="text-white font-black">P</span></div><div><p className="text-xs font-black text-gray-800 leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">CRM</p></div></div></div><nav className="flex-1 p-3 space-y-2 overflow-y-auto">{groups.map(g=><div key={g.label}><button onClick={()=>toggleGroup(g.label)} className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wide hover:text-gray-600"><span>{g.label}</span><span className="text-gray-300 text-[10px]">{isOpen(g.label)?'▾':'▸'}</span></button>{isOpen(g.label)&&<div className="space-y-0.5 mt-0.5">{g.items.map(m=><button key={m.key} onClick={()=>navigate(m.key)} className={`sidebar-item w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium ${page===m.key?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:bg-gray-50'}`}><span className="text-base">{m.icon}</span>{m.label}</button>)}</div>}</div>)}</nav><div className="p-3 border-t border-gray-100 space-y-2">
       {isRealAdmin&&<div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-1 mb-1">Entrar como cliente</p><div className="relative"><button onClick={()=>setDropOpen(p=>!p)} className="w-full flex items-center justify-between px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl hover:border-emerald-400 transition-colors"><span className="text-gray-500 truncate">Selecionar usuário…</span><span className="text-gray-400 ml-1">{dropOpen?'▴':'▾'}</span></button>{dropOpen&&userList.length>0&&<div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto">{userList.map(u=><button key={u.id} onClick={()=>{setDropOpen(false);onImpersonate(u.id);}} className="w-full text-left px-3 py-2.5 hover:bg-emerald-50 transition-colors border-b border-gray-50 last:border-0"><p className="text-xs font-semibold text-gray-800 truncate">{u.name}</p><p className="text-[10px] text-gray-400 truncate">{u.est_name||u.role}</p></button>)}</div>}</div></div>}
       <div className="px-3 py-2"><p className="text-xs font-semibold text-gray-700 truncate">{crmUser.name}</p><p className="text-xs text-gray-400">{roleLabel[crmUser.role]||crmUser.role}</p></div><Btn variant="ghost" size="sm" onClick={onLogout} className="w-full text-gray-500">Sair do CRM</Btn></div></aside><main className="flex-1 overflow-auto">{children}</main></div></div>;
 }
@@ -2985,7 +2998,7 @@ function CRMFinanceiro({crmUser,showToast}){
           {/* aulas */}
           {resumo.aulas.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
             <div className="px-4 py-3 bg-purple-50 border-b border-purple-100"><h3 className="font-bold text-purple-700 text-sm">📚 Aulas / Planos ({resumo.aulas.length})</h3></div>
-            <table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
+            <div className="overflow-x-auto"><table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
               {resumo.aulas.map(a=><tr key={a.id} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-gray-600">{a.tipo||'Aula'}</td>
                 <td className="px-4 py-2.5 text-gray-500">{a.data?fmtDate(a.data.split('T')[0]):'—'}</td>
@@ -2993,13 +3006,13 @@ function CRMFinanceiro({crmUser,showToast}){
                 <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(a.total)}</td>
                 <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[a.status_pgto||'pendente']}`}>{a.status_pgto||'pendente'}</span></td>
               </tr>)}
-            </tbody></table>
+            </tbody></table></div>
           </div>}
 
           {/* reservas */}
           {resumo.reservas.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
             <div className="px-4 py-3 bg-blue-50 border-b border-blue-100"><h3 className="font-bold text-blue-700 text-sm">📅 Reservas ({resumo.reservas.length})</h3></div>
-            <table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
+            <div className="overflow-x-auto"><table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
               {resumo.reservas.map(r=><tr key={r.id} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-gray-600">{r.ponto_name||'Reserva'}</td>
                 <td className="px-4 py-2.5 text-gray-500">{r.data?fmtDate(r.data.split('T')[0]):'—'} {r.start_time&&`${r.start_time}–${r.end_time}`}</td>
@@ -3007,13 +3020,13 @@ function CRMFinanceiro({crmUser,showToast}){
                 <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(r.total)}</td>
                 <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[r.status_pgto||'pendente']}`}>{r.status_pgto||'pendente'}</span></td>
               </tr>)}
-            </tbody></table>
+            </tbody></table></div>
           </div>}
 
           {/* bar */}
           {resumo.bar.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
             <div className="px-4 py-3 bg-amber-50 border-b border-amber-100"><h3 className="font-bold text-amber-700 text-sm">🍺 Consumo Bar ({resumo.bar.length})</h3></div>
-            <table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
+            <div className="overflow-x-auto"><table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
               {resumo.bar.map(b=><tr key={b.id} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-gray-600 text-xs">{(b.itens||[]).map(i=>`${i.nome} ×${i.quantidade}`).join(', ')||'—'}</td>
                 <td className="px-4 py-2.5 text-gray-500">{b.data?fmtDate(b.data.split('T')[0]):'—'}</td>
@@ -3021,13 +3034,13 @@ function CRMFinanceiro({crmUser,showToast}){
                 <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(b.total)}</td>
                 <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[b.status_pgto||'pendente']}`}>{b.status_pgto||'pendente'}</span></td>
               </tr>)}
-            </tbody></table>
+            </tbody></table></div>
           </div>}
 
           {/* manutenção */}
           {resumo.manutencao?.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200"><h3 className="font-bold text-gray-700 text-sm">🛒 Loja & Equipamentos ({resumo.manutencao.length})</h3></div>
-            <table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
+            <div className="overflow-x-auto"><table className="w-full text-sm"><tbody className="divide-y divide-gray-50">
               {resumo.manutencao.map(m=><tr key={m.id} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-gray-600 text-xs">{(m.itens||[]).map(i=>`${i.nome} ×${i.quantidade}`).join(', ')||'—'}</td>
                 <td className="px-4 py-2.5 text-gray-500">{m.data?fmtDate(m.data.split('T')[0]):'—'}</td>
@@ -3035,7 +3048,7 @@ function CRMFinanceiro({crmUser,showToast}){
                 <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(m.total)}</td>
                 <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[m.status_pgto||'pendente']}`}>{m.status_pgto||'pendente'}</span></td>
               </tr>)}
-            </tbody></table>
+            </tbody></table></div>
           </div>}
 
           {resumo.aulas.length===0&&resumo.reservas.length===0&&resumo.bar.length===0&&!(resumo.manutencao?.length>0)&&
