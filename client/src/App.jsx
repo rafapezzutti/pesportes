@@ -1643,12 +1643,6 @@ function CRMReservations({showToast,crmUser}){
             <span>Aluno é do Professor</span>
           </label>
         </div>
-        {mb.alunoDoProf&&<Field label="Professor responsável" required>
-          <Sel value={mb.professorId} onChange={e=>updMb('professorId',e.target.value)}
-            options={mbProfessores.filter(p=>p.ativo!==false).map(p=>({value:p.id,label:`${p.nome}${p.percentual_repasse?` (academia ${p.percentual_repasse}%)`:''}`}))}
-            placeholder={mb.estId?'Selecione o professor...':'Selecione o estabelecimento primeiro'}
-            disabled={!mb.estId}/>
-        </Field>}
         <div className="grid grid-cols-2 gap-3">
           {mbVisitante?(
             <Field label="Nome (opcional)">
@@ -1677,6 +1671,12 @@ function CRMReservations({showToast,crmUser}){
         <Field label="Estabelecimento" required>
           <Sel value={mb.estId} onChange={e=>updMb('estId',e.target.value)} options={mbEsts.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>
         </Field>
+        {mb.alunoDoProf&&<Field label="Professor responsável" required>
+          <Sel value={mb.professorId} onChange={e=>updMb('professorId',e.target.value)}
+            options={mbProfessores.filter(p=>p.ativo!==false).map(p=>({value:p.id,label:`${p.nome}${p.percentual_repasse?` (academia ${p.percentual_repasse}%)`:''}`}))}
+            placeholder={mb.estId?'Selecione o professor...':'Selecione o estabelecimento primeiro'}
+            disabled={!mb.estId}/>
+        </Field>}
         <Field label="Ponto / Espaço">
           <Sel value={mb.pointId} onChange={e=>updMb('pointId',e.target.value)} options={mbPoints.map(p=>({value:p.id,label:p.name}))} placeholder={mb.estId?'Selecione...':'Selecione o estabelecimento primeiro'} disabled={!mb.estId}/>
         </Field>
