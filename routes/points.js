@@ -9,7 +9,7 @@ function managerOwnsEst(user, est_id) {
   return ids.includes(Number(est_id));
 }
 
-// ── GET /api/points?estId=1 ──────────────────────────────────────
+// ── GET /api/points?estId=1 ────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const { estId } = req.query;
@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ── GET /api/points/:id ──────────────────────────────────────────
+// ── GET /api/points/:id ────────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM points WHERE id=$1', [req.params.id]);
@@ -35,7 +35,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ── GET /api/points/:id/slots?date=YYYY-MM-DD ────────────────────
+// ── GET /api/points/:id/slots?date=YYYY-MM-DD ────────────────────────────────────────────────
 router.get('/:id/slots', async (req, res) => {
   const { date } = req.query;
   if (!date) return res.status(400).json({ error: 'Parâmetro date obrigatório' });
@@ -89,7 +89,7 @@ router.get('/:id/slots', async (req, res) => {
   }
 });
 
-// ── POST /api/points — criar (admin ou gerente do est) ──────────
+// ── POST /api/points — criar (admin ou gerente do est) ────────────────────────
 router.post('/', auth, adminOrManager, async (req, res) => {
   const { est_id, type, name, price_per_hour, price_per_hour_aluno, custom_hours } = req.body;
   if (!est_id || !type || !name || !price_per_hour)
@@ -109,7 +109,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
   }
 });
 
-// ── PUT /api/points/:id — atualizar (admin ou gerente do est) ────
+// ── PUT /api/points/:id — atualizar (admin ou gerente do est) ──────────────────────
 router.put('/:id', auth, adminOrManager, async (req, res) => {
   const { type, name, price_per_hour, price_per_hour_aluno, custom_hours } = req.body;
   try {
@@ -119,4 +119,29 @@ router.put('/:id', auth, adminOrManager, async (req, res) => {
       return res.status(403).json({ error: 'Sem acesso a este estabelecimento' });
 
     const { rows } = await pool.query(
-      `UPDATE points SET type=$1, name=$2, price_per_hour=$3, price_per
+      `UPDATE points SET type=$1, name=$2, price_per_hour=$3, price_per_hour_aluno=$4, custom_hours=$5
+       WHERE id=$6 RETURNING *`,
+      [type, name, price_per_hour, price_per_hour_aluno || null, custom_hours ? JSON.stringify(custom_hours) : null, req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao atualizar ponto' });
+  }
+});
+
+// ── DELETE /api/points/:id — excluir (admin ou gerente do est) ─────────────────────
+router.delete('/:id', auth, adminOrManager, async (req, res) => {
+  try {
+    const { rows: cur } = await pool.query('SELECT est_id FROM points WHERE id=$1', [req.params.id]);
+    if (!cur.length) return res.status(404).json({ error: 'Não encontrado' });
+    if (!managerOwnsEst(req.user, cur[0].est_id))
+      return res.status(403).json({ error: 'Sem acesso a este estabelecimento' });
+
+    await pool.query('DELETE FROM points WHERE id=$1', [req.params.id]);
+    res.json({ message: 'Ponto excluído' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao excluir ponto' });
+  }
+});
+
+module.exports = router;
