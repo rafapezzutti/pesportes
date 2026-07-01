@@ -2994,45 +2994,60 @@ function CRMFinanceiro({crmUser,showToast}){
 
     {/* aba resumo por aluno */}
     {tab==='resumo'&&<div>
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-3 items-end">
-        <div className="w-64">
-          <p className="text-xs text-gray-400 mb-1 font-medium">Aluno / Professor</p>
-          <select value={selAluno} onChange={e=>setSelAluno(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
-            <option value="">Selecione...</option>
-            {alunos.map((a,i)=><option key={i} value={a.nome}>{a.nome}</option>)}
-          </select>
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 space-y-3">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="w-64">
+            <p className="text-xs text-gray-400 mb-1 font-medium">Aluno / Professor</p>
+            <select value={selAluno} onChange={e=>setSelAluno(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+              <option value="">Selecione...</option>
+              {alunos.map((a,i)=><option key={i} value={a.nome}>{a.nome}</option>)}
+            </select>
+          </div>
+          <div className="w-40">
+            <p className="text-xs text-gray-400 mb-1 font-medium">Mês <span className="text-gray-300">(opcional)</span></p>
+            <input type="month" value={selMes} onChange={e=>setSelMes(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+          </div>
+          <div className="w-44">
+            <p className="text-xs text-gray-400 mb-1 font-medium">Status</p>
+            <select value={selResumoStatus} onChange={e=>setSelResumoStatus(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+              <option value="">Todos</option>
+              <option value="pendente">Em aberto</option>
+              <option value="pago">Pago</option>
+              <option value="em_atraso">Em atraso</option>
+            </select>
+          </div>
+          <Btn disabled={!selAluno||resumoLoading} onClick={()=>{
+            if(!selAluno)return;
+            setResumoLoading(true);
+            const params={aluno_nome:selAluno};
+            if(selMes)params.mes=selMes;
+            if(selResumoStatus)params.status_pgto=selResumoStatus;
+            contasApi.resumoAluno(params)
+              .then(setResumo).catch(()=>{}).finally(()=>setResumoLoading(false));
+          }}>{resumoLoading?'Buscando...':'🔍 Gerar Resumo'}</Btn>
         </div>
-        <div className="w-40">
-          <p className="text-xs text-gray-400 mb-1 font-medium">Mês</p>
-          <input type="month" value={selMes} onChange={e=>setSelMes(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={()=>{if(!selAluno){return;}setSelMes('');setSelResumoStatus('pendente');setResumoLoading(true);contasApi.resumoAluno({aluno_nome:selAluno,status_pgto:'pendente'}).then(setResumo).catch(()=>{}).finally(()=>setResumoLoading(false));}}
+            className="text-xs font-medium text-red-600 border border-red-200 bg-red-50 rounded-lg px-3 py-1.5 hover:bg-red-100 transition-colors">
+            🔴 Ver todas as pendências
+          </button>
+          <button onClick={()=>{if(!selAluno)return;setSelMes('');setSelResumoStatus('em_atraso');setResumoLoading(true);contasApi.resumoAluno({aluno_nome:selAluno,status_pgto:'em_atraso'}).then(setResumo).catch(()=>{}).finally(()=>setResumoLoading(false));}}
+            className="text-xs font-medium text-amber-600 border border-amber-200 bg-amber-50 rounded-lg px-3 py-1.5 hover:bg-amber-100 transition-colors">
+            ⚠️ Apenas em atraso
+          </button>
+          {selMes&&<button onClick={()=>setSelMes('')} className="text-xs text-gray-400 border border-gray-200 rounded-lg px-3 py-1.5 hover:text-gray-600">✕ Limpar mês</button>}
         </div>
-        <div className="w-44">
-          <p className="text-xs text-gray-400 mb-1 font-medium">Status de pagamento</p>
-          <select value={selResumoStatus} onChange={e=>setSelResumoStatus(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
-            <option value="">Todos</option>
-            <option value="pendente">Em aberto</option>
-            <option value="pago">Pago</option>
-            <option value="em_atraso">Em atraso</option>
-          </select>
-        </div>
-        <Btn disabled={!selAluno||resumoLoading} onClick={()=>{
-          if(!selAluno)return;
-          setResumoLoading(true);
-          const params={aluno_nome:selAluno,mes:selMes};
-          if(selResumoStatus)params.status_pgto=selResumoStatus;
-          contasApi.resumoAluno(params)
-            .then(setResumo).catch(()=>{}).finally(()=>setResumoLoading(false));
-        }}>{resumoLoading?'Buscando...':'🔍 Gerar Resumo'}</Btn>
+        {!selAluno&&<p className="text-xs text-gray-400">Selecione um aluno para ver o histórico financeiro.</p>}
       </div>
 
       {resumoLoading&&<Spinner text="Gerando resumo..."/>}
       {!resumoLoading&&resumo&&<div>
         <div id="resumo-aluno-print">
           <div className="flex items-center justify-between mb-4 print:hidden">
-            <h2 className="text-lg font-black text-gray-800">Resumo de {resumo.aluno_nome} — {new Date(selMes+'-15').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</h2>
+            <h2 className="text-lg font-black text-gray-800">{resumo.modo==='pendencias_gerais'?'🔴 Pendências em Aberto — '+resumo.aluno_nome:'Resumo de '+resumo.aluno_nome+' — '+new Date((resumo.mes||selMes)+'-15').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</h2>
             <div className="flex gap-2">
               <Btn variant="secondary" size="sm" onClick={()=>window.print()}>🖨️ Imprimir</Btn>
               <Btn variant="secondary" size="sm" disabled={emailSending} onClick={async()=>{
@@ -3045,7 +3060,7 @@ function CRMFinanceiro({crmUser,showToast}){
               }}>{emailSending?'Enviando...':'📧 Enviar por Email'}</Btn>
               <Btn variant="secondary" size="sm" disabled={waSending} onClick={async()=>{
                 setWaSending(true);
-                try{await contasApi.whatsappAluno({aluno_nome:resumo.aluno_nome,mes:selMes,resumo});showToast&&showToast('WhatsApp enviado!','success');}
+                try{await contasApi.whatsappAluno({aluno_nome:resumo.aluno_nome,mes:resumo.mes||null,resumo});showToast&&showToast('WhatsApp enviado!','success');}
                 catch(e){showToast&&showToast(e.message||'Erro ao enviar WhatsApp','error');}
                 finally{setWaSending(false);}
               }}>{waSending?'Enviando...':'💬 Enviar por WhatsApp'}</Btn>
@@ -3053,6 +3068,11 @@ function CRMFinanceiro({crmUser,showToast}){
           </div>
 
           {/* totais */}
+          {resumo.modo==='pendencias_gerais'&&Number(resumo.totais.geral)>0&&<div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4 flex items-center gap-4">
+            <span className="text-3xl">🔴</span>
+            <div><p className="text-xs text-red-500 font-semibold uppercase tracking-wide">Total Pendente</p>
+            <p className="text-2xl font-black text-red-600">{fmt$(resumo.totais.geral)}</p></div>
+          </div>}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
             {[['Aulas/Planos',resumo.totais.aulas,'#7c3aed'],['Reservas',resumo.totais.reservas,'#0284c7'],['Bar',resumo.totais.bar,'#b45309'],['Loja & Equip.',resumo.totais.manutencao||0,'#4b5563'],['Total Geral',resumo.totais.geral,'#16a34a']].map(([l,v,c])=>
               <div key={l} className="bg-white rounded-2xl border border-gray-100 p-4">
@@ -3118,7 +3138,8 @@ function CRMFinanceiro({crmUser,showToast}){
           </div>}
 
           {resumo.aulas.length===0&&resumo.reservas.length===0&&resumo.bar.length===0&&!(resumo.manutencao?.length>0)&&
-            <div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🔍</p><p>Nenhum registro para <strong>{resumo.aluno_nome}</strong> em {new Date(selMes+'-15').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</p></div>}
+            <div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🔍</p>
+            <p>{resumo.modo==='pendencias_gerais'?<>Nenhuma pendência encontrada para <strong>{resumo.aluno_nome}</strong>. Tudo em dia! ✅</>:<>Nenhum registro para <strong>{resumo.aluno_nome}</strong> em {new Date((resumo.mes||selMes)+'-15').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</>}</p></div>}
         </div>
       </div>}
     </div>}

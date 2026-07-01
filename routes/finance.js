@@ -310,61 +310,75 @@ router.get('/clientes', auth, crmOnly, async (req, res) => {
 // ── GET /api/finance/resumo-aluno ─────────────────────────────────
 router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
   const { aluno_nome, mes, status_pgto } = req.query;
-  if (!aluno_nome || !mes) return res.status(400).json({ error: 'aluno_nome e mes são obrigatórios' });
+  if (!aluno_nome) return res.status(400).json({ error: 'aluno_nome e obrigatorio' });
 
-  const from = `${mes}-01`;
-  const toDate = new Date(new Date(from).getFullYear(), new Date(from).getMonth() + 1, 0);
-  const to = toDate.toISOString().split('T')[0];
+  // Se mes nao fornecido => modo "pendencias gerais" (sem filtro de data)
+  const hasMes = !!mes;
+  const from  = hasMes ? mes + '-01' : null;
+  const to    = hasMes ? new Date(new Date(from).getFullYear(), new Date(from).getMonth() + 1, 0).toISOString().split('T')[0] : null;
 
-  // Parâmetros base, com status_pgto opcional como $4
-  const p = (extra=[]) => status_pgto ? [aluno_nome, from, to, status_pgto, ...extra] : [aluno_nome, from, to, ...extra];
+  // Status: se nao passou status e nao tem mes, forca pendente+em_atraso
+  const statusFilter = status_pgto || (!hasMes ? 'pendente_ou_atraso' : null);
+
+  const buildParams = (baseParams) => {
+    // baseParams = [aluno_nome, ...date params if any]
+    if (statusFilter && statusFilter !== 'pendente_ou_atraso') return [...baseParams, statusFilter];
+    return baseParams;
+  };
+
+  const statusClause = (n) => {
+    if (!statusFilter) return '';
+    if (statusFilter === 'pendente_ou_atraso') return ' AND COALESCE(' + n + ',\'pendente\') IN (\'pendente\',\'em_atraso\')';
+    return ' AND COALESCE(' + n + ',\'pendente\') = $' + (hasMes ? 4 : 2);
+  };
 
   try {
+    const aBase = hasMes ? [aluno_nome, from, to] : [aluno_nome];
+    const dateClauseAula = hasMes ? ' AND pl.data_inicio <= $3 AND (pl.data_fim IS NULL OR pl.data_fim >= $2)' : '';
+    const dateClauseOther = hasMes ? ' AND tbl.data >= $2 AND tbl.data <= $3' : '';
+
     const { rows: aulas } = await pool.query(
-      `SELECT pl.id, COALESCE(pl.tipo_plano,'avulso') AS tipo, pl.data_inicio AS data, pl.valor AS total,
-              pl.status_pgto, pl.forma_pgto, pl.email_aluno, e.name AS est_name
-       FROM planos_aula pl
-       LEFT JOIN establishments e ON pl.est_id = e.id
-       WHERE TRIM(pl.nome_aluno) ILIKE TRIM($1)
-         AND pl.data_inicio <= $3
-         AND (pl.data_fim IS NULL OR pl.data_fim >= $2)
-         ${status_pgto ? `AND COALESCE(pl.status_pgto,'pendente') = $4` : ''}
-       ORDER BY pl.data_inicio`,
-      p());
+      'SELECT pl.id, COALESCE(pl.tipo_plano,\'avulso\') AS tipo, pl.data_inicio AS data, pl.valor AS total,' +
+      '       pl.status_pgto, pl.forma_pgto, pl.email_aluno, e.name AS est_name' +
+      ' FROM planos_aula pl' +
+      ' LEFT JOIN establishments e ON pl.est_id = e.id' +
+      ' WHERE TRIM(pl.nome_aluno) ILIKE TRIM($1)' +
+      dateClauseAula +
+      statusClause('pl.status_pgto') +
+      ' ORDER BY pl.data_inicio',
+      buildParams(aBase));
 
     const { rows: reservas } = await pool.query(
-      `SELECT r.id, r.date AS data, r.total, r.status_pgto, r.forma_pgto,
-              r.start_time, r.end_time, e.name AS est_name, p.name AS ponto_name
-       FROM reservations r
-       LEFT JOIN establishments e ON r.est_id = e.id
-       LEFT JOIN points p ON r.point_id = p.id
-       WHERE TRIM(r.client_name) ILIKE TRIM($1)
-         AND r.date >= $2 AND r.date <= $3
-         ${status_pgto ? `AND COALESCE(r.status_pgto,'pendente') = $4` : ''}
-       ORDER BY r.date`,
-      p());
+      'SELECT r.id, r.date AS data, r.total, r.status_pgto, r.forma_pgto,' +
+      '       r.start_time, r.end_time, e.name AS est_name, p.name AS ponto_name, r.client_email' +
+      ' FROM reservations r' +
+      ' LEFT JOIN establishments e ON r.est_id = e.id' +
+      ' LEFT JOIN points p ON r.point_id = p.id' +
+      ' WHERE TRIM(r.client_name) ILIKE TRIM($1)' +
+      (hasMes ? ' AND r.date >= $2 AND r.date <= $3' : '') +
+      statusClause('r.status_pgto') +
+      ' ORDER BY r.date',
+      buildParams(aBase));
 
     const { rows: bar } = await pool.query(
-      `SELECT b.id, b.data_venda AS data, b.total, b.status_pgto, b.forma_pgto,
-              b.itens, e.name AS est_name
-       FROM bar_vendas b
-       LEFT JOIN establishments e ON b.est_id = e.id
-       WHERE TRIM(b.cliente_nome) ILIKE TRIM($1)
-         AND b.data_venda >= $2 AND b.data_venda <= $3
-         ${status_pgto ? `AND COALESCE(b.status_pgto,'pendente') = $4` : ''}
-       ORDER BY b.data_venda`,
-      p());
+      'SELECT b.id, b.data_venda AS data, b.total, b.status_pgto, b.forma_pgto, b.itens, e.name AS est_name' +
+      ' FROM bar_vendas b' +
+      ' LEFT JOIN establishments e ON b.est_id = e.id' +
+      ' WHERE TRIM(b.cliente_nome) ILIKE TRIM($1)' +
+      (hasMes ? ' AND b.data_venda >= $2 AND b.data_venda <= $3' : '') +
+      statusClause('b.status_pgto') +
+      ' ORDER BY b.data_venda',
+      buildParams(aBase));
 
     const { rows: manutencao } = await pool.query(
-      `SELECT m.id, m.data_venda AS data, m.total, m.status_pgto, m.forma_pgto,
-              m.itens, e.name AS est_name
-       FROM manutencao_vendas m
-       LEFT JOIN establishments e ON m.est_id = e.id
-       WHERE TRIM(m.cliente_nome) ILIKE TRIM($1)
-         AND m.data_venda >= $2 AND m.data_venda <= $3
-         ${status_pgto ? `AND COALESCE(m.status_pgto,'pendente') = $4` : ''}
-       ORDER BY m.data_venda`,
-      p());
+      'SELECT m.id, m.data_venda AS data, m.total, m.status_pgto, m.forma_pgto, m.itens, e.name AS est_name' +
+      ' FROM manutencao_vendas m' +
+      ' LEFT JOIN establishments e ON m.est_id = e.id' +
+      ' WHERE TRIM(m.cliente_nome) ILIKE TRIM($1)' +
+      (hasMes ? ' AND m.data_venda >= $2 AND m.data_venda <= $3' : '') +
+      statusClause('m.status_pgto') +
+      ' ORDER BY m.data_venda',
+      buildParams(aBase));
 
     const totalAulas    = aulas.reduce((s, r) => s + Number(r.total), 0);
     const totalReservas = reservas.reduce((s, r) => s + Number(r.total), 0);
@@ -372,7 +386,8 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
     const totalManut    = manutencao.reduce((s, r) => s + Number(r.total), 0);
 
     res.json({
-      aluno_nome, mes, aulas, reservas, bar, manutencao,
+      aluno_nome, mes: mes || null, modo: hasMes ? 'mes' : 'pendencias_gerais',
+      aulas, reservas, bar, manutencao,
       totais: { aulas: totalAulas, reservas: totalReservas, bar: totalBar, manutencao: totalManut,
                 geral: totalAulas + totalReservas + totalBar + totalManut },
     });
@@ -467,22 +482,43 @@ router.post('/resumo-aluno/whatsapp', auth, adminOrManager, async (req, res) => 
 
   const wa = require('../services/whatsapp');
   const fmtMoney = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const mesLabel = new Date(`${mes}-15`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const fmtDt = d => d ? d.split('T')[0].split('-').reverse().join('/') : '';
+  const modoGeral = !mes || resumo.modo === 'pendencias_gerais';
+  const titulo = modoGeral ? 'Pendências em Aberto' : ('Resumo — ' + new Date(mes + '-15').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }));
 
   const totais = resumo.totais || {};
   const linhas = [];
 
-  if (totais.aulas > 0)     linhas.push(`📚 Aulas/Planos: ${fmtMoney(totais.aulas)}`);
-  if (totais.reservas > 0)  linhas.push(`📅 Reservas: ${fmtMoney(totais.reservas)}`);
-  if (totais.bar > 0)       linhas.push(`🍺 Bar: ${fmtMoney(totais.bar)}`);
-  if (totais.manutencao > 0) linhas.push(`🛒 Loja & Equip.: ${fmtMoney(totais.manutencao)}`);
+  // Detalhe linha a linha
+  const addSection = (emoji, label, items, descFn) => {
+    if (!items || !items.length) return;
+    linhas.push(emoji + ' *' + label + '*');
+    items.forEach(i => {
+      const s = i.status_pgto || 'pendente';
+      const badge = s === 'pago' ? '✅' : s === 'em_atraso' ? '🔴' : '🟡';
+      linhas.push('  ' + badge + ' ' + fmtDt(i.data) + ' — ' + descFn(i) + ' — ' + fmtMoney(i.total));
+    });
+    linhas.push('');
+  };
+
+  addSection('📚', 'Aulas / Planos', resumo.aulas, a => a.tipo || 'Avulso');
+  addSection('📅', 'Reservas', resumo.reservas, r => r.ponto_name || 'Quadra');
+  addSection('🍺', 'Bar', resumo.bar, () => 'Consumo');
+  addSection('🛒', 'Loja & Equip.', resumo.manutencao, () => 'Item');
 
   const mensagem =
-    `Olá, *${aluno_nome}*! 👋\n\n` +
-    `Segue seu resumo financeiro de *${mesLabel}*:\n\n` +
-    linhas.join('\n') +
-    `\n\n💰 *Total: ${fmtMoney(totais.geral || 0)}*\n\n` +
-    `Dúvidas? Estamos à disposição! 🏃`;
+    'Olá, *' + aluno_nome + '*! 👋
+
+' +
+    '📋 *' + titulo + '*
+
+' +
+    linhas.join('
+') +
+    '💰 *Total: ' + fmtMoney(totais.geral || 0) + '*
+
+' +
+    'Dúvidas? Estamos à disposição! 🏃';
 
   try {
     const result = await wa.sendText(telefone, mensagem);
