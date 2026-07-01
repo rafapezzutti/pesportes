@@ -1968,15 +1968,23 @@ function CRMAlunos({crmUser,showToast}){
     if(!f.nome){showToast('Nome é obrigatório','error');return;}
     try{
       const payload={...f,est_id:f.est_id||null,data_nascimento:f.data_nascimento||null};
-      if(editA)await alunoApi.update(editA.id,payload);
-      else await alunoApi.create(payload);
-      showToast('Aluno salvo!','success');setShowForm(false);load();
-    }catch(e){showToast(e.message,'error');}
+      if(editA){
+        const updated=await alunoApi.update(editA.id,payload);
+        setAlunos(prev=>prev.map(a=>a.id===editA.id?{...a,...updated}:a));
+      } else {
+        const created=await alunoApi.create(payload);
+        setAlunos(prev=>[...prev,created].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')));
+      }
+      showToast('Aluno salvo!','success');setShowForm(false);
+    }catch(e){console.error('[CRMAlunos save]',e);showToast(e.message||'Erro ao salvar aluno','error');}
   };
 
   const del=async()=>{
-    try{await alunoApi.remove(delA.id);showToast('Aluno removido','info');setDelA(null);load();}
-    catch(e){showToast(e.message,'error');}
+    try{
+      await alunoApi.remove(delA.id);
+      setAlunos(prev=>prev.filter(a=>a.id!==delA.id));
+      showToast('Aluno removido','info');setDelA(null);
+    }catch(e){showToast(e.message,'error');}
   };
 
   if(loading)return<Spinner/>;
