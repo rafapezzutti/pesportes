@@ -1341,13 +1341,14 @@ function CRMPlanosAula({showToast}){
   const [showForm,setShowForm]=useState(false);
   const [editPl,setEditPl]=useState(null);
   const [delPl,setDelPl]=useState(null);
+  const [alunosCad,setAlunosCad]=useState([]);
   const BLANK_PL={est_id:'',professor_id:'',nome_aluno:'',telefone_aluno:'',email_aluno:'',tipo_plano:'avulso',valor:'',recorrencia:'nenhuma',dias_semana:[],horario_inicio:'',horario_fim:'',data_inicio:TODAY,data_fim:'',observacoes:''};
   const [f,setF]=useState(BLANK_PL);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
 
   const load=()=>{
-    Promise.all([planoApi.list(),professorApi.list(),estApi.list()])
-      .then(([pl,pr,e])=>{setPlanos(pl);setProfs(pr);setEsts(e);})
+    Promise.all([planoApi.list(),professorApi.list(),estApi.list(),alunoApi.list()])
+      .then(([pl,pr,e,al])=>{setPlanos(pl);setProfs(pr);setEsts(e);setAlunosCad(al);})
       .catch(()=>{})
       .finally(()=>setLoading(false));
   };
@@ -1424,6 +1425,7 @@ function CRMPlanosAula({showToast}){
           <Field label="Estabelecimento"><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/></Field>
           <Field label="Professor"><Sel value={f.professor_id} onChange={e=>upd('professor_id',e.target.value)} options={profs.map(p=>({value:p.id,label:p.nome}))} placeholder="Selecione..."/></Field>
         </div>
+        {alunosCad.length>0&&<Field label="Buscar aluno cadastrado"><Sel value="" onChange={e=>{const a=alunosCad.find(al=>String(al.id)===e.target.value);if(a)setF(p=>({...p,nome_aluno:a.nome,telefone_aluno:a.telefone||'',email_aluno:a.email||''}));}} options={alunosCad.map(a=>({value:a.id,label:a.nome}))} placeholder="Selecione para preencher os dados..."/></Field>}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Nome do Aluno" required><Inp value={f.nome_aluno} onChange={e=>upd('nome_aluno',e.target.value)} placeholder="Nome completo"/></Field>
           <Field label="Telefone do Aluno"><Inp value={f.telefone_aluno} onChange={e=>upd('telefone_aluno',e.target.value)} placeholder="(00) 00000-0000"/></Field>
