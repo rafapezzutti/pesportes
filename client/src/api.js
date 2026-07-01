@@ -264,3 +264,8 @@ export const comissaoGerenteApi = {
   setPercentual:(id, pct)   => req('PATCH', `/comissao-gerente/${id}/percentual`, { percentual: pct }),
   marcarPago:   (id, ate)   => req('PATCH', `/comissao-gerente/${id}/marcar-pago`, { ate }),
 };
+
+// ── Horários Livres ───────────────────────────────────────────────
+export const horariosLivresApi = {
+  get: (params={}) => get('/horarios-livres?' + new URLSearchParams(params).toString()),
+};

@@ -4,7 +4,7 @@ import {
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
   employeeApi, pontoApi, alunoApi, contasApi, impersonateApi, recurringApi,
-  whatsappApi, comissaoGerenteApi, downloadReport, saveToken, clearToken,
+  whatsappApi, comissaoGerenteApi, horariosLivresApi, downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -465,6 +465,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
     ]},
     {label:'Financeiro', items:[
       {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager']},
+      {key:'crm-horarios-livres', label:'Horários Livres', icon:'🟢',roles:['admin','manager','simples']},
       {key:'crm-funcionarios',   label:'Funcionários', icon:'👷',roles:['admin','manager']},
       {key:'crm-estoque',        label:'Estoque Bar',  icon:'📦',roles:['admin','manager']},
     ]},
@@ -3508,6 +3509,183 @@ function CRMWhatsApp({showToast}){
     </div>
   </div>;
 }
+
+// ================================================================
+// CRM HORÁRIOS LIVRES
+// ================================================================
+const DOW_SHORT=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+function CRMHorariosLivres({crmUser,showToast}){
+  const [ests,setEsts]=useState([]);
+  const [selEst,setSelEst]=useState('');
+  const [points,setPoints]=useState([]);
+  const [selPoints,setSelPoints]=useState([]);
+  const [from,setFrom]=useState(TODAY);
+  const [to,setTo]=useState(()=>{const d=new Date(TODAY+'T12:00:00');d.setDate(d.getDate()+6);return d.toISOString().split('T')[0];});
+  const [data,setData]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [viewDay,setViewDay]=useState(TODAY);
+
+  useEffect(()=>{
+    estApi.list().then(e=>{
+      setEsts(e);
+      const uid=crmUser&&(crmUser.est_id||(crmUser.est_ids&&crmUser.est_ids[0]));
+      if(uid)setSelEst(String(uid));
+    }).catch(()=>{});
+  },[]);
+
+  useEffect(()=>{
+    if(!selEst){setPoints([]);setSelPoints([]);return;}
+    pointApi.list(selEst).then(pts=>{setPoints(pts);setSelPoints(pts.map(p=>p.id));}).catch(()=>{});
+  },[selEst]);
+
+  const shiftWeek=(offset)=>{
+    const f=new Date(from+'T12:00:00');f.setDate(f.getDate()+offset*7);
+    const t=new Date(f);t.setDate(t.getDate()+6);
+    const fs=f.toISOString().split('T')[0];
+    const ts=t.toISOString().split('T')[0];
+    setFrom(fs);setTo(ts);setViewDay(fs);setData(null);
+  };
+
+  const run=async()=>{
+    if(!selEst){showToast('Selecione um estabelecimento','error');return;}
+    if(!selPoints.length){showToast('Selecione ao menos uma quadra','error');return;}
+    setLoading(true);setData(null);
+    try{
+      const d=await horariosLivresApi.get({estId:selEst,pointIds:selPoints.join(','),from,to});
+      setData(d);setViewDay(from);
+    }catch(e){showToast(e.message,'error');}finally{setLoading(false);}
+  };
+
+  const togglePoint=(id)=>setSelPoints(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
+
+  const copySummary=()=>{
+    if(!data)return;
+    const [y,m,d]=viewDay.split('-');
+    const dow=DOW_SHORT[new Date(viewDay+'T12:00:00').getDay()];
+    let txt='Quadras Livres - '+dow+' '+d+'/'+m+'/'+y+'\n\n';
+    for(const pt of data.points){
+      if(!selPoints.includes(pt.id))continue;
+      const daySlots=data.slots[pt.id]&&data.slots[pt.id][viewDay]||{};
+      const livres=Object.entries(daySlots).filter(([,v])=>v).map(([h])=>h.slice(0,5));
+      txt+='🏟️ '+pt.name+'\n';
+      txt+=livres.length?livres.join('  •  '):'Sem horários livres';
+      txt+='\n\n';
+    }
+    navigator.clipboard.writeText(txt).then(()=>showToast('Copiado!','success')).catch(()=>showToast('Erro ao copiar','error'));
+  };
+
+  const allSlotKeys=data?Array.from(new Set(Object.values(data.slots).flatMap(pt=>Object.values(pt).flatMap(dd=>Object.keys(dd))))).sort():[];
+
+  return <div className="p-6 max-w-6xl">
+    <div className="mb-6">
+      <h1 className="text-2xl font-black text-gray-900">🟢 Horários Livres</h1>
+      <p className="text-sm text-gray-400">Visualize disponibilidade para criar campanhas de promoção</p>
+    </div>
+
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Field label="Estabelecimento">
+          <Sel value={selEst} onChange={e=>setSelEst(e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>
+        </Field>
+        <Field label="De">
+          <input type="date" value={from} onChange={e=>{setFrom(e.target.value);setData(null);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+        </Field>
+        <Field label="Até">
+          <input type="date" value={to} onChange={e=>{setTo(e.target.value);setData(null);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+        </Field>
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={()=>shiftWeek(-1)} className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5">← Semana anterior</button>
+        <button onClick={()=>{const t=new Date(TODAY+'T12:00:00');t.setDate(t.getDate()+6);setFrom(TODAY);setTo(t.toISOString().split('T')[0]);setData(null);}} className="text-xs text-emerald-600 border border-emerald-200 rounded-lg px-3 py-1.5 font-medium">Esta semana</button>
+        <button onClick={()=>shiftWeek(1)} className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5">Próxima semana →</button>
+      </div>
+
+      {points.length>0&&<div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Quadras / Pontos</p>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={()=>setSelPoints(selPoints.length===points.length?[]:points.map(p=>p.id))} className="text-xs border border-gray-200 rounded-full px-3 py-1 text-gray-500 hover:border-emerald-400 hover:text-emerald-600">
+            {selPoints.length===points.length?'Desmarcar todos':'Marcar todos'}
+          </button>
+          {points.map(pt=><label key={pt.id} className={'flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border cursor-pointer transition-colors '+(selPoints.includes(pt.id)?'bg-emerald-50 border-emerald-400 text-emerald-700':'border-gray-200 text-gray-600 hover:border-gray-300')}>
+            <input type="checkbox" checked={selPoints.includes(pt.id)} onChange={()=>togglePoint(pt.id)} className="w-3.5 h-3.5 accent-emerald-600"/>
+            {pt.name}
+          </label>)}
+        </div>
+      </div>}
+
+      <Btn onClick={run} disabled={loading||!selEst||!selPoints.length} className="w-full md:w-auto">
+        {loading?'Carregando...':'🔍 Ver Horários Livres'}
+      </Btn>
+    </div>
+
+    {data&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="border-b border-gray-100 overflow-x-auto">
+        <nav className="flex gap-0 min-w-max">
+          {data.days.map(day=>{
+            const [dy,dm,dd]=day.split('-');
+            const dow=DOW_SHORT[new Date(day+'T12:00:00').getDay()];
+            const totalLivre=Object.values(data.slots).reduce((acc,pt)=>{
+              const ds=pt[day]||{};return acc+Object.values(ds).filter(v=>v).length;
+            },0);
+            return <button key={day} onClick={()=>setViewDay(day)}
+              className={'px-4 py-3 text-sm border-b-2 transition-colors whitespace-nowrap '+(viewDay===day?'border-emerald-600 text-emerald-700 font-semibold bg-emerald-50':'border-transparent text-gray-500 hover:text-gray-700')}>
+              <span className="font-medium">{dow}</span>
+              <span className="block text-xs">{dd}/{dm}</span>
+              {totalLivre>0&&<span className="block text-xs text-emerald-500">{totalLivre} livre{totalLivre!==1?'s':''}</span>}
+            </button>;
+          })}
+        </nav>
+      </div>
+
+      <div className="p-4">
+        <div className="flex justify-between items-center mb-3">
+          <p className="text-sm font-semibold text-gray-700">{(()=>{const [dy,dm,dd]=viewDay.split('-');return DOW_SHORT[new Date(viewDay+'T12:00:00').getDay()]+', '+dd+'/'+dm+'/'+dy;})()}</p>
+          <button onClick={copySummary} className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 border border-emerald-200 rounded-lg px-3 py-1.5 hover:bg-emerald-50 transition-colors">
+            📋 Copiar para campanha
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th className="text-left text-xs text-gray-400 font-medium py-2 pr-4 w-14">Hora</th>
+                {data.points.filter(pt=>selPoints.includes(pt.id)).map(pt=>
+                  <th key={pt.id} className="text-center text-xs font-bold text-gray-700 py-2 px-2 min-w-[90px]">{pt.name}</th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {allSlotKeys.map(slot=>{
+                const visiblePts=data.points.filter(pt=>selPoints.includes(pt.id));
+                const anyData=visiblePts.some(pt=>{const ds=data.slots[pt.id]&&data.slots[pt.id][viewDay]||{};return ds[slot]!==undefined;});
+                if(!anyData)return null;
+                return <tr key={slot} className="border-t border-gray-50">
+                  <td className="text-xs text-gray-400 font-mono py-1.5 pr-4 whitespace-nowrap">{slot.slice(0,5)}</td>
+                  {visiblePts.map(pt=>{
+                    const ds=data.slots[pt.id]&&data.slots[pt.id][viewDay]||{};
+                    const isDefined=ds[slot]!==undefined;
+                    if(!isDefined)return <td key={pt.id} className="px-2 py-1.5 text-center"><span className="text-xs text-gray-200">—</span></td>;
+                    return <td key={pt.id} className="px-2 py-1.5 text-center">
+                      {ds[slot]
+                        ?<span className="inline-block text-xs font-bold text-emerald-700 bg-emerald-100 rounded-lg px-3 py-1.5 w-full text-center">LIVRE</span>
+                        :<span className="inline-block text-xs font-medium text-gray-400 bg-gray-100 rounded-lg px-3 py-1.5 w-full text-center">reservado</span>}
+                    </td>;
+                  })}
+                </tr>;
+              }).filter(Boolean)}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex gap-4 mt-4 pt-3 border-t border-gray-100">
+          <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="inline-block w-10 text-center text-xs font-bold text-emerald-700 bg-emerald-100 rounded px-1">LIVRE</span> Disponível</div>
+          <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="inline-block w-16 text-center text-xs font-medium text-gray-400 bg-gray-100 rounded px-1">reservado</span> Ocupado</div>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
 
 export default function App(){
   const [view,setView]=useState('marketplace');
