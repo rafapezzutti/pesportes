@@ -827,6 +827,7 @@ function CRMPoints({crmUser,showToast}){
   const [editPt,setEditPt]=useState(null);
   const [f,setF]=useState({est_id:'',type:'',name:'',price_per_hour:'',custom_hours:null});
   const [customH,setCustomH]=useState(false);
+  const [temPrecoAluno,setTemPrecoAluno]=useState(false);
   const [delPt,setDelPt]=useState(null);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
   const isAdmin=crmUser?.role==='admin';
