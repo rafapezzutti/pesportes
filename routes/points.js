@@ -67,16 +67,21 @@ router.get('/:id/slots', async (req, res) => {
       [req.params.id, date]
     );
 
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    // Hora atual em BRT (UTC-3)
+    const nowUTC = new Date();
+    const nowBRT = new Date(nowUTC.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const todayStr = nowBRT.getFullYear() + '-'
+      + String(nowBRT.getMonth() + 1).padStart(2, '0') + '-'
+      + String(nowBRT.getDate()).padStart(2, '0');
+    const nowHour = nowBRT.getHours();
+    const nowMin  = nowBRT.getMinutes();
     const slots = [];
 
     for (let h = sh; h < eh; h++) {
       const t = `${String(h).padStart(2,'0')}:00`;
-      // Ignora horários passados no dia atual
+      // Ignora horários passados no dia atual (em horário de Brasília)
       if (date === todayStr) {
-        const slotDt = new Date(`${date}T${t}:00`);
-        if (slotDt <= now) continue;
+        if (h < nowHour || (h === nowHour && nowMin > 0)) continue;
       }
       const taken = resList.some(r => r.start_time <= t && t < r.end_time);
       slots.push({ time: t, available: !taken });
