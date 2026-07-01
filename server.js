@@ -68,6 +68,7 @@ app.use('/api/manutencao',       require('./routes/manutencao'));
 app.use('/api/profissionais-ef', require('./routes/profissionais_ef'));
 app.use('/api/audit',            require('./routes/audit'));
 app.use('/api/repasse',          require('./routes/repasse'));
+app.use('/api/comissao-gerente',  require('./routes/comissao-gerente'));
 app.use('/api/expenses',         require('./routes/expenses'));
 app.use('/api/finance',          require('./routes/finance'));
 app.use('/api/reviews',          require('./routes/reviews'));
@@ -180,7 +181,9 @@ async function runMigrations() {
     `ALTER TABLE bar_vendas        ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`,
     `ALTER TABLE manutencao_vendas ADD COLUMN IF NOT EXISTS data_venda DATE DEFAULT CURRENT_DATE`,
     `ALTER TABLE planos_aula       ADD COLUMN IF NOT EXISTS tipo       TEXT DEFAULT 'mensal'`,
-    `ALTER TABLE crm_users         ADD COLUMN IF NOT EXISTS ativo      BOOLEAN DEFAULT TRUE`,
+    `ALTER TABLE crm_users         ADD COLUMN IF NOT EXISTS ativo              BOOLEAN DEFAULT TRUE`,
+    `ALTER TABLE crm_users         ADD COLUMN IF NOT EXISTS percentual_comissao NUMERIC(5,2) DEFAULT 0`,
+    `ALTER TABLE crm_users         ADD COLUMN IF NOT EXISTS comissao_paga_ate   DATE`,
     `CREATE TABLE IF NOT EXISTS reviews (
       id          SERIAL PRIMARY KEY,
       target_type TEXT NOT NULL,

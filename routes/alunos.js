@@ -1,6 +1,11 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
-const { auth, adminOrManager } = require('../middleware/auth');
+const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
+
+// simples também pode gerenciar alunos do seu est
+function canManageAluno(user) {
+  return ['admin','manager','simples'].includes(user.role);
+}
 
 // ── GET / — lista alunos ──────────────────────────────────────────
 router.get('/', auth, async (req, res) => {
@@ -39,8 +44,11 @@ router.get('/', auth, async (req, res) => {
 });
 
 // ── POST / — cria aluno ───────────────────────────────────────────
-router.post('/', auth, adminOrManager, async (req, res) => {
-  const { nome, cpf, email, telefone, data_nascimento, est_id } = req.body;
+router.post('/', auth, async (req, res) => {
+  if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });
+  const { nome, cpf, email, telefone, data_nascimento } = req.body;
+  let { est_id } = req.body;
+  if (req.user.role === 'simples') est_id = req.user.est_id; // força est do professor
   if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
 
   try {
@@ -58,7 +66,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 });
 
 // ── PUT /:id — atualiza aluno ─────────────────────────────────────
-router.put('/:id', auth, adminOrManager, async (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   const { nome, cpf, email, telefone, data_nascimento, est_id, ativo } = req.body;
   try {
     const { rows } = await pool.query(
@@ -86,7 +94,8 @@ router.put('/:id', auth, adminOrManager, async (req, res) => {
 });
 
 // ── DELETE /:id ───────────────────────────────────────────────────
-router.delete('/:id', auth, adminOrManager, async (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
+  if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });
   try {
     const { rowCount } = await pool.query('DELETE FROM alunos WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Aluno não encontrado' });

@@ -4,7 +4,7 @@ import {
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
   employeeApi, pontoApi, alunoApi, contasApi, impersonateApi, recurringApi,
-  whatsappApi, downloadReport, saveToken, clearToken,
+  whatsappApi, comissaoGerenteApi, downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -461,7 +461,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
       {key:'crm-points',         label:'Pontos',           icon:'📍',roles:['admin','manager']},
       {key:'crm-professors',     label:'Professores',      icon:'🎓',roles:['admin','manager']},
       {key:'crm-profissionais-ef',label:'Profissionais EF',icon:'🏋️',roles:['admin','manager']},
-      {key:'crm-alunos',         label:'Alunos',           icon:'🎽',roles:['admin','manager']},
+      {key:'crm-alunos',         label:'Alunos',           icon:'🎽',roles:['admin','manager','simples']},
     ]},
     {label:'Financeiro', items:[
       {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager']},
@@ -978,7 +978,7 @@ function CRMRecorrentes({showToast,crmUser}){
   const [alunos,setAlunos]=useState([]);
 
   // Modal nova recorrência
-  const RNEW={estId:'',pointId:'',dayOfWeek:'',startTime:'',endTime:'',hours:1,clientName:'',clientPhone:'',clientEmail:'',participantes:[],pm:'dinheiro',startDate:'',obs:'',alunoDoProf:false,professorId:''};
+  const RNEW={estId:'',pointId:'',dayOfWeek:'',startTime:'',endTime:'',hours:1,clientName:'',clientPhone:'',clientEmail:'',participantes:[],pm:'dinheiro',startDate:TODAY,obs:'',alunoDoProf:false,professorId:''};
   const [showNew,setShowNew]=useState(false);
   const [rn,setRn]=useState(RNEW);
   const [rnPoints,setRnPoints]=useState([]);
@@ -1483,7 +1483,7 @@ function CRMReservations({showToast,crmUser}){
 
   // ── Nova reserva manual ──
   const [showManual,setShowManual]=useState(false);
-  const MBL={name:'',phone:'',email:'',estId:'',pointId:'',date:'',slots:[],pm:'dinheiro',participantes:[],pricePerHour:'',professorId:'',alunoDoProf:false};
+  const MBL={name:'',phone:'',email:'',estId:'',pointId:'',date:TODAY,slots:[],pm:'dinheiro',participantes:[],pricePerHour:'',professorId:'',alunoDoProf:false};
   const [mb,setMb]=useState(MBL);
   const [mbAlunos,setMbAlunos]=useState([]);
   const [mbEsts,setMbEsts]=useState([]);
@@ -1954,7 +1954,8 @@ function CRMAlunos({crmUser,showToast}){
   };
   useEffect(()=>{load();},[]);
 
-  const openNew=()=>{setF(BLANK);setEditA(null);setShowForm(true);};
+  const isSimples=crmUser?.role==='simples';
+  const openNew=()=>{setF({...BLANK,est_id:isSimples?(crmUser?.est_id||''):''}); setEditA(null);setShowForm(true);};
   const openEdit=(a)=>{
     setF({nome:a.nome||'',cpf:a.cpf||'',email:a.email||'',telefone:a.telefone||'',
           data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:'',
@@ -2738,6 +2739,9 @@ function CRMFinanceiro({crmUser,showToast}){
   // projeção
   const [proj,setProj]=useState(null);
   const [saldoIni,setSaldoIni]=useState('0');
+  const [comissao,setComissao]=useState([]);
+  const [editPctId,setEditPctId]=useState(null);
+  const [editPctVal,setEditPctVal]=useState('');
   // contas a receber
   const [contas,setContas]=useState([]);
   const [contasLoading,setContasLoading]=useState(false);
@@ -2761,6 +2765,7 @@ function CRMFinanceiro({crmUser,showToast}){
   const loadExps =useCallback(()=>{expenseApi.list({from,to}).then(setExps).catch(()=>{});},[from,to]);
   const loadRep  =useCallback(()=>{repasseApi.list({from,to}).then(setRep).catch(()=>{});},[from,to]);
   const loadProj =useCallback(()=>{financeApi.projecao({saldoInicial:parseFloat(saldoIni)||0}).then(setProj).catch(()=>{});},[saldoIni]);
+  const loadComissao=useCallback(()=>{comissaoGerenteApi.list({from,to}).then(setComissao).catch(()=>{});},[from,to]);
   const loadContas=useCallback(()=>{
     setContasLoading(true);
     const p={from,to};if(contasFiltStatus)p.status=contasFiltStatus;
@@ -2772,9 +2777,10 @@ function CRMFinanceiro({crmUser,showToast}){
     if(tab==='despesas')loadExps();
     if(tab==='repasse')loadRep();
     if(tab==='projecao')loadProj();
+    if(tab==='comissao')loadComissao();
     if(tab==='contas')loadContas();
     if(tab==='resumo')contasApi.clientesFinanceiros().then(nomes=>setAlunos(nomes.map(n=>({nome:n})))).catch(()=>{});
-  },[tab,loadFluxo,loadExps,loadRep,loadProj,loadContas]);
+  },[tab,loadFluxo,loadExps,loadRep,loadProj,loadComissao,loadContas]);
 
   const saveExp=async()=>{
     try{
@@ -2811,7 +2817,7 @@ function CRMFinanceiro({crmUser,showToast}){
 
     {/* tabs */}
     <div className="border-b border-gray-200 mb-5"><nav className="flex gap-1 flex-wrap">
-      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'projecao',l:'Projeção'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'},{k:'contas',l:'💳 Contas a Receber'},{k:'resumo',l:'📋 Resumo por Aluno'}].map(t=>
+      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'projecao',l:'Projeção'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'},{k:'contas',l:'💳 Contas a Receber'},{k:'resumo',l:'📋 Resumo por Aluno'},{k:'comissao',l:'🏷️ Comissão Gerente'}].map(t=>
         <button key={t.k} onClick={()=>setTab(t.k)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${tab===t.k?'border-emerald-600 text-emerald-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>{t.l}</button>)}
     </nav></div>
 
@@ -3132,6 +3138,61 @@ function CRMFinanceiro({crmUser,showToast}){
         <div className="flex gap-3 pt-2"><Btn variant="secondary" className="flex-1" onClick={()=>setExpForm(null)}>Cancelar</Btn><Btn className="flex-1" onClick={saveExp}>Salvar</Btn></div>
       </div>}
     </Modal>
+    {tab==='comissao'&&<div className="space-y-4">
+      {isAdmin&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto"><table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>{['Gerente','Estabelecimento','Comissão %','Reservas','Total','Devida','Pendente',''].map((h,i)=>
+              <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {comissao.length===0&&<tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Nenhum gerente cadastrado</td></tr>}
+            {comissao.map((g,i)=><tr key={i} className="hover:bg-gray-50">
+              <td className="px-3 py-2.5 font-semibold text-gray-800">{g.gerente_nome}</td>
+              <td className="px-3 py-2.5 text-gray-500">{g.est_nome}</td>
+              <td className="px-3 py-2.5">
+                {editPctId===g.gerente_id?(
+                  <span className="flex items-center gap-1">
+                    <input type="number" min="0" max="100" step="0.5" value={editPctVal}
+                      onChange={e=>setEditPctVal(e.target.value)}
+                      className="w-16 border border-gray-300 rounded px-1.5 py-1 text-sm text-center"/>
+                    <button onClick={async()=>{try{await comissaoGerenteApi.setPercentual(g.gerente_id,editPctVal);setEditPctId(null);loadComissao();showToast('% atualizado','success');}catch(e){showToast(e.message,'error');}}} className="text-emerald-600 text-xs font-semibold hover:underline">✓</button>
+                    <button onClick={()=>setEditPctId(null)} className="text-gray-400 text-xs hover:underline">✕</button>
+                  </span>
+                ):(
+                  <span className="cursor-pointer hover:text-emerald-600 text-sm" onClick={()=>{setEditPctId(g.gerente_id);setEditPctVal(String(g.percentual_comissao));}}>
+                    {g.percentual_comissao}% ✎
+                  </span>
+                )}
+              </td>
+              <td className="px-3 py-2.5 text-gray-500">{g.qtd_reservas}</td>
+              <td className="px-3 py-2.5">{fmt$(g.total_reservas)}</td>
+              <td className="px-3 py-2.5 font-semibold">{fmt$(g.comissao_devida)}</td>
+              <td className="px-3 py-2.5">
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Number(g.comissao_pendente)>0?'bg-amber-100 text-amber-700':'bg-emerald-100 text-emerald-700'}`}>{fmt$(g.comissao_pendente)}</span>
+              </td>
+              <td className="px-3 py-2.5 text-right">
+                {Number(g.comissao_pendente)>0&&<Btn size="sm" variant="secondary" onClick={async()=>{try{await comissaoGerenteApi.marcarPago(g.gerente_id);loadComissao();showToast('Comissão marcada como paga','success');}catch(e){showToast(e.message,'error');}}}>Marcar pago</Btn>}
+              </td>
+            </tr>)}
+          </tbody>
+        </table></div>
+      </div>}
+      {!isAdmin&&<div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-3">
+        {comissao.length===0?<p className="text-gray-400 text-center py-8">Sem dados de comissão no período</p>
+        :comissao.map((g,i)=><div key={i} className="flex justify-between items-center py-3 border-b border-gray-50 last:border-0">
+          <div>
+            <p className="font-semibold text-gray-800">{g.est_nome}</p>
+            <p className="text-sm text-gray-400">{g.percentual_comissao}% sobre aluguéis • {g.qtd_reservas} reserva{g.qtd_reservas!==1?'s':''}</p>
+          </div>
+          <div className="text-right">
+            <p className="font-bold text-emerald-700 text-lg">{fmt$(g.comissao_devida)}</p>
+            <p className="text-xs text-amber-600">Pendente: {fmt$(g.comissao_pendente)}</p>
+          </div>
+        </div>)}
+      </div>}
+    </div>}
   </div>;
 }
 

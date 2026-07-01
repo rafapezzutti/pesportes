@@ -258,3 +258,9 @@ export const whatsappApi = {
   qrcode:     ()     => get('/whatsapp/qrcode'),
   disconnect: ()     => post('/whatsapp/disconnect', {}),
 };
+// ── Comissão Gerente ──────────────────────────────────────────────
+export const comissaoGerenteApi = {
+  list:         (params={}) => get('/comissao-gerente?' + new URLSearchParams(params).toString()),
+  setPercentual:(id, pct)   => req('PATCH', `/comissao-gerente/${id}/percentual`, { percentual: pct }),
+  marcarPago:   (id, ate)   => req('PATCH', `/comissao-gerente/${id}/marcar-pago`, { ate }),
+};
