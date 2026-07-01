@@ -1,6 +1,13 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const { auth, adminOnly } = require('../middleware/auth');
+const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
+
+// Helper: verifica se o gerente tem acesso ao est_id informado
+function managerOwnsEst(user, est_id) {
+  if (user.role === 'admin') return true;
+  const ids = [...(user.est_ids || []), ...(user.est_id ? [user.est_id] : [])].map(Number);
+  return ids.includes(Number(est_id));
+}
 
 // ── GET /api/points?estId=1 ──────────────────────────────────────
 router.get('/', async (req, res) => {
@@ -82,11 +89,13 @@ router.get('/:id/slots', async (req, res) => {
   }
 });
 
-// ── POST /api/points — criar (admin) ────────────────────────────
-router.post('/', auth, adminOnly, async (req, res) => {
+// ── POST /api/points — criar (admin ou gerente do est) ──────────
+router.post('/', auth, adminOrManager, async (req, res) => {
   const { est_id, type, name, price_per_hour, custom_hours } = req.body;
   if (!est_id || !type || !name || !price_per_hour)
     return res.status(400).json({ error: 'Campos obrigatórios faltando' });
+  if (!managerOwnsEst(req.user, est_id))
+    return res.status(403).json({ error: 'Sem acesso a este estabelecimento' });
 
   try {
     const { rows } = await pool.query(
@@ -100,25 +109,34 @@ router.post('/', auth, adminOnly, async (req, res) => {
   }
 });
 
-// ── PUT /api/points/:id — atualizar (admin) ──────────────────────
-router.put('/:id', auth, adminOnly, async (req, res) => {
+// ── PUT /api/points/:id — atualizar (admin ou gerente do est) ────
+router.put('/:id', auth, adminOrManager, async (req, res) => {
   const { type, name, price_per_hour, custom_hours } = req.body;
   try {
+    const { rows: cur } = await pool.query('SELECT est_id FROM points WHERE id=$1', [req.params.id]);
+    if (!cur.length) return res.status(404).json({ error: 'Não encontrado' });
+    if (!managerOwnsEst(req.user, cur[0].est_id))
+      return res.status(403).json({ error: 'Sem acesso a este estabelecimento' });
+
     const { rows } = await pool.query(
       `UPDATE points SET type=$1, name=$2, price_per_hour=$3, custom_hours=$4
        WHERE id=$5 RETURNING *`,
       [type, name, price_per_hour, custom_hours ? JSON.stringify(custom_hours) : null, req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao atualizar ponto' });
   }
 });
 
-// ── DELETE /api/points/:id — excluir (admin) ─────────────────────
-router.delete('/:id', auth, adminOnly, async (req, res) => {
+// ── DELETE /api/points/:id — excluir (admin ou gerente do est) ───
+router.delete('/:id', auth, adminOrManager, async (req, res) => {
   try {
+    const { rows: cur } = await pool.query('SELECT est_id FROM points WHERE id=$1', [req.params.id]);
+    if (!cur.length) return res.status(404).json({ error: 'Não encontrado' });
+    if (!managerOwnsEst(req.user, cur[0].est_id))
+      return res.status(403).json({ error: 'Sem acesso a este estabelecimento' });
+
     await pool.query('DELETE FROM points WHERE id=$1', [req.params.id]);
     res.json({ message: 'Ponto excluído' });
   } catch (err) {
