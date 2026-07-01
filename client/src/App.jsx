@@ -970,24 +970,25 @@ const DOW_LABELS=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const DOW_OPTIONS=[{value:1,label:'Segunda-feira'},{value:2,label:'Terça-feira'},{value:3,label:'Quarta-feira'},{value:4,label:'Quinta-feira'},{value:5,label:'Sexta-feira'},{value:6,label:'Sábado'},{value:0,label:'Domingo'}];
 const MONTH_NAMES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-function CRMRecorrentes({showToast}){
+function CRMRecorrentes({showToast,crmUser}){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
   const [ests,setEsts]=useState([]);
   const [alunos,setAlunos]=useState([]);
 
   // Modal nova recorrência
-  const RNEW={estId:'',pointId:'',dayOfWeek:'',startTime:'',endTime:'',hours:1,clientName:'',clientPhone:'',clientEmail:'',participantes:[],pm:'dinheiro',startDate:'',obs:''};
+  const RNEW={estId:'',pointId:'',dayOfWeek:'',startTime:'',endTime:'',hours:1,clientName:'',clientPhone:'',clientEmail:'',participantes:[],pm:'dinheiro',startDate:'',obs:'',alunoDoProf:false,professorId:''};
   const [showNew,setShowNew]=useState(false);
   const [rn,setRn]=useState(RNEW);
   const [rnPoints,setRnPoints]=useState([]);
   const [rnSlots,setRnSlots]=useState([]);
+  const [rnProfessores,setRnProfessores]=useState([]);
   const [saving,setSaving]=useState(false);
   // autocomplete de cliente
   const [rnNameInput,setRnNameInput]=useState('');
   const [rnShowSugg,setRnShowSugg]=useState(false);
   const rnSugg=alunos.filter(a=>rnNameInput.length>0&&a.nome.toLowerCase().includes(rnNameInput.toLowerCase())).slice(0,8);
-  const selRnAluno=(a)=>{setRn(r=>({...r,clientName:a.nome,clientPhone:a.telefone||''}));setRnNameInput(a.nome);setRnShowSugg(false);};
+  const selRnAluno=(a)=>{setRn(r=>({...r,clientName:a.nome,clientPhone:a.telefone||'',clientEmail:a.email||''}));setRnNameInput(a.nome);setRnShowSugg(false);};
   const updRn=(k,v)=>setRn(r=>({...r,[k]:v}));
   const resetNew=()=>{setShowNew(false);setRn(RNEW);setRnNameInput('');setRnPoints([]);setRnSlots([]);};
 
@@ -1006,12 +1007,19 @@ function CRMRecorrentes({showToast}){
   useEffect(()=>{load();},[load]);
   useEffect(()=>{
     if(!showNew)return;
-    estApi.list().then(setEsts).catch(()=>{});
+    estApi.list().then(ests=>{
+      setEsts(ests);
+      if(!rn.estId){
+        const userEstId=crmUser?.est_id||(crmUser?.est_ids&&crmUser.est_ids[0]);
+        if(userEstId)updRn('estId',String(userEstId));
+      }
+    }).catch(()=>{});
     alunoApi.list().then(setAlunos).catch(()=>{});
   },[showNew]);
   useEffect(()=>{
-    if(!rn.estId){setRnPoints([]);updRn('pointId','');return;}
+    if(!rn.estId){setRnPoints([]);setRnProfessores([]);updRn('pointId','');return;}
     pointApi.list(rn.estId).then(setRnPoints).catch(()=>{});
+    professorApi.list(rn.estId).then(setRnProfessores).catch(()=>{});
     updRn('pointId','');
   },[rn.estId]);
   // Gerar slots de horário baseado no ponto
@@ -1036,6 +1044,7 @@ function CRMRecorrentes({showToast}){
         client_name:rn.clientName,client_phone:rn.clientPhone,client_email:rn.clientEmail||undefined,
         participantes:rn.participantes.filter(p=>p.nome),
         payment_method:rn.pm,start_date:rn.startDate||undefined,observacoes:rn.obs||undefined,
+        professor_id:rn.alunoDoProf&&rn.professorId?Number(rn.professorId):undefined,
       });
       showToast('Recorrência criada!','success');resetNew();load();
     }catch(e){showToast(e.message,'error');}finally{setSaving(false);}
@@ -1169,6 +1178,21 @@ ${d.dates_skipped&&d.dates_skipped.length>0?`<p style="color:#999;font-size:12px
     {/* Modal Nova Recorrência */}
     <Modal open={showNew} onClose={resetNew} title="Nova Reserva Recorrente" maxW="max-w-lg">
       <div className="space-y-4">
+        <div className="flex flex-wrap gap-4 mb-1">
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" checked={rn.alunoDoProf} onChange={e=>{updRn('alunoDoProf',e.target.checked);updRn('professorId','');}} className="w-4 h-4 rounded accent-emerald-600"/>
+            <span>Aluno é do Professor</span>
+          </label>
+        </div>
+        <Field label="Estabelecimento" required>
+          <Sel value={rn.estId} onChange={e=>updRn('estId',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>
+        </Field>
+        {rn.alunoDoProf&&<Field label="Professor responsável" required>
+          <Sel value={rn.professorId} onChange={e=>updRn('professorId',e.target.value)}
+            options={rnProfessores.filter(p=>p.ativo!==false).map(p=>({value:p.id,label:`${p.nome}${p.percentual_repasse?` (academia ${p.percentual_repasse}%)`:''}`}))}
+            placeholder={rn.estId?'Selecione o professor...':'Selecione o estabelecimento primeiro'}
+            disabled={!rn.estId}/>
+        </Field>}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Nome do cliente" required>
             <div className="relative">
@@ -1187,9 +1211,6 @@ ${d.dates_skipped&&d.dates_skipped.length>0?`<p style="color:#999;font-size:12px
         </div>
         <Field label="Email (opcional)">
           <Inp value={rn.clientEmail} onChange={e=>updRn('clientEmail',e.target.value)} placeholder="email@cliente.com"/>
-        </Field>
-        <Field label="Estabelecimento" required>
-          <Sel value={rn.estId} onChange={e=>updRn('estId',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>
         </Field>
         {rn.estId&&<Field label="Espaço / Ponto" required>
           <Sel value={rn.pointId} onChange={e=>updRn('pointId',e.target.value)} options={rnPoints.map(p=>({value:p.id,label:`${p.name} — ${fmt$(p.price_per_hour)}/h`}))} placeholder="Selecione..."/>
@@ -1474,7 +1495,7 @@ function CRMReservations({showToast,crmUser}){
   const [mbShowSugg,setMbShowSugg]=useState(false);
   const [mbVisitante,setMbVisitante]=useState(false);
   const mbSugg=mbAlunos.filter(a=>mbNameInput.length>0&&a.nome.toLowerCase().includes(mbNameInput.toLowerCase())).slice(0,8);
-  const selectMbAluno=(a)=>{setMb(m=>({...m,name:a.nome,phone:a.telefone||''}));setMbNameInput(a.nome);setMbShowSugg(false);};
+  const selectMbAluno=(a)=>{setMb(m=>({...m,name:a.nome,phone:a.telefone||'',email:a.email||''}));setMbNameInput(a.nome);setMbShowSugg(false);};
   const resetMbModal=()=>{setShowManual(false);setMb(MBL);setMbNameInput('');setMbShowSugg(false);setMbVisitante(false);};
 
   const load=useCallback(()=>{
@@ -1494,7 +1515,14 @@ function CRMReservations({showToast,crmUser}){
   // Carrega ests/points para modal manual
   useEffect(()=>{
     if(!showManual)return;
-    estApi.list().then(setMbEsts).catch(()=>{});
+    estApi.list().then(ests=>{
+      setMbEsts(ests);
+      // Default para o estabelecimento do usuário logado
+      if(!mb.estId){
+        const userEstId=crmUser?.est_id||(crmUser?.est_ids&&crmUser.est_ids[0]);
+        if(userEstId)updMb('estId',String(userEstId));
+      }
+    }).catch(()=>{});
     alunoApi.list().then(setMbAlunos).catch(()=>{});
   },[showManual]);
   useEffect(()=>{
@@ -1591,7 +1619,7 @@ function CRMReservations({showToast,crmUser}){
     </div>
     <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'recorrentes',label:'🔄 Recorrentes'},{key:'aulas',label:'📚 Planos de Aula'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'}]} active={resTab} onChange={setResTab}/>
     {resTab==='aulas'&&<CRMPlanosAula showToast={showToast}/>}
-    {resTab==='recorrentes'&&<CRMRecorrentes showToast={showToast}/>}
+    {resTab==='recorrentes'&&<CRMRecorrentes showToast={showToast} crmUser={crmUser}/>}
     {resTab==='bar'&&<CRMBar showToast={showToast} crmUser={crmUser}/>}
     {resTab==='manutencao'&&<CRMManutencao showToast={showToast} crmUser={crmUser}/>}
     {resTab==='reservas'&&<div>
@@ -1643,6 +1671,15 @@ function CRMReservations({showToast,crmUser}){
             <span>Aluno é do Professor</span>
           </label>
         </div>
+        <Field label="Estabelecimento" required>
+          <Sel value={mb.estId} onChange={e=>updMb('estId',e.target.value)} options={mbEsts.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>
+        </Field>
+        {mb.alunoDoProf&&<Field label="Professor responsável" required>
+          <Sel value={mb.professorId} onChange={e=>updMb('professorId',e.target.value)}
+            options={mbProfessores.filter(p=>p.ativo!==false).map(p=>({value:p.id,label:`${p.nome}${p.percentual_repasse?` (academia ${p.percentual_repasse}%)`:''\`}`)})}
+            placeholder={mb.estId?'Selecione o professor...''Selecione o estabelecimento primeiro'}
+            disabled={!mb.estId}/>
+        </Field>}
         <div className="grid grid-cols-2 gap-3">
           {mbVisitante?(
             <Field label="Nome (opcional)">
@@ -1668,15 +1705,6 @@ function CRMReservations({showToast,crmUser}){
         <Field label="Email (opcional)">
           <Inp value={mb.email} onChange={e=>updMb('email',e.target.value)} placeholder="email@cliente.com"/>
         </Field>
-        <Field label="Estabelecimento" required>
-          <Sel value={mb.estId} onChange={e=>updMb('estId',e.target.value)} options={mbEsts.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>
-        </Field>
-        {mb.alunoDoProf&&<Field label="Professor responsável" required>
-          <Sel value={mb.professorId} onChange={e=>updMb('professorId',e.target.value)}
-            options={mbProfessores.filter(p=>p.ativo!==false).map(p=>({value:p.id,label:`${p.nome}${p.percentual_repasse?` (academia ${p.percentual_repasse}%)`:''}`}))}
-            placeholder={mb.estId?'Selecione o professor...':'Selecione o estabelecimento primeiro'}
-            disabled={!mb.estId}/>
-        </Field>}
         <Field label="Ponto / Espaço">
           <Sel value={mb.pointId} onChange={e=>updMb('pointId',e.target.value)} options={mbPoints.map(p=>({value:p.id,label:p.name}))} placeholder={mb.estId?'Selecione...':'Selecione o estabelecimento primeiro'} disabled={!mb.estId}/>
         </Field>

@@ -20,10 +20,12 @@ router.get('/', auth, crmOnly, async (req, res) => {
     const { rows } = await pool.query(`
       SELECT rr.*,
              e.name AS est_name,
-             p.name AS point_name, p.price_per_hour
+             p.name AS point_name, p.price_per_hour,
+             pr.nome AS professor_nome, pr.percentual_repasse
       FROM recurring_reservations rr
       JOIN establishments e ON rr.est_id   = e.id
       JOIN points         p ON rr.point_id = p.id
+      LEFT JOIN professores pr ON rr.professor_id = pr.id
       ${where}
       ORDER BY rr.ativo DESC, rr.created_at DESC
     `, params);
@@ -39,7 +41,7 @@ router.post('/', auth, crmOnly, async (req, res) => {
   const {
     est_id, point_id, day_of_week, start_time, end_time, hours,
     client_name, client_phone, client_email,
-    participantes, payment_method, start_date, observacoes,
+    participantes, payment_method, start_date, observacoes, professor_id,
   } = req.body;
 
   if (!est_id || !point_id || day_of_week == null || !start_time || !end_time || !client_name) {
@@ -61,14 +63,15 @@ router.post('/', auth, crmOnly, async (req, res) => {
       INSERT INTO recurring_reservations
         (est_id, point_id, day_of_week, start_time, end_time, hours,
          client_name, client_phone, client_email,
-         participantes, payment_method, start_date, observacoes, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         participantes, payment_method, start_date, observacoes, created_by, professor_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       RETURNING *
     `, [
       est_id, point_id, Number(day_of_week), start_time, end_time, hours || 1,
       client_name.trim(), client_phone || null, client_email || null,
       JSON.stringify(parts), payment_method || 'dinheiro',
       start_date || null, observacoes || null, req.user.id,
+      professor_id ? Number(professor_id) : null,
     ]);
     res.status(201).json(rows[0]);
   } catch (err) {
