@@ -9,7 +9,11 @@ router.get('/', auth, async (req, res) => {
     const clauses = [];
     const params  = [];
 
-    if (req.user.role === 'manager') {
+    // Se estId explícito → usa só ele (evita AND duplo para role simples/manager)
+    if (estId) {
+      clauses.push(`p.est_id = $${params.length + 1}`);
+      params.push(estId);
+    } else if (req.user.role === 'manager') {
       const ids = Array.from(new Set([
         ...(req.user.est_ids || []),
         ...(req.user.est_id ? [req.user.est_id] : []),
@@ -21,11 +25,6 @@ router.get('/', auth, async (req, res) => {
     } else if (req.user.role === 'simples' && req.user.est_id) {
       clauses.push(`p.est_id = $${params.length + 1}`);
       params.push(req.user.est_id);
-    }
-
-    if (estId) {
-      clauses.push(`p.est_id = $${params.length + 1}`);
-      params.push(estId);
     }
 
     const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
