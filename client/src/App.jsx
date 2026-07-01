@@ -1189,7 +1189,7 @@ ${d.dates_skipped&&d.dates_skipped.length>0?`<p style="color:#999;font-size:12px
         </Field>
         {rn.alunoDoProf&&<Field label="Professor responsável" required>
           <Sel value={rn.professorId} onChange={e=>updRn('professorId',e.target.value)}
-            options={rnProfessores.filter(p=>p.ativo!==false).map(p=>({value:p.id,label:`${p.nome}${p.percentual_repasse?` (academia ${p.percentual_repasse}%)`:''}`}))}
+            options={rnProfessores.filter(p=>p.ativo!==false).map(p=>({value:p.id,label:p.nome+(p.percentual_repasse?' (academia '+p.percentual_repasse+'%)':'')}))}
             placeholder={rn.estId?'Selecione o professor...':'Selecione o estabelecimento primeiro'}
             disabled={!rn.estId}/>
         </Field>}
@@ -1676,8 +1676,8 @@ function CRMReservations({showToast,crmUser}){
         </Field>
         {mb.alunoDoProf&&<Field label="Professor responsável" required>
           <Sel value={mb.professorId} onChange={e=>updMb('professorId',e.target.value)}
-            options={mbProfessores.filter(p=>p.ativo!==false).map(p=>({value:p.id,label:`${p.nome}${p.percentual_repasse?` (academia ${p.percentual_repasse}%)`:''\`}`)})}
-            placeholder={mb.estId?'Selecione o professor...''Selecione o estabelecimento primeiro'}
+            options={mbProfessores.filter(p=>p.ativo!==false).map(p=>({value:p.id,label:p.nome+(p.percentual_repasse?' (academia '+p.percentual_repasse+'%)':'')}))}
+            placeholder={mb.estId?'Selecione o professor...':'Selecione o estabelecimento primeiro'}
             disabled={!mb.estId}/>
         </Field>}
         <div className="grid grid-cols-2 gap-3">
