@@ -506,19 +506,14 @@ router.post('/resumo-aluno/whatsapp', auth, adminOrManager, async (req, res) => 
   addSection('🍺', 'Bar', resumo.bar, () => 'Consumo');
   addSection('🛒', 'Loja & Equip.', resumo.manutencao, () => 'Item');
 
-  const mensagem =
-    'Olá, *' + aluno_nome + '*! 👋
-
-' +
-    '📋 *' + titulo + '*
-
-' +
-    linhas.join('
-') +
-    '💰 *Total: ' + fmtMoney(totais.geral || 0) + '*
-
-' +
-    'Dúvidas? Estamos à disposição! 🏃';
+const mensagem = [
+    'Ola, *' + aluno_nome + '*! ',
+    '',
+    '\u{1F4CB} *' + titulo + '*',
+    '',
+  ].join('\n') + linhas.join('\n') +
+    '\n\u{1F4B0} *Total: ' + fmtMoney(totais.geral || 0) + '*\n\n' +
+    'Duvidas? Estamos a disposicao!';
 
   try {
     const result = await wa.sendText(telefone, mensagem);
