@@ -14,10 +14,13 @@ const RES_QUERY = `
          r.client_phone,
          p.name   AS point_name, p.price_per_hour,
          e.name   AS est_name,   e.phone AS est_phone,
-         e.street, e.number AS est_number, e.city, e.state
+         e.street, e.number AS est_number, e.city, e.state,
+         pr.nome  AS professor_nome,
+         pr.percentual_repasse
   FROM reservations r
-  LEFT JOIN public_users  pu ON r.user_id  = pu.id
-  JOIN points         p ON r.point_id = p.id
+  LEFT JOIN public_users  pu ON r.user_id    = pu.id
+  LEFT JOIN professores   pr ON r.professor_id = pr.id
+  LEFT JOIN points    p ON r.point_id = p.id
   JOIN establishments e ON r.est_id   = e.id
 `;
 
@@ -107,7 +110,7 @@ router.post('/', auth, async (req, res) => {
 router.post('/manual', auth, crmOnly, async (req, res) => {
   const { point_id, est_id, date, start_time, end_time, hours,
           payment_method, client_name, client_phone, client_email,
-          participantes, price_per_hour: priceOverride } = req.body;
+          participantes, price_per_hour: priceOverride, professor_id } = req.body;
 
   if (!est_id || !client_name || !client_phone)
     return res.status(400).json({ error: 'Nome, telefone e estabelecimento são obrigatórios' });
@@ -157,11 +160,11 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
     const { rows } = await pool.query(`
       INSERT INTO reservations
         (point_id, est_id, user_id, date, start_time, end_time, hours, total,
-         payment_method, client_name, client_phone, client_email, participantes)
-      VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+         payment_method, client_name, client_phone, client_email, participantes, professor_id)
+      VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
       [point_id || null, est_id, date || null, start_time || null, end_time || null, hours || null, total, pm,
        client_name.trim(), client_phone.trim(), client_email ? client_email.trim() : null,
-       JSON.stringify(parts)]
+       JSON.stringify(parts), professor_id ? Number(professor_id) : null]
     );
 
     const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [rows[0].id]);

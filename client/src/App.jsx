@@ -1453,13 +1453,14 @@ function CRMReservations({showToast,crmUser}){
 
   // ── Nova reserva manual ──
   const [showManual,setShowManual]=useState(false);
-  const MBL={name:'',phone:'',email:'',estId:'',pointId:'',date:'',slots:[],pm:'dinheiro',participantes:[],pricePerHour:''};
+  const MBL={name:'',phone:'',email:'',estId:'',pointId:'',date:'',slots:[],pm:'dinheiro',participantes:[],pricePerHour:'',professorId:'',alunoDoProf:false};
   const [mb,setMb]=useState(MBL);
   const [mbAlunos,setMbAlunos]=useState([]);
   const [mbEsts,setMbEsts]=useState([]);
   const [mbPoints,setMbPoints]=useState([]);
   const [mbSlots,setMbSlots]=useState([]);
   const [mbSaving,setMbSaving]=useState(false);
+  const [mbProfessores,setMbProfessores]=useState([]);
   const updMb=(k,v)=>setMb(m=>({...m,[k]:v}));
   const [mbNameInput,setMbNameInput]=useState('');
   const [mbShowSugg,setMbShowSugg]=useState(false);
@@ -1489,8 +1490,9 @@ function CRMReservations({showToast,crmUser}){
     alunoApi.list().then(setMbAlunos).catch(()=>{});
   },[showManual]);
   useEffect(()=>{
-    if(!mb.estId){setMbPoints([]);updMb('pointId','');return;}
+    if(!mb.estId){setMbPoints([]);setMbProfessores([]);updMb('pointId','');return;}
     pointApi.list(mb.estId).then(setMbPoints).catch(()=>{});
+    professorApi.list(mb.estId).then(setMbProfessores).catch(()=>{});
     updMb('pointId','');
   },[mb.estId]);
   useEffect(()=>{
@@ -1534,6 +1536,7 @@ function CRMReservations({showToast,crmUser}){
         payment_method:mb.pm,client_name:clientName,client_phone:mb.phone,client_email:mb.email||undefined,
         participantes:mb.participantes.filter(p=>p.nome),
         price_per_hour:mb.pricePerHour!==''?Number(mb.pricePerHour):undefined,
+        professor_id:mb.alunoDoProf&&mb.professorId?Number(mb.professorId):undefined,
       });
       showToast('Reserva criada com sucesso!','success');
       resetMbModal();load();
@@ -1603,6 +1606,7 @@ function CRMReservations({showToast,crmUser}){
               <p>👤 {r.user_name} — {r.user_email}</p>
               <p>📅 {fmtDate(dateStr(r))} • {r.start_time} – {r.end_time} ({r.hours}h)</p>
               <p>💰 {fmt$(r.total)} {r.payment_method?`• ${PAY_LABEL[r.payment_method]||r.payment_method}`:''}</p>
+              {r.professor_nome&&<p className="text-amber-600">🎓 Prof. {r.professor_nome}{r.percentual_repasse?` — academia ${r.percentual_repasse}% = ${fmt$(r.total*r.percentual_repasse/100)}`:''}</p>}
             </div>
           </div>
           <div className="flex gap-2 shrink-0 flex-wrap">
@@ -1621,10 +1625,22 @@ function CRMReservations({showToast,crmUser}){
     <Modal open={showManual} onClose={()=>resetMbModal()} title="Nova Reserva Manual" maxW="max-w-lg">
       <div className="space-y-4">
         {/* Checkbox Visitante */}
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none w-fit">
-          <input type="checkbox" checked={mbVisitante} onChange={e=>{setMbVisitante(e.target.checked);updMb('name','');updMb('phone','');setMbNameInput('');setMbShowSugg(false);}} className="w-4 h-4 rounded accent-emerald-600"/>
-          <span>Visitante <span className="text-gray-400 text-xs">(sem cadastro)</span></span>
-        </label>
+        <div className="flex flex-wrap gap-4">
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" checked={mbVisitante} onChange={e=>{setMbVisitante(e.target.checked);updMb('name','');updMb('phone','');setMbNameInput('');setMbShowSugg(false);}} className="w-4 h-4 rounded accent-emerald-600"/>
+            <span>Visitante <span className="text-gray-400 text-xs">(sem cadastro)</span></span>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" checked={mb.alunoDoProf} onChange={e=>{updMb('alunoDoProf',e.target.checked);updMb('professorId','');}} className="w-4 h-4 rounded accent-emerald-600"/>
+            <span>Aluno é do Professor</span>
+          </label>
+        </div>
+        {mb.alunoDoProf&&<Field label="Professor responsável" required>
+          <Sel value={mb.professorId} onChange={e=>updMb('professorId',e.target.value)}
+            options={mbProfessores.filter(p=>p.ativo!==false).map(p=>({value:p.id,label:`${p.nome}${p.percentual_repasse?` (academia ${p.percentual_repasse}%)`:''}`}))}
+            placeholder={mb.estId?'Selecione o professor...':'Selecione o estabelecimento primeiro'}
+            disabled={!mb.estId}/>
+        </Field>}
         <div className="grid grid-cols-2 gap-3">
           {mbVisitante?(
             <Field label="Nome (opcional)">
