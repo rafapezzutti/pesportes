@@ -1593,6 +1593,11 @@ function CRMReservations({showToast,crmUser}){
     try{await resApi.cancel(id);showToast('Reserva cancelada','success');load();}
     catch(e){showToast(e.message,'error');}
   };
+  const handleDelete=async(id)=>{
+    if(!window.confirm('Excluir esta reserva permanentemente?'))return;
+    try{await resApi.remove(id);showToast('Reserva excluída','info');load();}
+    catch(e){showToast(e.message,'error');}
+  };
 
   const handleReschedule=async()=>{
     const ns=newSlots[0];
