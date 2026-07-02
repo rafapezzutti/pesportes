@@ -13,7 +13,8 @@ router.get('/', auth, adminOrManager, async (req, res) => {
         SELECT cu.id, cu.name, cu.email, cu.role, cu.est_id,
                COALESCE(cu.est_ids, '{}') AS est_ids,
                e.name AS est_name, cu.created_at,
-               COALESCE(cu.ativo, TRUE) AS ativo
+               COALESCE(cu.ativo, TRUE) AS ativo,
+               cu.permissions
         FROM crm_users cu
         LEFT JOIN establishments e ON cu.est_id = e.id
         WHERE cu.role != 'admin'
@@ -31,7 +32,8 @@ router.get('/', auth, adminOrManager, async (req, res) => {
         SELECT cu.id, cu.name, cu.email, cu.role, cu.est_id,
                COALESCE(cu.est_ids, '{}') AS est_ids,
                e.name AS est_name, cu.created_at,
-               COALESCE(cu.ativo, TRUE) AS ativo
+               COALESCE(cu.ativo, TRUE) AS ativo,
+               cu.permissions
         FROM crm_users cu
         LEFT JOIN establishments e ON cu.est_id = e.id
         WHERE cu.role != 'admin'
@@ -152,5 +154,25 @@ router.delete('/:id', auth, adminOnly, async (req, res) => {
     res.status(500).json({ error: 'Erro ao excluir usuario' });
   }
 });
+
+// PUT /api/crm-users/:id/permissions — admin ou manager atualiza perfil de permissões
+router.put('/:id/permissions', auth, adminOrManager, async (req, res) => {
+  const { permissions } = req.body;
+  if (!permissions || typeof permissions !== 'object')
+    return res.status(400).json({ error: 'permissions deve ser um objeto' });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE crm_users SET permissions = $1 WHERE id = $2
+       RETURNING id, name, role, permissions`,
+      [JSON.stringify(permissions), req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('[PUT /crm-users/:id/permissions]', err.message);
+    res.status(500).json({ error: 'Erro ao atualizar permissões' });
+  }
+});
+
 
 module.exports = router;

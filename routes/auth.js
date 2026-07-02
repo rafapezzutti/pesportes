@@ -74,6 +74,7 @@ router.post('/crm/login', async (req, res) => {
         profissional_id: user.profissional_id || null,
         professor_id: user.professor_id || null,
         estFeatures,
+        permissions: user.permissions || null,
       },
     });
   } catch (err) {

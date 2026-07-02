@@ -274,6 +274,7 @@ async function runMigrations() {
     `ALTER TABLE crm_users DROP CONSTRAINT IF EXISTS crm_users_role_check`,
     `ALTER TABLE crm_users ADD CONSTRAINT crm_users_role_check CHECK (role IN ('admin','manager','simples','profissional','professor','recepcao'))`,
     `ALTER TABLE establishments ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}'`,
+    `ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT NULL`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>

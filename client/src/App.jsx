@@ -461,32 +461,38 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
       {key:'crm-points',         label:'Pontos',           icon:'📍',roles:['admin','manager']},
       {key:'crm-professors',     label:'Professores',      icon:'🎓',roles:['admin','manager']},
       {key:'crm-profissionais-ef',label:'Profissionais EF',icon:'🏋️',roles:['admin','manager']},
-      {key:'crm-alunos',         label:'Alunos / Clientes', icon:'🎽',roles:['admin','manager','simples'],feature:'alunos'},
+      {key:'crm-alunos',         label:'Alunos / Clientes', icon:'🎽',roles:['admin','manager','simples','professor','recepcao'],feature:'alunos'},
     ]},
     {label:'Financeiro', items:[
-      {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager'],feature:'financeiro'},
+      {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager','simples','professor','recepcao'],feature:'financeiro'},
       {key:'crm-horarios-livres', label:'Horários Livres', icon:'🟢',roles:['admin','manager','simples','professor','recepcao'],feature:'horarios_livres'},
-      {key:'crm-funcionarios',   label:'Funcionários', icon:'👷',roles:['admin','manager'],feature:'funcionarios'},
-      {key:'crm-estoque',        label:'Estoque Bar',  icon:'📦',roles:['admin','manager'],feature:'bar'},
+      {key:'crm-funcionarios',   label:'Funcionários', icon:'👷',roles:['admin','manager','simples','professor','recepcao'],feature:'funcionarios'},
+      {key:'crm-estoque',        label:'Estoque Bar',  icon:'📦',roles:['admin','manager','simples','professor','recepcao'],feature:'bar'},
     ]},
     {label:'Marketing', items:[
-      {key:'crm-unimidia',       label:'Quero Divulgar', icon:'📺',roles:['admin','manager'],feature:'unimidia'},
+      {key:'crm-unimidia',       label:'Quero Divulgar', icon:'📺',roles:['admin','manager','simples','professor','recepcao'],feature:'unimidia'},
     ]},
     {label:'Administração', items:[
       {key:'crm-users',          label:'Usuários',  icon:'👥',roles:['admin','manager']},
       {key:'crm-audit',          label:'Auditoria', icon:'🛡️',roles:['admin']},
       {key:'crm-entitlements',    label:'Entitlements', icon:'🔐',roles:['admin']},
-      {key:'crm-whatsapp',       label:'WhatsApp',  icon:'💬',roles:['admin','manager'],feature:'whatsapp'},
+      {key:'crm-user-profiles',   label:'Perfis',       icon:'🧑‍💼',roles:['admin','manager']},
+      {key:'crm-whatsapp',       label:'WhatsApp',  icon:'💬',roles:['admin','manager','simples','professor','recepcao'],feature:'whatsapp'},
     ]},
     {label:'Profissional', items:[
       {key:'prof-perfil',        label:'Meu Perfil',  icon:'👤',roles:['profissional']},
       {key:'prof-alunos',        label:'Meus Alunos', icon:'📚',roles:['profissional']},
     ]},
   ].map(g=>({...g,items:g.items.filter(m=>{
-    if(!m.roles.includes(crmUser.role)) return false;
     if(crmUser.role==='admin') return true;
-    if(!m.feature||!crmUser.estFeatures) return true;
-    return crmUser.estFeatures[m.feature]!==false;
+    if(!m.roles.includes(crmUser.role)) return false;
+    // Establishment entitlements — feature must be enabled for the est
+    if(m.feature&&crmUser.estFeatures&&crmUser.estFeatures[m.feature]===false) return false;
+    if(!m.feature) return true; // non-feature pages: role check is enough
+    // User-level permissions override (null = use role defaults)
+    if(crmUser.permissions) return crmUser.permissions[m.feature]===true;
+    // Fall back to role defaults
+    return ROLE_DFLT[crmUser.role]?.[m.feature]!==false;
   })})).filter(g=>g.items.length);
   const [openGroups,setOpenGroups]=useState({});
   const isOpen=(l)=>openGroups[l]===true; // recolhido por padrão
@@ -3878,6 +3884,157 @@ function CRMHorariosLivres({crmUser,showToast}){
 
 
 
+// Permissões padrão por role — base do sistema de perfis
+const ROLE_DFLT={
+  admin:      {reservas:true,horarios_livres:true,alunos:true,financeiro:true,funcionarios:true,bar:true,unimidia:true,whatsapp:true},
+  manager:    {reservas:true,horarios_livres:true,alunos:true,financeiro:true,funcionarios:true,bar:true,unimidia:true,whatsapp:true},
+  simples:    {reservas:true,horarios_livres:true,alunos:true,financeiro:false,funcionarios:false,bar:false,unimidia:false,whatsapp:false},
+  professor:  {reservas:true,horarios_livres:true,alunos:true,financeiro:false,funcionarios:false,bar:false,unimidia:false,whatsapp:false},
+  recepcao:   {reservas:true,horarios_livres:true,alunos:false,financeiro:false,funcionarios:false,bar:false,unimidia:false,whatsapp:false},
+  profissional:{reservas:false,horarios_livres:false,alunos:false,financeiro:false,funcionarios:false,bar:false,unimidia:false,whatsapp:false},
+};
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PERFIS DE USUÁRIO — controle de permissões por usuário (admin + manager)
+// ─────────────────────────────────────────────────────────────────────────────
+const PERFIL_FEATURES=[
+  {key:'reservas',        label:'Reservas',       icon:'📅'},
+  {key:'horarios_livres', label:'Horários Livres', icon:'🟢'},
+  {key:'alunos',          label:'Alunos',         icon:'🎽'},
+  {key:'financeiro',      label:'Financeiro',     icon:'💰'},
+  {key:'funcionarios',    label:'Funcionários',   icon:'👷'},
+  {key:'bar',             label:'Bar / Estoque',  icon:'📦'},
+  {key:'unimidia',        label:'Mkt / Divulgar', icon:'📺'},
+  {key:'whatsapp',        label:'WhatsApp',       icon:'💬'},
+];
+
+function CRMUserProfiles({crmUser,showToast}){
+  const [users,setUsers]=useState([]);
+  const [perms,setPerms]=useState({});   // {userId: {feature:bool}}
+  const [saving,setSaving]=useState({});
+  const [loading,setLoading]=useState(true);
+  const [search,setSearch]=useState('');
+
+  useEffect(()=>{
+    fetch('/api/crm-users',{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}})
+      .then(r=>r.json())
+      .then(data=>{
+        // exclude managers and admins from this view
+        const filtered=data.filter(u=>!['admin','manager'].includes(u.role));
+        setUsers(filtered);
+        const p={};
+        filtered.forEach(u=>{
+          // if user has custom permissions use them, else use role defaults
+          p[u.id]=u.permissions?{...u.permissions}:{...(ROLE_DFLT[u.role]||{})};
+        });
+        setPerms(p);
+        setLoading(false);
+      })
+      .catch(()=>{showToast('Erro ao carregar usuários','error');setLoading(false);});
+  },[]);
+
+  const toggle=(userId,feature)=>{
+    setPerms(prev=>{
+      const cur=prev[userId]||{};
+      return{...prev,[userId]:{...cur,[feature]:!cur[feature]}};
+    });
+  };
+
+  const resetToDefault=(userId,role)=>{
+    setPerms(prev=>({...prev,[userId]:{...(ROLE_DFLT[role]||{})}}));
+  };
+
+  const save=(userId)=>{
+    setSaving(p=>({...p,[userId]:true}));
+    fetch(`/api/crm-users/${userId}/permissions`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json',Authorization:`Bearer ${localStorage.getItem('token')}`},
+      body:JSON.stringify({permissions:perms[userId]||{}})
+    })
+    .then(r=>{if(!r.ok)throw new Error();return r.json();})
+    .then(()=>showToast('Perfil salvo!','success'))
+    .catch(()=>showToast('Erro ao salvar','error'))
+    .finally(()=>setSaving(p=>({...p,[userId]:false})));
+  };
+
+  const filtered=users.filter(u=>!search||u.name.toLowerCase().includes(search.toLowerCase())||u.email.toLowerCase().includes(search.toLowerCase()));
+
+  if(loading)return<div className="p-8 text-center text-gray-400">Carregando...</div>;
+
+  return(
+    <div className="p-4 md:p-6 space-y-5 max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-end gap-3 justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">Perfis de Usuário</h2>
+          <p className="text-sm text-gray-500 mt-1">Defina o que cada usuário pode acessar. Os defaults vêm do perfil (role), mas podem ser customizados individualmente.</p>
+        </div>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Filtrar usuário..."
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 w-full sm:w-56"/>
+      </div>
+
+      {filtered.length===0&&<div className="text-center text-gray-400 py-16">{search?'Nenhum usuário encontrado.':'Nenhum usuário cadastrado.'}</div>}
+
+      {filtered.map(u=>{
+        const p=perms[u.id]||ROLE_DFLT[u.role]||{};
+        const dflt=ROLE_DFLT[u.role]||{};
+        const hasChanges=PERFIL_FEATURES.some(f=>p[f.key]!==dflt[f.key]);
+        return(
+          <div key={u.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-3 justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm">{u.name.charAt(0).toUpperCase()}</div>
+                <div>
+                  <p className="font-semibold text-gray-800 text-sm">{u.name}</p>
+                  <p className="text-xs text-gray-400">{u.email}</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  u.role==='professor'?'bg-emerald-100 text-emerald-700':
+                  u.role==='recepcao'?'bg-yellow-100 text-yellow-700':
+                  u.role==='profissional'?'bg-purple-100 text-purple-700':
+                  'bg-blue-100 text-blue-700'}`}>{ROLE_NAME[u.role]||u.role}</span>
+                {!u.ativo&&<span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">Suspenso</span>}
+                {hasChanges&&<span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">✏️ Personalizado</span>}
+              </div>
+              <div className="flex gap-2">
+                {hasChanges&&<button onClick={()=>resetToDefault(u.id,u.role)}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">↩ Restaurar</button>}
+                <button onClick={()=>save(u.id)} disabled={!!saving[u.id]}
+                  className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                  {saving[u.id]?'Salvando...':'💾 Salvar'}</button>
+              </div>
+            </div>
+            <div className="p-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {PERFIL_FEATURES.map(feat=>{
+                  const enabled=!!p[feat.key];
+                  const isDefault=enabled===!!dflt[feat.key];
+                  return(
+                    <label key={feat.key}
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer select-none transition-all ${
+                        enabled
+                          ?isDefault?'border-emerald-200 bg-emerald-50':'border-blue-300 bg-blue-50 shadow-sm'
+                          :isDefault?'border-gray-200 bg-gray-50 opacity-50':'border-red-200 bg-red-50 opacity-60'
+                      }`}>
+                      <input type="checkbox" checked={enabled} onChange={()=>toggle(u.id,feat.key)}
+                        className="w-4 h-4 rounded accent-emerald-600 shrink-0"/>
+                      <div className="min-w-0">
+                        <div className="text-base leading-none">{feat.icon}</div>
+                        <div className="text-xs font-medium text-gray-700 mt-1 leading-tight">{feat.label}</div>
+                        {!isDefault&&<div className="text-xs text-blue-500 mt-0.5">{enabled?'+ extra':'– removido'}</div>}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ENTITLEMENTS — gerência de módulos por estabelecimento (admin only)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4176,6 +4333,7 @@ export default function App(){
     'crm-audit':        <CRMAudit showToast={showToast}/>,
     'crm-whatsapp':     <CRMWhatsApp showToast={showToast}/>,
     'crm-entitlements': <CRMEntitlements showToast={showToast}/>,
+    'crm-user-profiles': <CRMUserProfiles crmUser={crmUser} showToast={showToast}/>,
     'prof-perfil':      <CRMProfissionalHome crmUser={crmUser} showToast={showToast}/>,
     'prof-alunos':      <CRMPlanosAula showToast={showToast}/>,
   };
