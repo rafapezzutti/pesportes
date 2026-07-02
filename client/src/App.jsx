@@ -1520,7 +1520,7 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
 
   useEffect(()=>{
     if(!pointId||!date){setSlots([]);setSelSlots([]);return;}
-    pointApi.slots(pointId,date).then(setSlots).catch(()=>setSlots([]));
+    pointApi.slots(pointId,date).then(data=>setSlots(data.filter(x=>x.available).map(x=>x.time))).catch(()=>setSlots([]));
     setSelSlots([]);
   },[pointId,date]);
 
