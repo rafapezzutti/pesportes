@@ -2119,8 +2119,10 @@ function CRMAlunos({crmUser,showToast}){
   useEffect(()=>{load();},[]);
 
   const isSimples=crmUser?.role==='simples';
+  const isManager=crmUser?.role==='manager';
   const defaultProfId=isProfessor?(crmUser?.professor_id||''):'';
-  const openNew=()=>{setF({...BLANK,est_id:(isSimples||isProfessor)?(crmUser?.est_id||''):'',professor_id:defaultProfId}); setEditA(null);setShowForm(true);};
+  const defaultEstId=(isSimples||isProfessor||isManager)?(crmUser?.est_id||''):'';
+  const openNew=()=>{setF({...BLANK,est_id:defaultEstId,professor_id:defaultProfId}); setEditA(null);setShowForm(true);};
   const openEdit=(a)=>{
     setF({nome:a.nome||'',cpf:a.cpf||'',email:a.email||'',telefone:a.telefone||'',
           data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:'',
