@@ -2121,7 +2121,9 @@ function CRMAlunos({crmUser,showToast}){
   const isSimples=crmUser?.role==='simples';
   const isManager=crmUser?.role==='manager';
   const defaultProfId=isProfessor?(crmUser?.professor_id||''):'';
-  const defaultEstId=(isSimples||isProfessor||isManager)?(crmUser?.est_id||''):'';
+  const defaultEstId=(isSimples||isProfessor)
+    ?(crmUser?.est_id||'')
+    :isManager?(crmUser?.est_id||crmUser?.est_ids?.[0]||''):'';
   const openNew=()=>{setF({...BLANK,est_id:defaultEstId,professor_id:defaultProfId}); setEditA(null);setShowForm(true);};
   const openEdit=(a)=>{
     setF({nome:a.nome||'',cpf:a.cpf||'',email:a.email||'',telefone:a.telefone||'',

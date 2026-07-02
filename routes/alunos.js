@@ -58,6 +58,9 @@ router.post('/', auth, async (req, res) => {
   let { est_id } = req.body;
   if (req.user.role === 'simples') est_id = req.user.est_id;
   if (req.user.role === 'professor') est_id = req.user.est_id;
+  if (req.user.role === 'manager' && !est_id) {
+    est_id = req.user.est_id || (req.user.est_ids && req.user.est_ids[0]) || null;
+  }
   const professor_id = req.user.role === 'professor' ? (req.user.professor_id || null) : null;
   if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
 
