@@ -1546,7 +1546,7 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
     try{
       const s=selSlots[0];
       const e=String(parseInt(selSlots[selSlots.length-1])+1).padStart(2,'0')+':00';
-      await resApi.manualCreate({point_id:Number(pointId),est_id:Number(estId),date,start_time:s,end_time:e,hours:selSlots.length,client_name:name,client_phone:phone,payment_method:'pix'});
+      await resApi.manualCreate({point_id:Number(pointId),est_id:Number(estId),date,start_time:s,end_time:e,hours:selSlots.length,client_name:name,client_phone:phone,payment_method:'pix',professor_id:crmUser?.professor_id||null});
       showToast('Reserva criada com sucesso!','success');
       onClose();
     }catch(e){showToast(e.message,'error');}

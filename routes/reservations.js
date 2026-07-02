@@ -157,15 +157,35 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
       }
     }
 
+    // Garante que professor_id vem do token se o usuário for professor
+    const resolvedProfId = req.user.role === 'professor'
+      ? (req.user.professor_id || (professor_id ? Number(professor_id) : null))
+      : (professor_id ? Number(professor_id) : null);
+
     const { rows } = await pool.query(`
       INSERT INTO reservations
         (point_id, est_id, user_id, date, start_time, end_time, hours, total,
-         payment_method, client_name, client_phone, client_email, participantes, professor_id)
-      VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+         payment_method, client_name, client_phone, client_email, participantes,
+         professor_id, crm_user_id)
+      VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
       [point_id || null, est_id, date || null, start_time || null, end_time || null, hours || null, total, pm,
        client_name.trim(), client_phone.trim(), client_email ? client_email.trim() : null,
-       JSON.stringify(parts), professor_id ? Number(professor_id) : null]
-    );
+       JSON.stringify(parts), resolvedProfId, req.user.id]
+    ).catch(async (err) => {
+      // Coluna crm_user_id pode não existir em DBs antigos — retry sem ela
+      if (err.message.includes('crm_user_id')) {
+        return pool.query(`
+          INSERT INTO reservations
+            (point_id, est_id, user_id, date, start_time, end_time, hours, total,
+             payment_method, client_name, client_phone, client_email, participantes, professor_id)
+          VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+          [point_id || null, est_id, date || null, start_time || null, end_time || null, hours || null, total, pm,
+           client_name.trim(), client_phone.trim(), client_email ? client_email.trim() : null,
+           JSON.stringify(parts), resolvedProfId]
+        );
+      }
+      throw err;
+    });
 
     const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [rows[0].id]);
     res.status(201).json(full[0]);
