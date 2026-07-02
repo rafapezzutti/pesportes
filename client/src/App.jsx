@@ -454,34 +454,40 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
   const groups=[
     {label:'Principal', items:[
       {key:'crm-dashboard',      label:'Dashboard', icon:'📊',roles:['admin','manager']},
-      {key:'crm-reservations',   label:'Reservas',  icon:'📅',roles:['admin','manager','simples']},
+      {key:'crm-reservations',   label:'Reservas',  icon:'📅',roles:['admin','manager','simples'],feature:'reservas'},
     ]},
     {label:'Cadastros', items:[
       {key:'crm-establishment',  label:'Estabelecimentos', icon:'🏢',roles:['admin','manager']},
       {key:'crm-points',         label:'Pontos',           icon:'📍',roles:['admin','manager']},
       {key:'crm-professors',     label:'Professores',      icon:'🎓',roles:['admin','manager']},
       {key:'crm-profissionais-ef',label:'Profissionais EF',icon:'🏋️',roles:['admin','manager']},
-      {key:'crm-alunos',         label:'Alunos / Clientes', icon:'🎽',roles:['admin','manager','simples']},
+      {key:'crm-alunos',         label:'Alunos / Clientes', icon:'🎽',roles:['admin','manager','simples'],feature:'alunos'},
     ]},
     {label:'Financeiro', items:[
-      {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager']},
-      {key:'crm-horarios-livres', label:'Horários Livres', icon:'🟢',roles:['admin','manager','simples','professor','recepcao']},
-      {key:'crm-funcionarios',   label:'Funcionários', icon:'👷',roles:['admin','manager']},
-      {key:'crm-estoque',        label:'Estoque Bar',  icon:'📦',roles:['admin','manager']},
+      {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager'],feature:'financeiro'},
+      {key:'crm-horarios-livres', label:'Horários Livres', icon:'🟢',roles:['admin','manager','simples','professor','recepcao'],feature:'horarios_livres'},
+      {key:'crm-funcionarios',   label:'Funcionários', icon:'👷',roles:['admin','manager'],feature:'funcionarios'},
+      {key:'crm-estoque',        label:'Estoque Bar',  icon:'📦',roles:['admin','manager'],feature:'bar'},
     ]},
     {label:'Marketing', items:[
-      {key:'crm-unimidia',       label:'Quero Divulgar', icon:'📺',roles:['admin','manager']},
+      {key:'crm-unimidia',       label:'Quero Divulgar', icon:'📺',roles:['admin','manager'],feature:'unimidia'},
     ]},
     {label:'Administração', items:[
       {key:'crm-users',          label:'Usuários',  icon:'👥',roles:['admin','manager']},
       {key:'crm-audit',          label:'Auditoria', icon:'🛡️',roles:['admin']},
-      {key:'crm-whatsapp',       label:'WhatsApp',  icon:'💬',roles:['admin','manager']},
+      {key:'crm-entitlements',    label:'Entitlements', icon:'🔐',roles:['admin']},
+      {key:'crm-whatsapp',       label:'WhatsApp',  icon:'💬',roles:['admin','manager'],feature:'whatsapp'},
     ]},
     {label:'Profissional', items:[
       {key:'prof-perfil',        label:'Meu Perfil',  icon:'👤',roles:['profissional']},
       {key:'prof-alunos',        label:'Meus Alunos', icon:'📚',roles:['profissional']},
     ]},
-  ].map(g=>({...g,items:g.items.filter(m=>m.roles.includes(crmUser.role))})).filter(g=>g.items.length);
+  ].map(g=>({...g,items:g.items.filter(m=>{
+    if(!m.roles.includes(crmUser.role)) return false;
+    if(crmUser.role==='admin') return true;
+    if(!m.feature||!crmUser.estFeatures) return true;
+    return crmUser.estFeatures[m.feature]!==false;
+  })})).filter(g=>g.items.length);
   const [openGroups,setOpenGroups]=useState({});
   const isOpen=(l)=>openGroups[l]===true; // recolhido por padrão
   const toggleGroup=(l)=>setOpenGroups(p=>({...p,[l]:!p[l]}));
@@ -3871,6 +3877,111 @@ function CRMHorariosLivres({crmUser,showToast}){
 }
 
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENTITLEMENTS — gerência de módulos por estabelecimento (admin only)
+// ─────────────────────────────────────────────────────────────────────────────
+const ENT_FEATURES=[
+  {key:'reservas',        label:'Reservas de Quadra',    icon:'📅'},
+  {key:'horarios_livres', label:'Horários Livres',       icon:'🟢'},
+  {key:'alunos',          label:'Alunos / Clientes',     icon:'🎽'},
+  {key:'financeiro',      label:'Financeiro',            icon:'💰'},
+  {key:'funcionarios',    label:'Funcionários',          icon:'👷'},
+  {key:'bar',             label:'Estoque Bar',           icon:'📦'},
+  {key:'unimidia',        label:'Quero Divulgar',        icon:'📺'},
+  {key:'whatsapp',        label:'WhatsApp',              icon:'💬'},
+];
+
+function CRMEntitlements({showToast}){
+  const [ests,setEsts]=useState([]);
+  const [feats,setFeats]=useState({});  // {estId: {key: bool}}
+  const [saving,setSaving]=useState({});
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    fetch('/api/establishments/admin/features',{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}})
+      .then(r=>r.json())
+      .then(data=>{
+        setEsts(data);
+        const f={};
+        data.forEach(e=>{f[e.id]=e.features||{};});
+        setFeats(f);
+        setLoading(false);
+      })
+      .catch(()=>{showToast('Erro ao carregar entitlements','error');setLoading(false);});
+  },[]);
+
+  const toggle=(estId,key)=>{
+    setFeats(prev=>{
+      const cur=prev[estId]||{};
+      const enabled=cur[key]!==false;
+      return {...prev,[estId]:{...cur,[key]:!enabled}};
+    });
+  };
+
+  const save=(estId)=>{
+    setSaving(p=>({...p,[estId]:true}));
+    fetch(`/api/establishments/${estId}/features`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json',Authorization:`Bearer ${localStorage.getItem('token')}`},
+      body:JSON.stringify({features:feats[estId]||{}})
+    })
+    .then(r=>{if(!r.ok)throw new Error();return r.json();})
+    .then(()=>showToast('Entitlements salvos!','success'))
+    .catch(()=>showToast('Erro ao salvar','error'))
+    .finally(()=>setSaving(p=>({...p,[estId]:false})));
+  };
+
+  if(loading)return<div className="p-8 text-center text-gray-400">Carregando...</div>;
+
+  return(
+    <div className="p-4 md:p-6 space-y-5 max-w-5xl mx-auto">
+      <div>
+        <h2 className="text-xl font-bold text-gray-800">Entitlements por Estabelecimento</h2>
+        <p className="text-sm text-gray-500 mt-1">Controle quais módulos cada estabelecimento tem acesso. Módulos sem marcação ficam ocultos para os usuários do estabelecimento. Por padrão, todos estão habilitados.</p>
+      </div>
+      {ests.length===0&&<div className="text-center text-gray-400 py-16">Nenhum estabelecimento encontrado.</div>}
+      {ests.map(est=>{
+        const f=feats[est.id]||{};
+        return(
+          <div key={est.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-gray-800">{est.name}</h3>
+                <p className="text-xs text-gray-400">{est.city}, {est.state}</p>
+              </div>
+              <button
+                onClick={()=>save(est.id)}
+                disabled={!!saving[est.id]}
+                className="shrink-0 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              >{saving[est.id]?'Salvando...':'💾 Salvar'}</button>
+            </div>
+            <div className="p-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {ENT_FEATURES.map(feat=>{
+                  const enabled=f[feat.key]!==false;
+                  return(
+                    <label key={feat.key}
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer select-none transition-all ${enabled?'border-emerald-200 bg-emerald-50 shadow-sm':'border-gray-200 bg-gray-50 opacity-55'}`}
+                    >
+                      <input type="checkbox" checked={enabled} onChange={()=>toggle(est.id,feat.key)}
+                        className="w-4 h-4 rounded accent-emerald-600 shrink-0"/>
+                      <div className="min-w-0">
+                        <div className="text-lg leading-none">{feat.icon}</div>
+                        <div className="text-xs font-medium text-gray-700 mt-1 leading-tight">{feat.label}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function App(){
   const [view,setView]=useState('marketplace');
   const [page,setPage]=useState('mkt-home');
@@ -4064,6 +4175,7 @@ export default function App(){
     'crm-estoque':      <CRMEstoque crmUser={crmUser} showToast={showToast}/>,
     'crm-audit':        <CRMAudit showToast={showToast}/>,
     'crm-whatsapp':     <CRMWhatsApp showToast={showToast}/>,
+    'crm-entitlements': <CRMEntitlements showToast={showToast}/>,
     'prof-perfil':      <CRMProfissionalHome crmUser={crmUser} showToast={showToast}/>,
     'prof-alunos':      <CRMPlanosAula showToast={showToast}/>,
   };

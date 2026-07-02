@@ -32,6 +32,31 @@ router.post('/crm/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password_hash)))
       return res.status(401).json({ error: 'Email ou senha invalidos' });
 
+    // Fetch establishment features for non-admin users
+    let estFeatures = null;
+    if (user.role !== 'admin') {
+      const estIds = Array.from(new Set([
+        ...(user.est_ids || []),
+        ...(user.est_id ? [user.est_id] : []),
+      ])).map(Number).filter(Boolean);
+      if (estIds.length) {
+        const estRes = await pool.query(
+          `SELECT COALESCE(features, '{}') AS features FROM establishments WHERE id = ANY($1)`,
+          [estIds]
+        );
+        if (estRes.rows.length) {
+          const allFeatures = estRes.rows.map(r => r.features || {});
+          const allKeys = new Set(allFeatures.flatMap(f => Object.keys(f)));
+          const merged = {};
+          allKeys.forEach(k => {
+            // Feature disabled only if ALL establishments have it explicitly disabled
+            if (allFeatures.every(f => f[k] === false)) merged[k] = false;
+          });
+          estFeatures = merged;
+        }
+      }
+    }
+
     const token = sign({
       id: user.id, role: user.role, type: 'crm',
       est_id: user.est_id || null,
@@ -48,6 +73,7 @@ router.post('/crm/login', async (req, res) => {
         est_ids: user.est_ids || [],
         profissional_id: user.profissional_id || null,
         professor_id: user.professor_id || null,
+        estFeatures,
       },
     });
   } catch (err) {

@@ -41,6 +41,19 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/establishments/admin/features — admin: todos os est com features
+router.get('/admin/features', auth, adminOnly, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, city, state, COALESCE(features, '{}') AS features
+       FROM establishments ORDER BY name`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao listar' });
+  }
+});
+
 // GET /api/establishments/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -143,5 +156,24 @@ router.put('/:id', auth, adminOrManager, async (req, res) => {
     res.status(500).json({ error: 'Erro ao atualizar estabelecimento' });
   }
 });
+
+// PUT /api/establishments/:id/features — admin: atualiza entitlements
+router.put('/:id/features', auth, adminOnly, async (req, res) => {
+  const { features } = req.body;
+  if (!features || typeof features !== 'object')
+    return res.status(400).json({ error: 'features deve ser um objeto' });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE establishments SET features = $1, updated_at = NOW()
+       WHERE id = $2 RETURNING id, name, COALESCE(features, '{}') AS features`,
+      [JSON.stringify(features), req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Nao encontrado' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao atualizar entitlements' });
+  }
+});
+
 
 module.exports = router;
