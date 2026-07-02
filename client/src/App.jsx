@@ -2102,9 +2102,10 @@ function CRMAlunos({crmUser,showToast}){
   const [editA,setEditA]=useState(null);
   const [delA,setDelA]=useState(null);
   const [search,setSearch]=useState('');
+  const [filtroAtivo,setFiltroAtivo]=useState('todos');
   const [page,setPage]=useState(0);
   const PAGE_SIZE=20;
-  const BLANK={nome:'',cpf:'',email:'',telefone:'',data_nascimento:'',est_id:'',professor_id:''};
+  const BLANK={nome:'',cpf:'',email:'',telefone:'',data_nascimento:'',est_id:'',professor_id:'',ativo:true};
   const [f,setF]=useState(BLANK);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
 
@@ -2128,7 +2129,7 @@ function CRMAlunos({crmUser,showToast}){
   const openEdit=(a)=>{
     setF({nome:a.nome||'',cpf:a.cpf||'',email:a.email||'',telefone:a.telefone||'',
           data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:'',
-          est_id:a.est_id||'',professor_id:a.professor_id||defaultProfId});
+          est_id:a.est_id||'',professor_id:a.professor_id||defaultProfId,ativo:a.ativo!==false});
     setEditA(a);setShowForm(true);
   };
 
@@ -2160,17 +2161,20 @@ function CRMAlunos({crmUser,showToast}){
   return<div className="p-6 max-w-5xl">
     <div className="flex items-center justify-between mb-6">
       <div><h1 className="text-2xl font-black text-gray-900">Alunos / Clientes</h1>
-      <p className="text-sm text-gray-400">{alunos.length} aluno{alunos.length!==1?'s':''} cadastrado{alunos.length!==1?'s':''}</p></div>
+      <p className="text-sm text-gray-400">{alunos.length} aluno{alunos.length!==1?'s':''} • <span className="text-green-600">{alunos.filter(a=>a.ativo!==false).length} ativo{alunos.filter(a=>a.ativo!==false).length!==1?'s':''}</span> · <span className="text-gray-400">{alunos.filter(a=>a.ativo===false).length} inativo{alunos.filter(a=>a.ativo===false).length!==1?'s':''}</span></p></div>
       <Btn onClick={openNew}>+ Novo Aluno</Btn>
     </div>
 
-    {/* Search box */}
-    <div className="mb-4">
-      <Inp value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="🔍 Filtrar por nome..."/>
+    {/* Search + filter */}
+    <div className="mb-4 flex gap-3 flex-wrap">
+      <div className="flex-1 min-w-48"><Inp value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="🔍 Filtrar por nome..."/></div>
+      <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-medium">
+        {[['todos','Todos'],['ativo','✅ Ativos'],['inativo','❌ Inativos']].map(([v,l])=><button key={v} onClick={()=>{setFiltroAtivo(v);setPage(0);}} className={`px-3 py-2 ${filtroAtivo===v?'bg-emerald-600 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>)}
+      </div>
     </div>
 
     {(()=>{
-      const filtered=alunos.filter(a=>!search||a.nome.toLowerCase().includes(search.toLowerCase()));
+      const filtered=alunos.filter(a=>{if(search&&!a.nome.toLowerCase().includes(search.toLowerCase()))return false;if(filtroAtivo==='ativo'&&a.ativo===false)return false;if(filtroAtivo==='inativo'&&a.ativo!==false)return false;return true;});
       const totalPages=Math.ceil(filtered.length/PAGE_SIZE);
       const paged=filtered.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
       if(alunos.length===0)return<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎽</p><p className="text-lg">Nenhum aluno cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro aluno</Btn></div>;
@@ -2180,16 +2184,17 @@ function CRMAlunos({crmUser,showToast}){
             <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
+                <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Status','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {paged.map(a=><tr key={a.id} className="hover:bg-gray-50">
+                {paged.map(a=><tr key={a.id} className={`hover:bg-gray-50 ${a.ativo===false?'opacity-60':''}`}>
                   <td className="px-4 py-3 font-semibold text-gray-800">{a.nome}</td>
                   <td className="px-4 py-3 text-gray-500">{a.cpf||'—'}</td>
                   <td className="px-4 py-3 text-gray-500">{a.email||'—'}</td>
                   <td className="px-4 py-3 text-gray-500">{a.telefone||'—'}</td>
                   <td className="px-4 py-3 text-gray-500">{a.data_nascimento?fmtDate(a.data_nascimento):'—'}</td>
                   <td className="px-4 py-3 text-gray-500">{a.est_name||'—'}</td>
+                  <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${a.ativo!==false?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}`}>{a.ativo!==false?'Ativo':'Inativo'}</span></td>
                   <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
                     <Btn variant="secondary" size="sm" onClick={()=>openEdit(a)}>Editar</Btn>
                     <Btn variant="danger" size="sm" onClick={()=>setDelA(a)}>Excluir</Btn>
@@ -2225,6 +2230,11 @@ function CRMAlunos({crmUser,showToast}){
         <Field label="Estabelecimento"><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione (opcional)"/></Field>
         {(crmUser?.role==='admin'||crmUser?.role==='manager')&&profs.length>0&&<Field label="Professor responsável"><Sel value={f.professor_id} onChange={e=>upd('professor_id',e.target.value)} options={profs.map(p=>({value:p.id,label:p.nome+(p.est_name?' — '+p.est_name:'')}))} placeholder="Selecione (opcional)"/></Field>}
         {isProfessor&&<div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm text-blue-700">🎓 Aluno será vinculado ao seu perfil de professor</div>}
+        <div className="flex items-center gap-3 py-1 border-t border-gray-100 mt-1">
+          <input type="checkbox" id="ativo-chk" checked={f.ativo!==false} onChange={e=>upd('ativo',e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded"/>
+          <label htmlFor="ativo-chk" className="text-sm font-medium text-gray-700 cursor-pointer">Aluno ativo</label>
+          {f.ativo===false&&<span className="text-xs text-gray-400">— não aparecerá em listas de cobrança</span>}
+        </div>
         <div className="flex gap-3 pt-1">
           <Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn>
           <Btn className="flex-1" onClick={save}>Salvar</Btn>
@@ -2950,6 +2960,11 @@ function CRMFinanceiro({crmUser,showToast}){
   const CONTAS_PER_PAGE=20;
   // resumo por aluno
   const [alunos,setAlunos]=useState([]);
+  // relatório de alunos
+  const [relAlunos,setRelAlunos]=useState([]);
+  const [relAlunosLoading,setRelAlunosLoading]=useState(false);
+  const [relFiltroAtivo,setRelFiltroAtivo]=useState('todos');
+  const [relSearch,setRelSearch]=useState('');
   const [selAluno,setSelAluno]=useState('');
   const [selMes,setSelMes]=useState(TODAY.slice(0,7));
   const [selResumoStatus,setSelResumoStatus]=useState('');
@@ -2979,6 +2994,7 @@ function CRMFinanceiro({crmUser,showToast}){
     if(tab==='comissao')loadComissao();
     if(tab==='contas')loadContas();
     if(tab==='resumo')contasApi.clientesFinanceiros().then(nomes=>setAlunos(nomes.map(n=>({nome:n})))).catch(()=>{});
+    if(tab==='rel-alunos'){setRelAlunosLoading(true);alunoApi.list().then(setRelAlunos).catch(()=>setRelAlunos([])).finally(()=>setRelAlunosLoading(false));}
   },[tab,loadFluxo,loadExps,loadRep,loadProj,loadComissao,loadContas]);
 
   const saveExp=async()=>{
@@ -3016,7 +3032,7 @@ function CRMFinanceiro({crmUser,showToast}){
 
     {/* tabs */}
     <div className="border-b border-gray-200 mb-5"><nav className="flex gap-1 flex-wrap">
-      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'projecao',l:'Projeção'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'},{k:'contas',l:'💳 Contas a Receber'},{k:'resumo',l:'📋 Resumo por Aluno'},{k:'comissao',l:'🏷️ Comissão Gerente'}].map(t=>
+      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'projecao',l:'Projeção'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'},{k:'contas',l:'💳 Contas a Receber'},{k:'resumo',l:'📋 Resumo por Aluno'},{k:'comissao',l:'🏷️ Comissão Gerente'},{k:'rel-alunos',l:'👥 Alunos'}].map(t=>
         <button key={t.k} onClick={()=>setTab(t.k)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${tab===t.k?'border-emerald-600 text-emerald-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>{t.l}</button>)}
     </nav></div>
 
@@ -3358,6 +3374,47 @@ function CRMFinanceiro({crmUser,showToast}){
         <div className="flex gap-3 pt-2"><Btn variant="secondary" className="flex-1" onClick={()=>setExpForm(null)}>Cancelar</Btn><Btn className="flex-1" onClick={saveExp}>Salvar</Btn></div>
       </div>}
     </Modal>
+    {tab==='rel-alunos'&&(()=>{
+      const rows=relAlunos.filter(a=>{
+        if(relFiltroAtivo==='ativo'&&a.ativo===false)return false;
+        if(relFiltroAtivo==='inativo'&&a.ativo!==false)return false;
+        if(relSearch&&!a.nome.toLowerCase().includes(relSearch.toLowerCase()))return false;
+        return true;
+      });
+      const ativos=relAlunos.filter(a=>a.ativo!==false).length;
+      const inativos=relAlunos.filter(a=>a.ativo===false).length;
+      return<div>
+        <div className="grid grid-cols-3 gap-4 mb-5">
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center"><p className="text-2xl font-black text-gray-800">{relAlunos.length}</p><p className="text-xs text-gray-400 mt-1">Total de Alunos</p></div>
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center"><p className="text-2xl font-black text-green-600">{ativos}</p><p className="text-xs text-gray-400 mt-1">Ativos</p></div>
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center"><p className="text-2xl font-black text-gray-400">{inativos}</p><p className="text-xs text-gray-400 mt-1">Inativos</p></div>
+        </div>
+        <div className="flex gap-3 mb-4 flex-wrap">
+          <div className="flex-1 min-w-48"><input value={relSearch} onChange={e=>setRelSearch(e.target.value)} placeholder="🔍 Filtrar por nome..." className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></div>
+          <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-medium">
+            {[['todos','Todos'],['ativo','✅ Ativos'],['inativo','❌ Inativos']].map(([v,l])=><button key={v} onClick={()=>setRelFiltroAtivo(v)} className={`px-3 py-2 ${relFiltroAtivo===v?'bg-emerald-600 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>)}
+          </div>
+        </div>
+        {relAlunosLoading?<div className="text-center py-10"><Spinner/></div>:rows.length===0?<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">👥</p><p>Nenhum aluno encontrado</p></div>:
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm"><div className="overflow-x-auto"><table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100"><tr>
+            {['Nome','CPF','Telefone','Email','Aniversário','Estabelecimento','Status'].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>)}
+          </tr></thead>
+          <tbody className="divide-y divide-gray-50">
+            {rows.map(a=><tr key={a.id} className={`hover:bg-gray-50 ${a.ativo===false?'opacity-60':''}`}>
+              <td className="px-4 py-3 font-semibold text-gray-800">{a.nome}</td>
+              <td className="px-4 py-3 text-gray-500">{a.cpf||'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{a.telefone||'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{a.email||'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{a.data_nascimento?fmtDate(a.data_nascimento):'—'}</td>
+              <td className="px-4 py-3 text-gray-500">{a.est_name||'—'}</td>
+              <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${a.ativo!==false?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}`}>{a.ativo!==false?'Ativo':'Inativo'}</span></td>
+            </tr>)}
+          </tbody>
+        </table></div></div>}
+        <p className="text-xs text-gray-400 mt-3 text-right">{rows.length} aluno{rows.length!==1?'s':''} exibido{rows.length!==1?'s':''}</p>
+      </div>;
+    })()}
     {tab==='comissao'&&<div className="space-y-4">
       {isAdmin&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto"><table className="w-full text-sm">

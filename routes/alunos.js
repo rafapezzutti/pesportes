@@ -35,6 +35,10 @@ router.get('/', auth, async (req, res) => {
       }
     }
 
+    // ativo filter
+    if (req.query.ativo === 'true')  { params.push(true);  where.push(`a.ativo = $${params.length}`); }
+    if (req.query.ativo === 'false') { params.push(false); where.push(`a.ativo = $${params.length}`); }
+
     const ws = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const { rows } = await pool.query(
       `SELECT a.*, e.name AS est_name
