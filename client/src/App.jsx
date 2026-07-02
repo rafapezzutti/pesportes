@@ -2217,7 +2217,7 @@ function CRMAlunos({crmUser,showToast}){
             <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Status','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
+                <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Professor','Status','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {paged.map(a=><tr key={a.id} className={`hover:bg-gray-50 ${a.ativo===false?'opacity-60':''}`}>
@@ -2227,6 +2227,7 @@ function CRMAlunos({crmUser,showToast}){
                   <td className="px-4 py-3 text-gray-500">{a.telefone||'—'}</td>
                   <td className="px-4 py-3 text-gray-500">{a.data_nascimento?fmtDate(a.data_nascimento):'—'}</td>
                   <td className="px-4 py-3 text-gray-500">{a.est_name||'—'}</td>
+                  <td className="px-4 py-3 text-gray-500">{a.professor_id?(profs.find(p=>p.id===a.professor_id)?.nome||'—'):'—'}</td>
                   <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${a.ativo!==false?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}`}>{a.ativo!==false?'Ativo':'Inativo'}</span></td>
                   <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
                     <Btn variant="secondary" size="sm" onClick={()=>openEdit(a)}>Editar</Btn>
