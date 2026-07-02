@@ -45,13 +45,22 @@ router.post('/', auth, adminOrManager, async (req, res) => {
     const resolvedProfId = role === 'professor' ? (professor_id || null) : null;
 
     const { rows } = await pool.query(
-      `INSERT INTO crm_users (name, email, password_hash, role, est_id, est_ids, professor_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, name, email, role, est_id, est_ids, professor_id`,
-      [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds, resolvedProfId]
+      `INSERT INTO crm_users (name, email, password_hash, role, est_id, est_ids)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, name, email, role, est_id, est_ids`,
+      [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds]
     );
-    res.status(201).json(rows[0]);
+    const created = rows[0];
+    // link professor_id if provided (column may not exist on old DBs — silently skip)
+    if (resolvedProfId) {
+      await pool.query(
+        `UPDATE crm_users SET professor_id=$1 WHERE id=$2`,
+        [resolvedProfId, created.id]
+      ).catch(() => {});
+    }
+    res.status(201).json(created);
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao criar usuario' });
+    console.error('[POST /crm-users]', err.message);
+    res.status(500).json({ error: 'Erro ao criar usuario: ' + err.message });
   }
 });
 
@@ -72,19 +81,20 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
       if (password.length < 6)
         return res.status(400).json({ error: 'Senha minima: 6 caracteres' });
       const hash = await bcrypt.hash(password, 10);
-      query  = `UPDATE crm_users SET name=$1, email=$2, password_hash=$3, role=$4, est_id=$5, est_ids=$6, professor_id=$7
-                WHERE id=$8 RETURNING id, name, email, role, est_id, est_ids, professor_id`;
-      params = [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds, resolvedProfId, req.params.id];
+      query  = `UPDATE crm_users SET name=$1, email=$2, password_hash=$3, role=$4, est_id=$5, est_ids=$6
+                WHERE id=$7 RETURNING id, name, email, role, est_id, est_ids`;
+      params = [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds, req.params.id];
     } else {
-      query  = `UPDATE crm_users SET name=$1, email=$2, role=$3, est_id=$4, est_ids=$5, professor_id=$6
-                WHERE id=$7 RETURNING id, name, email, role, est_id, est_ids, professor_id`;
-      params = [name, email.toLowerCase(), role, resolvedEstId, resolvedEstIds, resolvedProfId, req.params.id];
+      query  = `UPDATE crm_users SET name=$1, email=$2, role=$3, est_id=$4, est_ids=$5
+                WHERE id=$6 RETURNING id, name, email, role, est_id, est_ids`;
+      params = [name, email.toLowerCase(), role, resolvedEstId, resolvedEstIds, req.params.id];
     }
     const { rows } = await pool.query(query, params);
     if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado' });
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao atualizar usuario' });
+    console.error('[PUT /crm-users]', err.message);
+    res.status(500).json({ error: 'Erro ao atualizar usuario: ' + err.message });
   }
 });
 
