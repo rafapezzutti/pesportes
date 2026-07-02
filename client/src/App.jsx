@@ -451,6 +451,21 @@ function CRMLogin({onLogin,navigate}){
 // CRM LAYOUT
 // ================================================================
 function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImpersonating,onImpersonate,children}){
+  // ── WhatsApp alert ───────────────────────────────────────────────────────
+  const [waAlert,setWaAlert]=useState(null); // null | {count:N}
+  const isAdminOrManager=['admin','manager'].includes(crmUser?.role);
+  useEffect(()=>{
+    if(!isAdminOrManager)return;
+    whatsappApi.alert().then(d=>{if(d.hasAlert)setWaAlert({count:d.count});}).catch(()=>{});
+    const t=setInterval(()=>{
+      whatsappApi.alert().then(d=>{setWaAlert(d.hasAlert?{count:d.count}:null);}).catch(()=>{});
+    },5*60*1000); // check every 5 min
+    return()=>clearInterval(t);
+  },[isAdminOrManager]);
+  const ackAlert=async()=>{
+    await whatsappApi.ackAlert().catch(()=>{});
+    setWaAlert(null);
+  };
   const groups=[
     {label:'Principal', items:[
       {key:'crm-dashboard',      label:'Dashboard', icon:'📊',roles:['admin','manager']},
@@ -504,6 +519,10 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
   const isRealAdmin=crmUser.role==='admin'&&!isImpersonating;
   useEffect(()=>{if(!isRealAdmin)return;impersonateApi.listUsers().then(setUserList).catch(()=>{});},[isRealAdmin]);
   return<div className="min-h-screen bg-gray-100 flex flex-col">
+    {waAlert&&<div className="bg-red-500 text-white px-4 py-2 flex items-center justify-between text-sm font-semibold shrink-0">
+      <span>⚠️ {waAlert.count} mensagem{waAlert.count!==1?'s':''} WhatsApp falhou{waAlert.count!==1?'ram':''} nas últimas 48h. <button onClick={()=>navigate('crm-whatsapp')} className="underline font-bold">Ver histórico</button></span>
+      <button onClick={ackAlert} className="ml-4 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-xs font-bold">✕ Dispensar</button>
+    </div>}
     {isImpersonating&&<div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between text-sm font-medium shrink-0">
       <span>Visualizando como <strong>{crmUser.name}</strong></span>
       <button onClick={onStopImpersonating} className="ml-4 bg-white text-amber-700 px-3 py-1 rounded-lg text-xs font-bold hover:bg-amber-50">← Voltar ao Admin</button>
@@ -3604,107 +3623,245 @@ function CRMAudit({showToast}){
 // ================================================================
 // CRM WHATSAPP — conexão via QR Code (Evolution API)
 // ================================================================
-function CRMWhatsApp({showToast}){
+function CRMWhatsApp({crmUser,showToast}){
+  // ── Conexão ───────────────────────────────────────────────────────────────
   const [status,setStatus]=useState(null);
   const [qrcode,setQrcode]=useState(null);
   const [loading,setLoading]=useState(true);
   const [qrLoading,setQrLoading]=useState(false);
   const [disconnecting,setDisconnecting]=useState(false);
+  // ── Automações ────────────────────────────────────────────────────────────
+  const [autos,setAutos]=useState([]);   // [{type,enabled,config,last_run}]
+  const [autosLoading,setAutosLoading]=useState(true);
+  const [logs,setLogs]=useState([]);
+  const [showLogs,setShowLogs]=useState(false);
+  const [tab,setTab]=useState('conexao'); // 'conexao' | 'automacoes' | 'logs'
+
+  const estId=crmUser?.est_id||(crmUser?.est_ids&&crmUser.est_ids[0]);
 
   const checkStatus=useCallback(async()=>{
-    try{
-      const s=await whatsappApi.status();
-      setStatus(s);
-      if(s.connected)setQrcode(null);
-    }catch(e){setStatus({connected:false,state:'close',error:e.message});}
+    try{const s=await whatsappApi.status();setStatus(s);if(s.connected)setQrcode(null);}
+    catch(e){setStatus({connected:false,state:'close',error:e.message});}
     finally{setLoading(false);}
   },[]);
 
-  useEffect(()=>{checkStatus();},[checkStatus]);
+  const loadAutos=useCallback(async()=>{
+    try{const d=await whatsappApi.automations(estId);setAutos(d);}
+    catch{}finally{setAutosLoading(false);}
+  },[estId]);
 
-  // Polling a cada 4s enquanto não conectado e tiver QR
+  useEffect(()=>{checkStatus();loadAutos();},[checkStatus,loadAutos]);
   useEffect(()=>{
-    if(!qrcode&&!status?.connected)return;
-    if(status?.connected)return;
-    const t=setInterval(()=>{checkStatus();},4000);
-    return()=>clearInterval(t);
+    if(!qrcode||status?.connected)return;
+    const t=setInterval(checkStatus,4000);return()=>clearInterval(t);
   },[qrcode,status,checkStatus]);
 
   const handleConnect=async()=>{
     setQrLoading(true);setQrcode(null);
-    try{
-      const r=await whatsappApi.qrcode();
-      if(r.connected){setStatus(s=>({...s,connected:true}));showToast&&showToast('WhatsApp já conectado!','success');}
+    try{const r=await whatsappApi.qrcode();
+      if(r.connected){setStatus(s=>({...s,connected:true}));showToast('WhatsApp já conectado!','success');}
       else if(r.qrcode){setQrcode(r.qrcode);}
-      else{showToast&&showToast('Não foi possível gerar QR Code','error');}
-    }catch(e){showToast&&showToast(e.message||'Erro ao gerar QR Code','error');}
+      else showToast('Não foi possível gerar QR Code','error');
+    }catch(e){showToast(e.message||'Erro','error');}
     finally{setQrLoading(false);}
   };
 
   const handleDisconnect=async()=>{
     if(!confirm('Desconectar o WhatsApp?'))return;
     setDisconnecting(true);
-    try{await whatsappApi.disconnect();setStatus(s=>({...s,connected:false,state:'close'}));setQrcode(null);showToast&&showToast('WhatsApp desconectado','success');}
-    catch(e){showToast&&showToast(e.message||'Erro ao desconectar','error');}
+    try{await whatsappApi.disconnect();setStatus(s=>({...s,connected:false,state:'close'}));setQrcode(null);showToast('WhatsApp desconectado','success');}
+    catch(e){showToast(e.message||'Erro','error');}
     finally{setDisconnecting(false);}
   };
 
+  // ── Salvar automação ──────────────────────────────────────────────────────
+  const saveAuto=async(type,enabled,cfg)=>{
+    try{
+      const updated=await whatsappApi.saveAuto(type,{est_id:estId,enabled,config:cfg});
+      setAutos(prev=>prev.map(a=>a.type===type?{...a,...updated}:a));
+      showToast(enabled?'Automação ativada!':'Automação desativada','success');
+    }catch(e){showToast(e.message||'Erro ao salvar','error');}
+  };
+
+  const updateAutoConfig=(type,key,val)=>{
+    setAutos(prev=>prev.map(a=>a.type===type?{...a,config:{...a.config,[key]:val}}:a));
+  };
+
+  const loadLogs=async()=>{
+    try{const d=await whatsappApi.logs();setLogs(d);}
+    catch{setLogs([]);}
+  };
+
+  useEffect(()=>{if(tab==='logs')loadLogs();},[tab]);
+
   const stateLabel={open:'✅ Conectado',close:'⭕ Desconectado',connecting:'🔄 Conectando...'};
 
-  return<div className="p-6 max-w-xl">
-    <div className="mb-6">
+  const AUTO_META={
+    cobranca_mensal:{label:'Cobrança Mensal',icon:'💰',desc:'Dispara no dia configurado do mês para todos os alunos com saldo pendente.'},
+    saldo_pendente: {label:'Saldo Pendente Antigo',icon:'⏰',desc:'Avisa alunos com saldo em aberto há mais dias que o limite configurado.'},
+    aniversario:    {label:'Parabéns! 🎂',icon:'🎉',desc:'Envia mensagem personalizada no dia do aniversário do aluno.'},
+  };
+
+  const fmtTs=(ts)=>ts?new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Nunca rodou';
+
+  return<div className="p-4 md:p-6 max-w-3xl">
+    <div className="mb-5">
       <h1 className="text-2xl font-black text-gray-900">WhatsApp</h1>
-      <p className="text-sm text-gray-400">Conecte o WhatsApp do estabelecimento para enviar resumos financeiros aos alunos</p>
+      <p className="text-sm text-gray-400 mt-0.5">Automações de mensagens para alunos/clientes</p>
     </div>
 
-    <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+    {/* Tabs */}
+    <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
+      {[['conexao','📱 Conexão'],['automacoes','⚡ Automações'],['logs','📋 Histórico']].map(([k,l])=>(
+        <button key={k} onClick={()=>setTab(k)}
+          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${tab===k?'bg-white shadow text-gray-800':'text-gray-500 hover:text-gray-700'}`}>{l}</button>
+      ))}
+    </div>
+
+    {/* ── Tab Conexão ── */}
+    {tab==='conexao'&&<div className="bg-white rounded-2xl border border-gray-100 p-6">
       <div className="flex items-center gap-4 mb-5">
         <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-2xl">💬</div>
         <div>
           <p className="font-bold text-gray-800">Status da conexão</p>
-          {loading
-            ?<p className="text-sm text-gray-400">Verificando...</p>
-            :<p className={`text-sm font-semibold ${status?.connected?'text-green-600':'text-gray-500'}`}>
-              {stateLabel[status?.state]||status?.state||'Desconhecido'}
-            </p>}
+          {loading?<p className="text-sm text-gray-400">Verificando...</p>
+          :<p className={`text-sm font-semibold ${status?.connected?'text-green-600':'text-gray-500'}`}>
+            {stateLabel[status?.state]||status?.state||'Desconhecido'}
+          </p>}
         </div>
-        <div className="ml-auto">
-          <Btn variant="secondary" size="sm" onClick={checkStatus} disabled={loading}>↻ Atualizar</Btn>
-        </div>
+        <Btn variant="secondary" size="sm" className="ml-auto" onClick={checkStatus} disabled={loading}>↻ Atualizar</Btn>
       </div>
-
-      {status?.error&&status.error!=='Not Found'&&<div className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">Erro: {status.error}</div>}
-
+      {status?.error&&status.error!=='Not Found'&&
+        <div className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">Erro: {status.error}</div>}
       {status?.connected
         ?<div>
           <div className="bg-green-50 rounded-xl p-4 mb-4 text-center">
             <p className="text-green-700 font-semibold">✅ WhatsApp conectado com sucesso!</p>
-            <p className="text-green-600 text-sm mt-1">Você já pode enviar resumos financeiros para os alunos pelo Financeiro → Resumo por Aluno.</p>
+            <p className="text-green-600 text-sm mt-1">Configure as automações na aba ⚡ Automações.</p>
           </div>
           <Btn variant="secondary" className="w-full" disabled={disconnecting} onClick={handleDisconnect}>
-            {disconnecting?'Desconectando...':'🔌 Desconectar'}
-          </Btn>
+            {disconnecting?'Desconectando...':'🔌 Desconectar'}</Btn>
         </div>
         :<div>
-          <p className="text-sm text-gray-500 mb-4">Clique em "Gerar QR Code", depois escaneie com o WhatsApp do estabelecimento em <strong>Aparelhos conectados → Conectar um aparelho</strong>.</p>
+          <p className="text-sm text-gray-500 mb-4">Clique em "Gerar QR Code" e escaneie com o WhatsApp do estabelecimento em <strong>Aparelhos conectados → Conectar um aparelho</strong>.</p>
           <Btn className="w-full mb-4" disabled={qrLoading} onClick={handleConnect}>
-            {qrLoading?'Gerando QR Code...':'📱 Gerar QR Code'}
-          </Btn>
+            {qrLoading?'Gerando QR Code...':'📱 Gerar QR Code'}</Btn>
           {qrcode&&<div className="text-center">
             <p className="text-xs text-gray-400 mb-3">Escaneie o QR Code com o WhatsApp do estabelecimento</p>
-            <img src={qrcode} alt="QR Code WhatsApp" className="mx-auto rounded-xl border-4 border-green-100" style={{maxWidth:260}}/>
-            <p className="text-xs text-gray-400 mt-3">O QR Code expira em ~60 segundos. Se expirar, clique em "Gerar QR Code" novamente.</p>
-            <Btn variant="secondary" size="sm" className="mt-3" onClick={handleConnect} disabled={qrLoading}>🔄 Gerar novo QR Code</Btn>
+            <img src={qrcode} alt="QR Code" className="mx-auto rounded-xl border-4 border-green-100" style={{maxWidth:260}}/>
+            <p className="text-xs text-gray-400 mt-3">O QR Code expira em ~60s.</p>
+            <Btn variant="secondary" size="sm" className="mt-3" onClick={handleConnect} disabled={qrLoading}>🔄 Novo QR Code</Btn>
           </div>}
         </div>}
-    </div>
+    </div>}
 
-    <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700">
-      <p className="font-semibold mb-1">ℹ️ Como funciona</p>
-      <p>Após conectar, acesse <strong>Financeiro → Resumo por Aluno</strong>, gere o resumo de um aluno e clique em <strong>💬 Enviar por WhatsApp</strong>. O sistema enviará automaticamente a conta para o telefone cadastrado no perfil do aluno.</p>
-    </div>
+    {/* ── Tab Automações ── */}
+    {tab==='automacoes'&&<div className="space-y-4">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+        ⚠️ Antes de habilitar qualquer automação, certifique-se de que os <strong>cadastros de alunos, vínculos de aula e consumos</strong> estão corretos. As mensagens são enviadas com base nesses dados.
+      </div>
+      {autosLoading?<div className="text-center text-gray-400 py-8">Carregando...</div>
+      :autos.map(auto=>{
+        const meta=AUTO_META[auto.type]||{};
+        const cfg=auto.config||{};
+        return<div key={auto.type} className={`bg-white rounded-2xl border p-5 transition-all ${auto.enabled?'border-emerald-200':'border-gray-100'}`}>
+          {/* Header com toggle */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{meta.icon}</span>
+              <div>
+                <p className="font-bold text-gray-800">{meta.label}</p>
+                <p className="text-xs text-gray-400">{meta.desc}</p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+              <input type="checkbox" checked={!!auto.enabled} onChange={e=>saveAuto(auto.type,e.target.checked,cfg)} className="sr-only peer"/>
+              <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+          </div>
+
+          {/* Última execução */}
+          <p className="text-xs text-gray-400 mb-3">Última execução: <span className="font-medium text-gray-600">{fmtTs(auto.last_run)}</span></p>
+
+          {/* Config fields */}
+          {auto.type==='cobranca_mensal'&&<div className="space-y-3 border-t border-gray-100 pt-3">
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-600 w-40 shrink-0">Dia do mês:</label>
+              <input type="number" min="1" max="28" value={cfg.dia_do_mes??5}
+                onChange={e=>updateAutoConfig('cobranca_mensal','dia_do_mes',Number(e.target.value))}
+                className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"/>
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 block mb-1">Mensagem <span className="text-gray-400 text-xs">({'{nome}'} {'{valor}'} {'{estabelecimento}'})</span>:</label>
+              <textarea rows={4} value={cfg.mensagem||''} onChange={e=>updateAutoConfig('cobranca_mensal','mensagem',e.target.value)}
+                className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none"/>
+            </div>
+            <Btn size="sm" onClick={()=>saveAuto('cobranca_mensal',!!auto.enabled,cfg)}>💾 Salvar config</Btn>
+          </div>}
+
+          {auto.type==='saldo_pendente'&&<div className="space-y-3 border-t border-gray-100 pt-3">
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Dias em atraso:</label>
+                <input type="number" min="1" max="365" value={cfg.dias??45}
+                  onChange={e=>updateAutoConfig('saldo_pendente','dias',Number(e.target.value))}
+                  className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"/>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Frequência:</label>
+                <select value={cfg.frequencia||'mensal'} onChange={e=>updateAutoConfig('saldo_pendente','frequencia',e.target.value)}
+                  className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300">
+                  <option value="mensal">Mensal</option>
+                  <option value="quinzenal">Quinzenal</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 block mb-1">Mensagem <span className="text-gray-400 text-xs">({'{nome}'} {'{valor}'} {'{dias}'} {'{estabelecimento}'})</span>:</label>
+              <textarea rows={4} value={cfg.mensagem||''} onChange={e=>updateAutoConfig('saldo_pendente','mensagem',e.target.value)}
+                className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none"/>
+            </div>
+            <Btn size="sm" onClick={()=>saveAuto('saldo_pendente',!!auto.enabled,cfg)}>💾 Salvar config</Btn>
+          </div>}
+
+          {auto.type==='aniversario'&&<div className="space-y-3 border-t border-gray-100 pt-3">
+            <div>
+              <label className="text-sm text-gray-600 block mb-1">Mensagem <span className="text-gray-400 text-xs">({'{nome}'} {'{estabelecimento}'})</span>:</label>
+              <textarea rows={4} value={cfg.mensagem||''} onChange={e=>updateAutoConfig('aniversario','mensagem',e.target.value)}
+                className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none"/>
+            </div>
+            <p className="text-xs text-gray-400">💡 Dica: personalize com uma oferta especial — bebida grátis, desconto na próxima aula, etc.</p>
+            <Btn size="sm" onClick={()=>saveAuto('aniversario',!!auto.enabled,cfg)}>💾 Salvar config</Btn>
+          </div>}
+        </div>;
+      })}
+    </div>}
+
+    {/* ── Tab Histórico ── */}
+    {tab==='logs'&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+        <p className="font-semibold text-gray-700">Histórico de envios (últimos 100)</p>
+        <Btn variant="secondary" size="sm" onClick={loadLogs}>↻ Atualizar</Btn>
+      </div>
+      {logs.length===0?<div className="text-center text-gray-400 py-10">Nenhum envio registrado</div>
+      :<div className="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
+        {logs.map(l=><div key={l.id} className="px-5 py-3 flex items-start gap-3">
+          <span className={`mt-0.5 text-lg ${l.status==='success'?'text-green-500':'text-red-500'}`}>{l.status==='success'?'✅':'❌'}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-sm text-gray-800">{l.recipient_name}</span>
+              <span className="text-xs text-gray-400">{l.recipient_phone}</span>
+              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">{l.automation_type?.replace('_',' ')}</span>
+            </div>
+            {l.status==='failed'&&<p className="text-xs text-red-500 mt-0.5">Erro: {l.error_message}</p>}
+            <p className="text-xs text-gray-400 mt-0.5">{new Date(l.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</p>
+          </div>
+        </div>)}
+      </div>}
+    </div>}
   </div>;
 }
+
 
 // ================================================================
 // CRM HORÁRIOS LIVRES
@@ -4331,7 +4488,7 @@ export default function App(){
     'crm-horarios-livres': <CRMHorariosLivres crmUser={crmUser} showToast={showToast}/>,
     'crm-estoque':      <CRMEstoque crmUser={crmUser} showToast={showToast}/>,
     'crm-audit':        <CRMAudit showToast={showToast}/>,
-    'crm-whatsapp':     <CRMWhatsApp showToast={showToast}/>,
+    'crm-whatsapp':     <CRMWhatsApp crmUser={crmUser} showToast={showToast}/>,
     'crm-entitlements': <CRMEntitlements showToast={showToast}/>,
     'crm-user-profiles': <CRMUserProfiles crmUser={crmUser} showToast={showToast}/>,
     'prof-perfil':      <CRMProfissionalHome crmUser={crmUser} showToast={showToast}/>,

@@ -276,6 +276,31 @@ async function runMigrations() {
     `ALTER TABLE establishments ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}'`,
     `ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT NULL`,
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS crm_user_id INTEGER REFERENCES crm_users(id) ON DELETE SET NULL`,
+    `CREATE TABLE IF NOT EXISTS whatsapp_automations (
+      id         SERIAL PRIMARY KEY,
+      est_id     INTEGER NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+      type       TEXT NOT NULL CHECK (type IN ('cobranca_mensal','saldo_pendente','aniversario')),
+      enabled    BOOLEAN DEFAULT FALSE,
+      config     JSONB DEFAULT '{}',
+      last_run   TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(est_id, type)
+    )`,
+    `CREATE TABLE IF NOT EXISTS whatsapp_automation_logs (
+      id              BIGSERIAL PRIMARY KEY,
+      est_id          INTEGER REFERENCES establishments(id) ON DELETE CASCADE,
+      automation_type TEXT,
+      status          TEXT,
+      recipient_name  TEXT,
+      recipient_phone TEXT,
+      message         TEXT,
+      error_message   TEXT,
+      ack_at          TIMESTAMPTZ,
+      created_at      TIMESTAMPTZ DEFAULT NOW()
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_wa_logs_est_created ON whatsapp_automation_logs(est_id, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_wa_logs_status      ON whatsapp_automation_logs(status, created_at DESC)`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
@@ -286,6 +311,16 @@ async function runMigrations() {
 }
 
 // \u2500\u2500 Start \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// ── Cron — WhatsApp Automations (diário às 8h BRT) ─────────────────────────
+cron.schedule('0 8 * * *', async () => {
+  try {
+    const { runAutomations } = require('./services/whatsapp-automations');
+    await runAutomations();
+  } catch (err) {
+    console.error('[CRON-WA] Erro:', err.message);
+  }
+}, { timezone: 'America/Sao_Paulo' });
+
 runMigrations().then(() => {
   app.listen(PORT, () => {
     console.log(`\u2705 Servidor rodando na porta ${PORT}`);

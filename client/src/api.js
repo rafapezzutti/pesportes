@@ -254,9 +254,17 @@ export const contasApi = {
 
 // ── WhatsApp (Evolution API) ──────────────────────────────────────
 export const whatsappApi = {
-  status:     ()     => get('/whatsapp/status'),
-  qrcode:     ()     => get('/whatsapp/qrcode'),
-  disconnect: ()     => post('/whatsapp/disconnect', {}),
+  status:       ()           => get('/whatsapp/status'),
+  qrcode:       ()           => get('/whatsapp/qrcode'),
+  disconnect:   ()           => post('/whatsapp/disconnect', {}),
+  // Automations
+  automations:  (estId)      => get('/whatsapp/automations' + (estId ? `?est_id=${estId}` : '')),
+  saveAuto:     (type, data) => req('PUT', `/whatsapp/automations/${type}`, data),
+  // Logs
+  logs:         ()           => get('/whatsapp/automation-logs'),
+  // Alerts
+  alert:        ()           => get('/whatsapp/alert'),
+  ackAlert:     ()           => post('/whatsapp/alert/ack', {}),
 };
 // ── Comissão Gerente ──────────────────────────────────────────────
 export const comissaoGerenteApi = {
