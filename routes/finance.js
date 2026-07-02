@@ -290,7 +290,7 @@ router.get('/clientes', auth, crmOnly, async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT DISTINCT
-        REGEXP_REPLACE(REGEXP_REPLACE(TRIM(nome), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g') AS nome
+        REPLACE(REPLACE(REPLACE(TRIM(nome), ' /', '/'), '/ ', '/'), '/', ' / ') AS nome
       FROM (
         SELECT nome_aluno   AS nome FROM planos_aula        WHERE nome_aluno   IS NOT NULL AND nome_aluno   <> '' ${scopeSql}
         UNION ALL
@@ -311,7 +311,9 @@ router.get('/clientes', auth, crmOnly, async (req, res) => {
 
 // ── GET /api/finance/resumo-aluno ─────────────────────────────────
 router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
-  const { aluno_nome, mes, status_pgto } = req.query;
+  const { mes, status_pgto } = req.query;
+  // Normalize name: collapse spaces and standardize spaces around /
+  const aluno_nome = (req.query.aluno_nome || '').trim().replace(/\s*\/\s*/g, ' / ').replace(/\s+/g, ' ');
   if (!aluno_nome) return res.status(400).json({ error: 'aluno_nome e obrigatorio' });
 
   // Se mes nao fornecido => modo "pendencias gerais" (sem filtro de data)
@@ -344,7 +346,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       '       pl.status_pgto, pl.forma_pgto, pl.email_aluno, pl.telefone_aluno, e.name AS est_name' +
       ' FROM planos_aula pl' +
       ' LEFT JOIN establishments e ON pl.est_id = e.id' +
-      `WHERE REGEXP_REPLACE(REGEXP_REPLACE(TRIM(pl.nome_aluno), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g') ILIKE REGEXP_REPLACE(REGEXP_REPLACE(TRIM($1), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g')` +
+      ' WHERE REPLACE(REPLACE(REPLACE(TRIM(pl.nome_aluno), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1' +
       dateClauseAula +
       statusClause('pl.status_pgto') +
       ' ORDER BY pl.data_inicio',
@@ -356,7 +358,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       ' FROM reservations r' +
       ' LEFT JOIN establishments e ON r.est_id = e.id' +
       ' LEFT JOIN points p ON r.point_id = p.id' +
-      `WHERE REGEXP_REPLACE(REGEXP_REPLACE(TRIM(r.client_name), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g') ILIKE REGEXP_REPLACE(REGEXP_REPLACE(TRIM($1), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g')` +
+      ' WHERE REPLACE(REPLACE(REPLACE(TRIM(r.client_name), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1' +
       (hasMes ? ' AND r.date >= $2 AND r.date <= $3' : '') +
       statusClause('r.status_pgto') +
       ' ORDER BY r.date',
@@ -366,7 +368,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       'SELECT b.id, b.data_venda AS data, b.total, b.status_pgto, b.forma_pgto, b.itens, e.name AS est_name' +
       ' FROM bar_vendas b' +
       ' LEFT JOIN establishments e ON b.est_id = e.id' +
-      `WHERE REGEXP_REPLACE(REGEXP_REPLACE(TRIM(b.cliente_nome), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g') ILIKE REGEXP_REPLACE(REGEXP_REPLACE(TRIM($1), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g')` +
+      ' WHERE REPLACE(REPLACE(REPLACE(TRIM(b.cliente_nome), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1' +
       (hasMes ? ' AND b.data_venda >= $2 AND b.data_venda <= $3' : '') +
       statusClause('b.status_pgto') +
       ' ORDER BY b.data_venda',
@@ -376,7 +378,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       'SELECT m.id, m.data_venda AS data, m.total, m.status_pgto, m.forma_pgto, m.itens, e.name AS est_name' +
       ' FROM manutencao_vendas m' +
       ' LEFT JOIN establishments e ON m.est_id = e.id' +
-      `WHERE REGEXP_REPLACE(REGEXP_REPLACE(TRIM(m.cliente_nome), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g') ILIKE REGEXP_REPLACE(REGEXP_REPLACE(TRIM($1), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g')` +
+      ' WHERE REPLACE(REPLACE(REPLACE(TRIM(m.cliente_nome), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1' +
       (hasMes ? ' AND m.data_venda >= $2 AND m.data_venda <= $3' : '') +
       statusClause('m.status_pgto') +
       ' ORDER BY m.data_venda',
@@ -469,14 +471,15 @@ router.post('/resumo-aluno/email', auth, adminOrManager, async (req, res) => {
 
 // ── POST /api/finance/resumo-aluno/whatsapp ──────────────────────
 router.post('/resumo-aluno/whatsapp', auth, adminOrManager, async (req, res) => {
-  const { aluno_nome, mes, resumo = {}, telefone: telefoneManual } = req.body;
+  const { mes, resumo = {}, telefone: telefoneManual } = req.body;
+  const aluno_nome = ((req.body.aluno_nome || '')).trim().replace(/\s*\/\s*/g, ' / ').replace(/\s+/g, ' ');
   if (!aluno_nome) return res.status(400).json({ error: 'aluno_nome é obrigatório' });
 
   // Busca telefone: 1) manual, 2) tabela alunos, 3) dados do próprio resumo
   let telefone = telefoneManual;
   if (!telefone) {
     const { rows } = await pool.query(
-      `SELECT telefone FROM alunos WHERE REGEXP_REPLACE(REGEXP_REPLACE(TRIM(nome), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g') ILIKE REGEXP_REPLACE(REGEXP_REPLACE(TRIM($1), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g') AND telefone IS NOT NULL AND telefone <> '' LIMIT 1`, [aluno_nome]
+      "SELECT telefone FROM alunos WHERE REPLACE(REPLACE(REPLACE(TRIM(nome), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1 AND telefone IS NOT NULL AND telefone <> '' LIMIT 1", [aluno_nome]
     ).catch(() => ({ rows: [] }));
     telefone = rows[0]?.telefone;
   }
