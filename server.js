@@ -271,6 +271,8 @@ async function runMigrations() {
     `ALTER TABLE points ADD COLUMN IF NOT EXISTS price_per_hour_aluno NUMERIC(10,2)`,
     `ALTER TABLE alunos ADD COLUMN IF NOT EXISTS professor_id INTEGER REFERENCES professores(id) ON DELETE SET NULL`,
     `ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS professor_id INTEGER REFERENCES professores(id) ON DELETE SET NULL`,
+    `ALTER TABLE crm_users DROP CONSTRAINT IF EXISTS crm_users_role_check`,
+    `ALTER TABLE crm_users ADD CONSTRAINT crm_users_role_check CHECK (role IN ('admin','manager','simples','profissional','professor','recepcao'))`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
