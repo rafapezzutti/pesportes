@@ -465,7 +465,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
     ]},
     {label:'Financeiro', items:[
       {key:'crm-financeiro',     label:'Financeiro',   icon:'💰',roles:['admin','manager']},
-      {key:'crm-horarios-livres', label:'Horários Livres', icon:'🟢',roles:['admin','manager','simples']},
+      {key:'crm-horarios-livres', label:'Horários Livres', icon:'🟢',roles:['admin','manager','simples','professor','recepcao']},
       {key:'crm-funcionarios',   label:'Funcionários', icon:'👷',roles:['admin','manager']},
       {key:'crm-estoque',        label:'Estoque Bar',  icon:'📦',roles:['admin','manager']},
     ]},
@@ -485,7 +485,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
   const [openGroups,setOpenGroups]=useState({});
   const isOpen=(l)=>openGroups[l]===true; // recolhido por padrão
   const toggleGroup=(l)=>setOpenGroups(p=>({...p,[l]:!p[l]}));
-  const roleLabel={admin:'Administrador',manager:'Gerente',simples:'Usuário Simples',profissional:'Profissional EF'};
+  const roleLabel={admin:'Administrador',manager:'Gerente',simples:'Usuário Simples',profissional:'Profissional EF',professor:'Professor',recepcao:'Recepção'};
   const [userList,setUserList]=useState([]);
   const [dropOpen,setDropOpen]=useState(false);
   const [mobileOpen,setMobileOpen]=useState(false);
@@ -873,8 +873,8 @@ function CRMPoints({crmUser,showToast}){
 // CRM USERS
 // ================================================================
 const ROLE_OPTS=[{value:'admin',label:'Administrador — acesso total'},{value:'manager',label:'Gerente — dashboard + reservas do est.'},{value:'simples',label:'Usuário Simples — somente reservas'}];
-const ROLE_BADGE={admin:'blue',manager:'green',simples:'gray'};
-const ROLE_NAME={admin:'Administrador',manager:'Gerente',simples:'Simples'};
+const ROLE_BADGE={admin:'blue',manager:'green',simples:'gray',professor:'emerald',recepcao:'yellow',profissional:'purple'};
+const ROLE_NAME={admin:'Administrador',manager:'Gerente',simples:'Simples',professor:'Professor',recepcao:'Recepção',profissional:'Prof. EF'};
 
 function CRMUsers({crmUser,showToast}){
   const [users,setUsers]=useState([]);
@@ -889,18 +889,19 @@ function CRMUsers({crmUser,showToast}){
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
   const isAdmin=crmUser?.role==='admin';
   const ROLE_OPTS=isAdmin
-    ?[{value:'admin',label:'Administrador — acesso total'},{value:'manager',label:'Gerente — vários estabelecimentos'},{value:'simples',label:'Usuário Simples — somente reservas'},{value:'profissional',label:'Profissional EF — personal trainer'}]
-    :[{value:'simples',label:'Usuário Simples — somente reservas'}];
+    ?[{value:'admin',label:'Administrador — acesso total'},{value:'manager',label:'Gerente — vários estabelecimentos'},{value:'simples',label:'Usuário Simples — somente reservas'},{value:'professor',label:'Professor — alunos + planos + reservas'},{value:'recepcao',label:'Recepção — somente reservas'},{value:'profissional',label:'Profissional EF — personal trainer'}]
+    :[{value:'professor',label:'Professor — alunos + planos + reservas'},{value:'recepcao',label:'Recepção — somente reservas'},{value:'simples',label:'Usuário Simples — somente reservas'}];
   const needsEstMulti=f.role==='manager';
-  const needsEstSingle=f.role==='simples';
+  const needsEstSingle=['simples','professor','recepcao'].includes(f.role);
 
+  const [profs4User,setProfs4User]=useState([]);
   const load=()=>{
-    Promise.all([userApi.list(),estApi.list()]).then(([u,e])=>{setUsers(u);setEsts(e);}).catch(()=>{}).finally(()=>setLoading(false));
+    Promise.all([userApi.list(),estApi.list(),professorApi.list()]).then(([u,e,pr])=>{setUsers(u);setEsts(e);setProfs4User(pr);}).catch(()=>{}).finally(()=>setLoading(false));
   };
   useEffect(()=>{load();},[]);
 
-  const openNew=()=>{setF({name:'',email:'',password:'',pw2:'',role:isAdmin?'manager':'simples',est_id:isAdmin?'':ests[0]?.id||'',est_ids:[]});setEditU(null);setErr({});setShowForm(true);};
-  const openEdit=(u)=>{setF({name:u.name,email:u.email,password:'',pw2:'',role:u.role,est_id:u.est_id||'',est_ids:(u.est_ids||[]).map(Number)});setEditU(u);setErr({});setShowForm(true);};
+  const openNew=()=>{setF({name:'',email:'',password:'',pw2:'',role:isAdmin?'manager':'professor',est_id:isAdmin?'':ests[0]?.id||'',est_ids:[],professor_id:''});setEditU(null);setErr({});setShowForm(true);};
+  const openEdit=(u)=>{setF({name:u.name,email:u.email,password:'',pw2:'',role:u.role,est_id:u.est_id||'',est_ids:(u.est_ids||[]).map(Number),professor_id:u.professor_id||''});setEditU(u);setErr({});setShowForm(true);};
 
   const validate=()=>{
     const e={};
@@ -916,7 +917,7 @@ function CRMUsers({crmUser,showToast}){
   const save=async()=>{
     if(!validate())return;
     try{
-      const payload={name:f.name,email:f.email,role:f.role,est_id:needsEstSingle?f.est_id:null,est_ids:needsEstMulti?f.est_ids:[],...(f.password?{password:f.password}:{})};
+      const payload={name:f.name,email:f.email,role:f.role,est_id:needsEstSingle?f.est_id:null,est_ids:needsEstMulti?f.est_ids:[],professor_id:f.role==='professor'?(f.professor_id||null):null,...(f.password?{password:f.password}:{})};
       if(editU){await userApi.update(editU.id,payload);}else{await userApi.create({...payload,password:f.password});}
       showToast('Usuário salvo!','success');setShowForm(false);load();
     }catch(e){showToast(e.message,'error');}
@@ -954,7 +955,8 @@ function CRMUsers({crmUser,showToast}){
   <Modal open={showForm} onClose={()=>setShowForm(false)} title={editU?'Editar Usuário':'Novo Usuário'}><div className="space-y-3">
     <Field label="Nome" required><Inp value={f.name} onChange={e=>upd('name',e.target.value)}/>{err.name&&<p className="text-xs text-red-500">{err.name}</p>}</Field>
     <Field label="Email" required><Inp type="email" value={f.email} onChange={e=>upd('email',e.target.value)}/>{err.email&&<p className="text-xs text-red-500">{err.email}</p>}</Field>
-    <Field label="Perfil"><Sel value={f.role} onChange={e=>{const r=e.target.value;setF(p=>({...p,role:r,est_id:r==='simples'?p.est_id:'',est_ids:r==='manager'?p.est_ids:[]}));}} options={ROLE_OPTS}/></Field>
+    <Field label="Perfil"><Sel value={f.role} onChange={e=>{const r=e.target.value;setF(p=>({...p,role:r,est_id:['simples','professor','recepcao'].includes(r)?p.est_id:'',est_ids:r==='manager'?p.est_ids:[],professor_id:''}));}} options={ROLE_OPTS}/></Field>
+    {f.role==='professor'&&<Field label="Vincular ao Professor (opcional)"><Sel value={f.professor_id} onChange={e=>upd('professor_id',e.target.value)} options={profs4User.map(p=>({value:p.id,label:p.nome+(p.est_name?' — '+p.est_name:'')}))} placeholder="Selecione para vincular alunos..."/></Field>}
     {needsEstMulti&&<Field label="Estabelecimentos (opcional)"><div className="border border-gray-200 rounded-xl p-3 space-y-2 max-h-48 overflow-y-auto">{ests.length===0?<p className="text-sm text-gray-400 italic">Nenhum estabelecimento ainda — o gerente pode criar o próprio após o login e será vinculado automaticamente.</p>:ests.map(est=><label key={est.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded p-1"><input type="checkbox" checked={f.est_ids.map(Number).includes(Number(est.id))} onChange={ev=>{const id=Number(est.id);upd('est_ids',ev.target.checked?[...f.est_ids,id]:f.est_ids.filter(x=>Number(x)!==id));}} className="w-4 h-4 accent-emerald-600"/><span className="text-sm text-gray-700">{est.name}</span></label>)}</div><p className="text-xs text-gray-400 mt-1">Ao criar um estabelecimento, o gerente é vinculado automaticamente.</p></Field>}
     {needsEstSingle&&<Field label="Estabelecimento" required><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>{err.est_id&&<p className="text-xs text-red-500">{err.est_id}</p>}</Field>}
     <Field label={editU?'Nova senha (vazio = manter)':'Senha'} required={!editU}><Inp type="password" value={f.password} onChange={e=>upd('password',e.target.value)}/>{err.password&&<p className="text-xs text-red-500">{err.password}</p>}</Field>
@@ -1472,6 +1474,123 @@ function CRMPlanosAula({showToast}){
 }
 
 // ================================================================
+// CRM RESERVA RAPIDA
+// ================================================================
+function CRMReservaRapida({crmUser,showToast,onClose}){
+  const TODAY2=new Date().toISOString().split('T')[0];
+  const [ests,setEsts]=useState([]);
+  const [points,setPoints]=useState([]);
+  const [slots,setSlots]=useState([]);
+  const [estId,setEstId]=useState('');
+  const [pointId,setPointId]=useState('');
+  const [date,setDate]=useState(TODAY2);
+  const [selSlots,setSelSlots]=useState([]);
+  const [name,setName]=useState('');
+  const [phone,setPhone]=useState('');
+  const [saving,setSaving]=useState(false);
+  const [alunos,setAlunos]=useState([]);
+  const [nameInput,setNameInput]=useState('');
+  const [showSugg,setShowSugg]=useState(false);
+  const sugg=alunos.filter(a=>nameInput.length>1&&a.nome.toLowerCase().includes(nameInput.toLowerCase())).slice(0,6);
+
+  useEffect(()=>{
+    Promise.all([estApi.list(),alunoApi.list()]).then(([es,al])=>{
+      setEsts(es);setAlunos(al);
+      const uid=crmUser?.est_id;
+      if(uid)setEstId(String(uid));
+      else if(es.length===1)setEstId(String(es[0].id));
+    }).catch(()=>{});
+  },[]);
+
+  useEffect(()=>{
+    if(!estId){setPoints([]);setPointId('');return;}
+    pointApi.list(estId).then(setPoints).catch(()=>{});
+    setPointId('');
+  },[estId]);
+
+  useEffect(()=>{
+    if(!pointId||!date){setSlots([]);setSelSlots([]);return;}
+    pointApi.slots(pointId,date).then(setSlots).catch(()=>setSlots([]));
+    setSelSlots([]);
+  },[pointId,date]);
+
+  const toggleSlot=(s)=>{
+    setSelSlots(prev=>{
+      if(prev.includes(s)){const idx=prev.indexOf(s);return prev.slice(0,idx);}
+      if(prev.length===0||parseInt(s)===parseInt(prev[prev.length-1])+1)return[...prev,s];
+      return[s];
+    });
+  };
+
+  const addDay=(n)=>{const d=new Date(date+'T12:00:00');d.setDate(d.getDate()+n);setDate(d.toISOString().split('T')[0]);};
+  const fmtD=(d)=>{const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});};
+
+  const selectAluno=(a)=>{setName(a.nome);setNameInput(a.nome);setPhone(a.telefone||'');setShowSugg(false);};
+
+  const save=async()=>{
+    if(!pointId){showToast('Selecione uma quadra','error');return;}
+    if(!selSlots.length){showToast('Selecione pelo menos 1 horário','error');return;}
+    if(!name){showToast('Nome é obrigatório','error');return;}
+    if(!phone){showToast('Telefone é obrigatório','error');return;}
+    setSaving(true);
+    try{
+      const s=selSlots[0];
+      const e=String(parseInt(selSlots[selSlots.length-1])+1).padStart(2,'0')+':00';
+      await resApi.manualCreate({point_id:Number(pointId),est_id:Number(estId),date,start_time:s,end_time:e,hours:selSlots.length,client_name:name,client_phone:phone,payment_method:'pix'});
+      showToast('Reserva criada com sucesso!','success');
+      onClose();
+    }catch(e){showToast(e.message,'error');}
+    finally{setSaving(false);}
+  };
+
+  return<div className="space-y-4">
+    {ests.length>1&&<Field label="Estabelecimento" required><Sel value={estId} onChange={e=>setEstId(e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/></Field>}
+
+    {points.length>0&&<div>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Quadra / Espaço</p>
+      <div className="grid grid-cols-2 gap-2">
+        {points.map(pt=><button key={pt.id} type="button" onClick={()=>setPointId(String(pt.id))} className={`p-3 rounded-xl border-2 text-sm font-semibold text-left transition-all ${String(pointId)===String(pt.id)?'border-emerald-500 bg-emerald-50 text-emerald-700':'border-gray-200 hover:border-gray-300 text-gray-700'}`}><p>{pt.name}</p><p className="text-xs font-normal opacity-60">{pt.type}</p></button>)}
+      </div>
+    </div>}
+    {estId&&points.length===0&&<p className="text-sm text-gray-400 text-center py-2">Nenhuma quadra cadastrada neste estabelecimento</p>}
+
+    <div>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Data</p>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={()=>addDay(-1)} className="w-9 h-9 rounded-lg border border-gray-200 hover:bg-gray-50 font-bold text-gray-600">←</button>
+        <div className="flex-1 text-center font-semibold text-gray-800 py-2 border border-gray-200 rounded-lg">{fmtD(date)}</div>
+        <button type="button" onClick={()=>addDay(1)} className="w-9 h-9 rounded-lg border border-gray-200 hover:bg-gray-50 font-bold text-gray-600">→</button>
+      </div>
+    </div>
+
+    {pointId&&slots.length>0&&<div>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Horário {selSlots.length>0&&<span className="text-emerald-600 normal-case font-medium">— {selSlots[0]} a {String(parseInt(selSlots[selSlots.length-1])+1).padStart(2,'0')}:00 ({selSlots.length}h)</span>}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {slots.map(s=><button key={s} type="button" onClick={()=>toggleSlot(s)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${selSlots.includes(s)?'bg-emerald-600 text-white border-emerald-600':'border-gray-200 text-gray-600 hover:border-emerald-400'}`}>{s}</button>)}
+      </div>
+    </div>}
+    {pointId&&date&&slots.length===0&&<p className="text-sm text-amber-500 text-center py-2 bg-amber-50 rounded-lg">Nenhum horário livre neste dia</p>}
+
+    <div className="relative">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cliente</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="relative">
+          <Inp value={nameInput} onChange={e=>{setNameInput(e.target.value);setName(e.target.value);setShowSugg(true);}} placeholder="Nome" onBlur={()=>setTimeout(()=>setShowSugg(false),150)}/>
+          {showSugg&&sugg.length>0&&<div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden">
+            {sugg.map(a=><button key={a.id} type="button" onMouseDown={()=>selectAluno(a)} className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 text-gray-700">{a.nome}{a.telefone&&<span className="text-xs text-gray-400 ml-2">{a.telefone}</span>}</button>)}
+          </div>}
+        </div>
+        <Inp type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Telefone"/>
+      </div>
+    </div>
+
+    <Btn className="w-full !py-3 text-base" onClick={save} disabled={saving}>
+      {saving?'Criando...':'✅ Confirmar Reserva'}
+    </Btn>
+  </div>;
+}
+
+// ================================================================
 // CRM RESERVATIONS
 // ================================================================
 function CRMReservations({showToast,crmUser}){
@@ -1486,6 +1605,7 @@ function CRMReservations({showToast,crmUser}){
 
   // ── Nova reserva manual ──
   const [showManual,setShowManual]=useState(false);
+  const [showRapida,setShowRapida]=useState(false);
   const MBL={name:'',phone:'',email:'',estId:'',pointId:'',date:TODAY,slots:[],pm:'dinheiro',participantes:[],pricePerHour:'',professorId:'',alunoDoProf:false};
   const [mb,setMb]=useState(MBL);
   const [mbAlunos,setMbAlunos]=useState([]);
@@ -1624,7 +1744,10 @@ function CRMReservations({showToast,crmUser}){
   return<div className="p-6">
     <div className="flex items-center justify-between mb-4">
       <h1 className="text-2xl font-black text-gray-900">Gestão de Reservas</h1>
-      {resTab==='reservas'&&<Btn onClick={()=>{setShowManual(true);setMb(MBL);setMbNameInput('');setMbVisitante(false);}}>+ Nova Reserva</Btn>}
+      {resTab==='reservas'&&<div className="flex gap-2">
+        <Btn variant="secondary" onClick={()=>setShowRapida(true)}>🚀 Reserva Rápida</Btn>
+        <Btn onClick={()=>{setShowManual(true);setMb(MBL);setMbNameInput('');setMbVisitante(false);}}>+ Nova Reserva</Btn>
+      </div>}
     </div>
     <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'recorrentes',label:'🔄 Recorrentes'},{key:'aulas',label:'📚 Planos de Aula'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'}]} active={resTab} onChange={setResTab}/>
     {resTab==='aulas'&&<CRMPlanosAula showToast={showToast}/>}
@@ -1666,6 +1789,10 @@ function CRMReservations({showToast,crmUser}){
     {/* Modal Remarcar */}
     <Modal open={!!reschRes} onClose={()=>setReschRes(null)} title="Remarcar Reserva">{reschRes&&<div className="space-y-4"><div className="bg-gray-50 rounded-xl p-3 text-sm"><p className="font-semibold">{reschRes.point_name}</p><p className="text-gray-500">Atual: {fmtDate(dateStr(reschRes))} • {reschRes.start_time}–{reschRes.end_time}</p></div><Field label="Nova data"><input type="date" value={newDate} onChange={e=>{setNewDate(e.target.value);setNewSlots([]);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></Field>{newDate&&<div><p className="text-sm font-medium text-gray-700 mb-2">Novo horário</p><div className="grid grid-cols-4 gap-1.5">{rSlots.map(s=><button key={s.time} onClick={()=>toggleSlot(s)} disabled={!s.available} className={`py-2 text-xs rounded-lg border font-medium ${newSlots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'}`}>{s.time}</button>)}</div></div>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setReschRes(null)}>Cancelar</Btn><Btn className="flex-1" disabled={!newDate||!newSlots.length} onClick={handleReschedule}>Confirmar</Btn></div></div>}</Modal>
 
+    {/* Modal Reserva Rápida */}
+    <Modal open={showRapida} onClose={()=>setShowRapida(false)} title="🚀 Reserva Rápida" maxW="max-w-lg">
+      {showRapida&&<CRMReservaRapida crmUser={crmUser} showToast={showToast} onClose={()=>{setShowRapida(false);load();}}/>}
+    </Modal>
     {/* Modal Nova Reserva Manual */}
     <Modal open={showManual} onClose={()=>resetMbModal()} title="Nova Reserva Manual" maxW="max-w-lg">
       <div className="space-y-4">
@@ -3821,7 +3948,7 @@ export default function App(){
     saveToken(token);localStorage.setItem('user',JSON.stringify(user));localStorage.setItem('userType','crm');
     setCrmUser(user);
     if(user.role==='profissional') navigate('prof-perfil');
-    else navigate(user.role==='simples'?'crm-reservations':'crm-dashboard');
+    else navigate(['simples','recepcao'].includes(user.role)?'crm-reservations':user.role==='professor'?'crm-alunos':'crm-dashboard');
   };
   const crmLogout=()=>{
     const pubTok=localStorage.getItem('public_token_backup');

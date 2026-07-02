@@ -4,7 +4,7 @@ const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 
 // simples também pode gerenciar alunos do seu est
 function canManageAluno(user) {
-  return ['admin','manager','simples'].includes(user.role);
+  return ['admin','manager','simples','professor'].includes(user.role);
 }
 
 // ── GET / — lista alunos ──────────────────────────────────────────
@@ -25,6 +25,14 @@ router.get('/', auth, async (req, res) => {
     } else if (req.user.role === 'simples' && req.user.est_id) {
       params.push(req.user.est_id);
       where.push(`a.est_id = $${params.length}`);
+    } else if (req.user.role === 'professor') {
+      if (req.user.professor_id) {
+        params.push(req.user.professor_id);
+        where.push(`a.professor_id = $${params.length}`);
+      } else if (req.user.est_id) {
+        params.push(req.user.est_id);
+        where.push(`a.est_id = $${params.length}`);
+      }
     }
 
     const ws = where.length ? 'WHERE ' + where.join(' AND ') : '';
@@ -48,15 +56,17 @@ router.post('/', auth, async (req, res) => {
   if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });
   const { nome, cpf, email, telefone, data_nascimento } = req.body;
   let { est_id } = req.body;
-  if (req.user.role === 'simples') est_id = req.user.est_id; // força est do professor
+  if (req.user.role === 'simples') est_id = req.user.est_id;
+  if (req.user.role === 'professor') est_id = req.user.est_id;
+  const professor_id = req.user.role === 'professor' ? (req.user.professor_id || null) : null;
   if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO alunos (nome, cpf, email, telefone, data_nascimento, est_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO alunos (nome, cpf, email, telefone, data_nascimento, est_id, professor_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [nome, cpf || null, email || null, telefone || null, data_nascimento || null, est_id || null]
+      [nome, cpf || null, email || null, telefone || null, data_nascimento || null, est_id || null, professor_id]
     );
     res.status(201).json(rows[0]);
   } catch (err) {

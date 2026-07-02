@@ -269,6 +269,8 @@ async function runMigrations() {
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS professor_id  INTEGER REFERENCES professores(id) ON DELETE SET NULL`,
     `ALTER TABLE recurring_reservations ADD COLUMN IF NOT EXISTS professor_id INTEGER REFERENCES professores(id) ON DELETE SET NULL`,
     `ALTER TABLE points ADD COLUMN IF NOT EXISTS price_per_hour_aluno NUMERIC(10,2)`,
+    `ALTER TABLE alunos ADD COLUMN IF NOT EXISTS professor_id INTEGER REFERENCES professores(id) ON DELETE SET NULL`,
+    `ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS professor_id INTEGER REFERENCES professores(id) ON DELETE SET NULL`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>

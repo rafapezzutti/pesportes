@@ -37,6 +37,7 @@ router.post('/crm/login', async (req, res) => {
       est_id: user.est_id || null,
       est_ids: user.est_ids || [],
       profissional_id: user.profissional_id || null,
+      professor_id: user.professor_id || null,
     });
     logLogin(req, user.id, user.name, user.role);
     res.json({
@@ -46,6 +47,7 @@ router.post('/crm/login', async (req, res) => {
         est_id: user.est_id || null,
         est_ids: user.est_ids || [],
         profissional_id: user.profissional_id || null,
+        professor_id: user.professor_id || null,
       },
     });
   } catch (err) {

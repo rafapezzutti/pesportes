@@ -23,34 +23,31 @@ router.get('/', auth, adminOrManager, async (req, res) => {
 
 // POST /api/crm-users
 router.post('/', auth, adminOrManager, async (req, res) => {
-  const { name, email, password, role, est_id, est_ids } = req.body;
+  const { name, email, password, role, est_id, est_ids, professor_id } = req.body;
   if (!name || !email || !password)
     return res.status(400).json({ error: 'name, email e password obrigatorios' });
   if (password.length < 6)
     return res.status(400).json({ error: 'Senha minima: 6 caracteres' });
 
-  const allowedRoles = req.user.role === 'admin'
-    ? ['admin', 'manager', 'simples']
-    : ['simples'];
-  if (!allowedRoles.includes(role))
-    return res.status(403).json({ error: 'Voce so pode criar usuarios do tipo Simples' });
-
-  // Gerente pode ser criado sem estabelecimentos (criara o proprio e sera auto-vinculado)
-  if (role === 'simples' && !est_id)
-    return res.status(400).json({ error: 'Usuario simples precisa de um estabelecimento' });
+  const VALID_ROLES = req.user.role === 'admin'
+    ? ['admin', 'manager', 'simples', 'profissional', 'professor', 'recepcao']
+    : ['simples', 'professor', 'recepcao'];
+  if (!VALID_ROLES.includes(role))
+    return res.status(403).json({ error: 'Voce nao tem permissao para criar este tipo de usuario' });
 
   try {
     const exists = await pool.query('SELECT id FROM crm_users WHERE email=$1', [email.toLowerCase()]);
     if (exists.rows.length) return res.status(409).json({ error: 'Email ja cadastrado' });
 
     const hash = await bcrypt.hash(password, 10);
-    const resolvedEstId  = role === 'simples' ? (est_id || null) : null;
+    const resolvedEstId  = ['simples','professor','recepcao'].includes(role) ? (est_id || null) : null;
     const resolvedEstIds = role === 'manager' ? (est_ids || []) : [];
+    const resolvedProfId = role === 'professor' ? (professor_id || null) : null;
 
     const { rows } = await pool.query(
-      `INSERT INTO crm_users (name, email, password_hash, role, est_id, est_ids)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, name, email, role, est_id, est_ids`,
-      [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds]
+      `INSERT INTO crm_users (name, email, password_hash, role, est_id, est_ids, professor_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, name, email, role, est_id, est_ids, professor_id`,
+      [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds, resolvedProfId]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -60,29 +57,28 @@ router.post('/', auth, adminOrManager, async (req, res) => {
 
 // PUT /api/crm-users/:id
 router.put('/:id', auth, adminOnly, async (req, res) => {
-  const { name, email, password, role, est_id, est_ids } = req.body;
-  if (!['admin', 'manager', 'simples', 'profissional'].includes(role))
+  const { name, email, password, role, est_id, est_ids, professor_id } = req.body;
+  const VALID_ROLES = ['admin', 'manager', 'simples', 'profissional', 'professor', 'recepcao'];
+  if (!VALID_ROLES.includes(role))
     return res.status(400).json({ error: 'Role invalido' });
-  // Gerente pode ter lista vazia (criado antes de ter estabelecimento)
-  if (role === 'simples' && !est_id)
-    return res.status(400).json({ error: 'Usuario simples precisa de um estabelecimento' });
 
   try {
-    const resolvedEstId  = role === 'simples' ? (est_id || null) : null;
+    const resolvedEstId  = ['simples','professor','recepcao'].includes(role) ? (est_id || null) : null;
     const resolvedEstIds = role === 'manager' ? (est_ids || []) : [];
+    const resolvedProfId = role === 'professor' ? (professor_id || null) : null;
 
     let query, params;
     if (password) {
       if (password.length < 6)
         return res.status(400).json({ error: 'Senha minima: 6 caracteres' });
       const hash = await bcrypt.hash(password, 10);
-      query  = `UPDATE crm_users SET name=$1, email=$2, password_hash=$3, role=$4, est_id=$5, est_ids=$6
-                WHERE id=$7 RETURNING id, name, email, role, est_id, est_ids`;
-      params = [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds, req.params.id];
+      query  = `UPDATE crm_users SET name=$1, email=$2, password_hash=$3, role=$4, est_id=$5, est_ids=$6, professor_id=$7
+                WHERE id=$8 RETURNING id, name, email, role, est_id, est_ids, professor_id`;
+      params = [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds, resolvedProfId, req.params.id];
     } else {
-      query  = `UPDATE crm_users SET name=$1, email=$2, role=$3, est_id=$4, est_ids=$5
-                WHERE id=$6 RETURNING id, name, email, role, est_id, est_ids`;
-      params = [name, email.toLowerCase(), role, resolvedEstId, resolvedEstIds, req.params.id];
+      query  = `UPDATE crm_users SET name=$1, email=$2, role=$3, est_id=$4, est_ids=$5, professor_id=$6
+                WHERE id=$7 RETURNING id, name, email, role, est_id, est_ids, professor_id`;
+      params = [name, email.toLowerCase(), role, resolvedEstId, resolvedEstIds, resolvedProfId, req.params.id];
     }
     const { rows } = await pool.query(query, params);
     if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado' });
