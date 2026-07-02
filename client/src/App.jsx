@@ -1481,7 +1481,7 @@ function CRMPlanosAula({showToast}){
                     className="px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 border-b border-gray-50 last:border-0">
                     <span className="font-medium">{a.nome}</span>
                     {a.telefone&&<span className="ml-2 text-xs text-gray-400">{a.telefone}</span>}
-                  </li>}
+                  </li>)}
                 </ul>;
               })()}
             </div>
