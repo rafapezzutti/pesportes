@@ -44,9 +44,28 @@ async function getStatus() {
   try {
     const data = await evoFetch('GET', `/instance/connectionState/${INSTANCE}`);
     const state = data?.instance?.state || data?.state || 'close';
-    return { connected: state === 'open', state, instance: INSTANCE };
+    const connected = state === 'open';
+
+    // Se conectado, busca o número do telefone vinculado
+    let phone = null;
+    let profileName = null;
+    if (connected) {
+      try {
+        const instances = await evoFetch('GET', `/instance/fetchInstances`);
+        const inst = Array.isArray(instances)
+          ? instances.find(i => i.instance?.instanceName === INSTANCE || i.name === INSTANCE)
+          : null;
+        // ownerJid: "5511999999999@s.whatsapp.net"
+        const ownerJid = inst?.instance?.ownerJid || inst?.ownerJid || inst?.instance?.profilePictureUrl?.split?.('/')[0] || null;
+        if (ownerJid) {
+          phone = ownerJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+        }
+        profileName = inst?.instance?.profileName || inst?.profileName || null;
+      } catch {}
+    }
+
+    return { connected, state, instance: INSTANCE, phone, profileName };
   } catch (err) {
-    // Instância pode ainda não existir
     return { connected: false, state: 'close', instance: INSTANCE, error: err.message };
   }
 }

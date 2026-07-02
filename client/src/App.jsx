@@ -3722,14 +3722,16 @@ function CRMWhatsApp({crmUser,showToast}){
     {tab==='conexao'&&<div className="bg-white rounded-2xl border border-gray-100 p-6">
       <div className="flex items-center gap-4 mb-5">
         <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-2xl">💬</div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="font-bold text-gray-800">Status da conexão</p>
           {loading?<p className="text-sm text-gray-400">Verificando...</p>
           :<p className={`text-sm font-semibold ${status?.connected?'text-green-600':'text-gray-500'}`}>
             {stateLabel[status?.state]||status?.state||'Desconhecido'}
           </p>}
+          {!loading&&status?.instance&&<p className="text-xs text-gray-400 mt-0.5">Instância: <span className="font-mono font-medium text-gray-600">{status.instance}</span></p>}
+          {!loading&&status?.connected&&status?.phone&&<p className="text-xs text-gray-400">Número: <span className="font-semibold text-gray-700">{(()=>{const d=String(status.phone).replace(/\D/g,'');return d.length>=12?`+${d.slice(0,2)} (${d.slice(2,4)}) ${d.slice(4,9)}-${d.slice(9)}`:d;})()}</span>{status.profileName&&<span className="ml-2 text-gray-500">· {status.profileName}</span>}</p>}
         </div>
-        <Btn variant="secondary" size="sm" className="ml-auto" onClick={checkStatus} disabled={loading}>↻ Atualizar</Btn>
+        <Btn variant="secondary" size="sm" className="ml-auto shrink-0" onClick={checkStatus} disabled={loading}>↻ Atualizar</Btn>
       </div>
       {status?.error&&status.error!=='Not Found'&&
         <div className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">Erro: {status.error}</div>}
