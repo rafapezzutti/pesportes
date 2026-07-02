@@ -289,13 +289,15 @@ router.get('/clientes', auth, crmOnly, async (req, res) => {
 
   try {
     const { rows } = await pool.query(`
-      SELECT DISTINCT TRIM(nome) AS nome FROM (
+      SELECT DISTINCT
+        REGEXP_REPLACE(REGEXP_REPLACE(TRIM(nome), '\\s*/\\s*', ' / ', 'g'), '\\s+', ' ', 'g') AS nome
+      FROM (
         SELECT nome_aluno   AS nome FROM planos_aula        WHERE nome_aluno   IS NOT NULL AND nome_aluno   <> '' ${scopeSql}
-        UNION
+        UNION ALL
         SELECT client_name  AS nome FROM reservations       WHERE client_name  IS NOT NULL AND client_name  <> '' ${scopeSql}
-        UNION
+        UNION ALL
         SELECT cliente_nome AS nome FROM bar_vendas         WHERE cliente_nome IS NOT NULL AND cliente_nome <> '' ${scopeSql}
-        UNION
+        UNION ALL
         SELECT cliente_nome AS nome FROM manutencao_vendas  WHERE cliente_nome IS NOT NULL AND cliente_nome <> '' ${scopeSql}
       ) t
       ORDER BY nome
