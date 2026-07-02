@@ -31,6 +31,7 @@ async function evoFetch(method, path, body) {
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
   if (!res.ok) {
     const msg = data?.message || data?.error || `Erro ${res.status}`;
+    console.error('[evoFetch] Bad response', { method, path, status: res.status, body: JSON.stringify(body), response: text });
     throw new Error(msg);
   }
   return data;

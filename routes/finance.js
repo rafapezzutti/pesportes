@@ -525,6 +525,7 @@ const mensagem = [
     'Duvidas? Estamos a disposicao!';
 
   try {
+    console.log('[whatsapp resumo] telefone raw:', telefone, '| aluno:', aluno_nome);
     const result = await wa.sendText(telefone, mensagem);
     res.json({ ok: true, messageId: result.messageId, number: result.number });
   } catch (err) {
