@@ -77,7 +77,7 @@ router.post('/', auth, async (req, res) => {
 
 // ── PUT /:id — atualiza aluno ─────────────────────────────────────
 router.put('/:id', auth, async (req, res) => {
-  const { nome, cpf, email, telefone, data_nascimento, est_id, ativo } = req.body;
+  const { nome, cpf, email, telefone, data_nascimento, est_id, ativo, professor_id } = req.body;
   try {
     const { rows } = await pool.query(
       `UPDATE alunos SET
@@ -88,12 +88,13 @@ router.put('/:id', auth, async (req, res) => {
          data_nascimento = COALESCE($5, data_nascimento),
          est_id          = COALESCE($6, est_id),
          ativo           = COALESCE($7, ativo),
+         professor_id    = $8,
          updated_at      = NOW()
-       WHERE id = $8
+       WHERE id = $9
        RETURNING *`,
       [nome || null, cpf || null, email || null, telefone || null,
        data_nascimento || null, est_id || null,
-       ativo !== undefined ? ativo : null, req.params.id]
+       ativo !== undefined ? ativo : null, professor_id || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Aluno não encontrado' });
     res.json(rows[0]);

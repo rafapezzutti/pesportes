@@ -894,9 +894,8 @@ function CRMUsers({crmUser,showToast}){
   const needsEstMulti=f.role==='manager';
   const needsEstSingle=['simples','professor','recepcao'].includes(f.role);
 
-  const [profs4User,setProfs4User]=useState([]);
   const load=()=>{
-    Promise.all([userApi.list(),estApi.list(),professorApi.list()]).then(([u,e,pr])=>{setUsers(u);setEsts(e);setProfs4User(pr);}).catch(()=>{}).finally(()=>setLoading(false));
+    Promise.all([userApi.list(),estApi.list()]).then(([u,e])=>{setUsers(u);setEsts(e);}).catch(()=>{}).finally(()=>setLoading(false));
   };
   useEffect(()=>{load();},[]);
 
@@ -956,7 +955,6 @@ function CRMUsers({crmUser,showToast}){
     <Field label="Nome" required><Inp value={f.name} onChange={e=>upd('name',e.target.value)}/>{err.name&&<p className="text-xs text-red-500">{err.name}</p>}</Field>
     <Field label="Email" required><Inp type="email" value={f.email} onChange={e=>upd('email',e.target.value)}/>{err.email&&<p className="text-xs text-red-500">{err.email}</p>}</Field>
     <Field label="Perfil"><Sel value={f.role} onChange={e=>{const r=e.target.value;setF(p=>({...p,role:r,est_id:['simples','professor','recepcao'].includes(r)?p.est_id:'',est_ids:r==='manager'?p.est_ids:[],professor_id:''}));}} options={ROLE_OPTS}/></Field>
-    {f.role==='professor'&&<Field label="Vincular ao Professor (opcional)"><Sel value={f.professor_id} onChange={e=>upd('professor_id',e.target.value)} options={profs4User.map(p=>({value:p.id,label:p.nome+(p.est_name?' — '+p.est_name:'')}))} placeholder="Selecione para vincular alunos..."/></Field>}
     {needsEstMulti&&<Field label="Estabelecimentos (opcional)"><div className="border border-gray-200 rounded-xl p-3 space-y-2 max-h-48 overflow-y-auto">{ests.length===0?<p className="text-sm text-gray-400 italic">Nenhum estabelecimento ainda — o gerente pode criar o próprio após o login e será vinculado automaticamente.</p>:ests.map(est=><label key={est.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded p-1"><input type="checkbox" checked={f.est_ids.map(Number).includes(Number(est.id))} onChange={ev=>{const id=Number(est.id);upd('est_ids',ev.target.checked?[...f.est_ids,id]:f.est_ids.filter(x=>Number(x)!==id));}} className="w-4 h-4 accent-emerald-600"/><span className="text-sm text-gray-700">{est.name}</span></label>)}</div><p className="text-xs text-gray-400 mt-1">Ao criar um estabelecimento, o gerente é vinculado automaticamente.</p></Field>}
     {needsEstSingle&&<Field label="Estabelecimento" required><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>{err.est_id&&<p className="text-xs text-red-500">{err.est_id}</p>}</Field>}
     <Field label={editU?'Nova senha (vazio = manter)':'Senha'} required={!editU}><Inp type="password" value={f.password} onChange={e=>upd('password',e.target.value)}/>{err.password&&<p className="text-xs text-red-500">{err.password}</p>}</Field>
@@ -2072,31 +2070,34 @@ function CRMAlunos({crmUser,showToast}){
   const [showForm,setShowForm]=useState(false);
   const [editA,setEditA]=useState(null);
   const [delA,setDelA]=useState(null);
-  const BLANK={nome:'',cpf:'',email:'',telefone:'',data_nascimento:'',est_id:''};
+  const BLANK={nome:'',cpf:'',email:'',telefone:'',data_nascimento:'',est_id:'',professor_id:''};
   const [f,setF]=useState(BLANK);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
 
+  const [profs,setProfs]=useState([]);
+  const isProfessor=crmUser?.role==='professor';
   const load=()=>{
-    Promise.all([alunoApi.list(),estApi.list()])
-      .then(([a,e])=>{setAlunos(a);setEsts(e);})
+    Promise.all([alunoApi.list(),estApi.list(),professorApi.list()])
+      .then(([a,e,pr])=>{setAlunos(a);setEsts(e);setProfs(pr);})
       .catch(()=>{})
       .finally(()=>setLoading(false));
   };
   useEffect(()=>{load();},[]);
 
   const isSimples=crmUser?.role==='simples';
-  const openNew=()=>{setF({...BLANK,est_id:isSimples?(crmUser?.est_id||''):''}); setEditA(null);setShowForm(true);};
+  const defaultProfId=isProfessor?(crmUser?.professor_id||''):'';
+  const openNew=()=>{setF({...BLANK,est_id:(isSimples||isProfessor)?(crmUser?.est_id||''):'',professor_id:defaultProfId}); setEditA(null);setShowForm(true);};
   const openEdit=(a)=>{
     setF({nome:a.nome||'',cpf:a.cpf||'',email:a.email||'',telefone:a.telefone||'',
           data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:'',
-          est_id:a.est_id||''});
+          est_id:a.est_id||'',professor_id:a.professor_id||defaultProfId});
     setEditA(a);setShowForm(true);
   };
 
   const save=async()=>{
     if(!f.nome){showToast('Nome é obrigatório','error');return;}
     try{
-      const payload={...f,est_id:f.est_id||null,data_nascimento:f.data_nascimento||null};
+      const payload={...f,est_id:f.est_id||null,data_nascimento:f.data_nascimento||null,professor_id:f.professor_id||null};
       if(editA){
         const updated=await alunoApi.update(editA.id,payload);
         setAlunos(prev=>prev.map(a=>a.id===editA.id?{...a,...updated}:a));
@@ -2164,6 +2165,8 @@ function CRMAlunos({crmUser,showToast}){
           <Field label="Telefone"><Inp type="tel" value={f.telefone} onChange={e=>upd('telefone',e.target.value)} placeholder="(11) 99999-9999"/></Field>
         </div>
         <Field label="Estabelecimento"><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione (opcional)"/></Field>
+        {(crmUser?.role==='admin'||crmUser?.role==='manager')&&profs.length>0&&<Field label="Professor responsável"><Sel value={f.professor_id} onChange={e=>upd('professor_id',e.target.value)} options={profs.map(p=>({value:p.id,label:p.nome+(p.est_name?' — '+p.est_name:'')}))} placeholder="Selecione (opcional)"/></Field>}
+        {isProfessor&&<div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm text-blue-700">🎓 Aluno será vinculado ao seu perfil de professor</div>}
         <div className="flex gap-3 pt-1">
           <Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn>
           <Btn className="flex-1" onClick={save}>Salvar</Btn>
