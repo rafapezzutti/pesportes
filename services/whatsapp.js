@@ -30,6 +30,11 @@ async function evoFetch(method, path, body) {
   let data;
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
   if (!res.ok) {
+    // Evolution API retorna exists:false quando o número não está no WhatsApp
+    const msgArr = data?.response?.message;
+    if (Array.isArray(msgArr) && msgArr[0]?.exists === false) {
+      throw new Error(`Número ${msgArr[0].number} não está registrado no WhatsApp`);
+    }
     const msg = data?.message || data?.error || `Erro ${res.status}`;
     console.error('[evoFetch] Bad response', { method, path, status: res.status, body: JSON.stringify(body), response: text });
     throw new Error(msg);
