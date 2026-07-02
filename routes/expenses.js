@@ -35,8 +35,12 @@ router.get('/', auth, adminOrManager, async (req, res) => {
 
 // POST /api/expenses
 router.post('/', auth, adminOrManager, async (req, res) => {
-  const { est_id, categoria, descricao, valor, vencimento, pago, pago_em, recorrencia, observacoes } = req.body;
+  let { est_id, categoria, descricao, valor, vencimento, pago, pago_em, recorrencia, observacoes } = req.body;
   if (!vencimento) return res.status(400).json({ error: 'Vencimento é obrigatório' });
+  // Para managers sem est_id explícito, usa o est_id do token
+  if (req.user.role === 'manager' && !est_id) {
+    est_id = (req.user.est_ids && req.user.est_ids[0]) || req.user.est_id || null;
+  }
   try {
     const { rows } = await pool.query(
       `INSERT INTO expenses (est_id, categoria, descricao, valor, vencimento, pago, pago_em, recorrencia, observacoes)

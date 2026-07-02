@@ -3120,7 +3120,7 @@ function CRMFinanceiro({crmUser,showToast}){
     {tab==='despesas'&&<div>
       <div className="flex justify-between items-center mb-4">
         <p className="text-sm text-gray-500">Total no período: <strong className="text-gray-800">{fmt$(totExp)}</strong></p>
-        <Btn size="sm" onClick={()=>setExpForm({categoria:'aluguel',valor:'',vencimento:to,recorrencia:'nenhuma',pago:false})}>+ Nova Despesa</Btn>
+        <Btn size="sm" onClick={()=>{const defaultEst=crmUser.role==='manager'?(crmUser.est_ids?.[0]||crmUser.est_id||''):(crmUser.role==='simples'?crmUser.est_id||'':'');setExpForm({categoria:'aluguel',valor:'',vencimento:to,recorrencia:'nenhuma',pago:false,est_id:defaultEst});}}>+ Nova Despesa</Btn>
       </div>
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
         <thead><tr className="border-b border-gray-100 bg-gray-50">{['Categoria','Descrição','Vencimento','Valor','Status',''].map((h,i)=><th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
