@@ -346,7 +346,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       '       pl.status_pgto, pl.forma_pgto, pl.email_aluno, pl.telefone_aluno, e.name AS est_name' +
       ' FROM planos_aula pl' +
       ' LEFT JOIN establishments e ON pl.est_id = e.id' +
-      ' WHERE REPLACE(REPLACE(REPLACE(TRIM(pl.nome_aluno), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1' +
+      " WHERE REPLACE(REPLACE(REPLACE(TRIM(pl.nome_aluno), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1" +
       dateClauseAula +
       statusClause('pl.status_pgto') +
       ' ORDER BY pl.data_inicio',
@@ -358,7 +358,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       ' FROM reservations r' +
       ' LEFT JOIN establishments e ON r.est_id = e.id' +
       ' LEFT JOIN points p ON r.point_id = p.id' +
-      ' WHERE REPLACE(REPLACE(REPLACE(TRIM(r.client_name), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1' +
+      " WHERE REPLACE(REPLACE(REPLACE(TRIM(r.client_name), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1" +
       (hasMes ? ' AND r.date >= $2 AND r.date <= $3' : '') +
       statusClause('r.status_pgto') +
       ' ORDER BY r.date',
@@ -368,7 +368,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       'SELECT b.id, b.data_venda AS data, b.total, b.status_pgto, b.forma_pgto, b.itens, e.name AS est_name' +
       ' FROM bar_vendas b' +
       ' LEFT JOIN establishments e ON b.est_id = e.id' +
-      ' WHERE REPLACE(REPLACE(REPLACE(TRIM(b.cliente_nome), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1' +
+      " WHERE REPLACE(REPLACE(REPLACE(TRIM(b.cliente_nome), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1" +
       (hasMes ? ' AND b.data_venda >= $2 AND b.data_venda <= $3' : '') +
       statusClause('b.status_pgto') +
       ' ORDER BY b.data_venda',
@@ -378,7 +378,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       'SELECT m.id, m.data_venda AS data, m.total, m.status_pgto, m.forma_pgto, m.itens, e.name AS est_name' +
       ' FROM manutencao_vendas m' +
       ' LEFT JOIN establishments e ON m.est_id = e.id' +
-      ' WHERE REPLACE(REPLACE(REPLACE(TRIM(m.cliente_nome), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1' +
+      " WHERE REPLACE(REPLACE(REPLACE(TRIM(m.cliente_nome), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1" +
       (hasMes ? ' AND m.data_venda >= $2 AND m.data_venda <= $3' : '') +
       statusClause('m.status_pgto') +
       ' ORDER BY m.data_venda',
