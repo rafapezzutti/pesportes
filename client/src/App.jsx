@@ -1374,6 +1374,7 @@ function CRMPlanosAula({showToast}){
   const [delPl,setDelPl]=useState(null);
   const [excluirPl,setExcluirPl]=useState(null);
   const [alunosCad,setAlunosCad]=useState([]);
+  const [showSug,setShowSug]=useState(false);
   const BLANK_PL={est_id:'',professor_id:'',nome_aluno:'',telefone_aluno:'',email_aluno:'',tipo_plano:'avulso',valor:'',recorrencia:'nenhuma',dias_semana:[],horario_inicio:'',horario_fim:'',data_inicio:TODAY,data_fim:'',observacoes:''};
   const [f,setF]=useState(BLANK_PL);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -1463,9 +1464,28 @@ function CRMPlanosAula({showToast}){
           <Field label="Estabelecimento"><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/></Field>
           <Field label="Professor"><Sel value={f.professor_id} onChange={e=>upd('professor_id',e.target.value)} options={profs.map(p=>({value:p.id,label:p.nome}))} placeholder="Selecione..."/></Field>
         </div>
-        {alunosCad.length>0&&<Field label="Buscar aluno cadastrado"><Sel value="" onChange={e=>{const a=alunosCad.find(al=>String(al.id)===e.target.value);if(a)setF(p=>({...p,nome_aluno:a.nome,telefone_aluno:a.telefone||'',email_aluno:a.email||''}));}} options={alunosCad.map(a=>({value:a.id,label:a.nome}))} placeholder="Selecione para preencher os dados..."/></Field>}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Nome do Aluno" required><Inp value={f.nome_aluno} onChange={e=>upd('nome_aluno',e.target.value)} placeholder="Nome completo"/></Field>
+          <Field label="Nome do Aluno" required>
+            <div className="relative">
+              <Inp value={f.nome_aluno}
+                onChange={e=>{upd('nome_aluno',e.target.value);setShowSug(true);}}
+                onFocus={()=>setShowSug(true)}
+                onBlur={()=>setTimeout(()=>setShowSug(false),150)}
+                placeholder="Nome completo" autoComplete="off"/>
+              {showSug&&f.nome_aluno.length>0&&(()=>{
+                const matches=alunosCad.filter(a=>a.nome.toLowerCase().includes(f.nome_aluno.toLowerCase())).slice(0,8);
+                if(!matches.length)return null;
+                return<ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                  {matches.map(a=><li key={a.id}
+                    onMouseDown={()=>{setF(p=>({...p,nome_aluno:a.nome,telefone_aluno:a.telefone||'',email_aluno:a.email||''}));setShowSug(false);}}
+                    className="px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 border-b border-gray-50 last:border-0">
+                    <span className="font-medium">{a.nome}</span>
+                    {a.telefone&&<span className="ml-2 text-xs text-gray-400">{a.telefone}</span>}
+                  </li>}
+                </ul>;
+              })()}
+            </div>
+          </Field>
           <Field label="Telefone do Aluno"><Inp value={f.telefone_aluno} onChange={e=>upd('telefone_aluno',e.target.value)} placeholder="(00) 00000-0000"/></Field>
         </div>
         <Field label="Email do Aluno"><Inp type="email" value={f.email_aluno} onChange={e=>upd('email_aluno',e.target.value)} placeholder="aluno@email.com"/></Field>
