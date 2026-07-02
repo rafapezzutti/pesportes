@@ -341,7 +341,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
 
     const { rows: aulas } = await pool.query(
       'SELECT pl.id, COALESCE(pl.tipo_plano,\'avulso\') AS tipo, pl.data_inicio AS data, pl.valor AS total,' +
-      '       pl.status_pgto, pl.forma_pgto, pl.email_aluno, e.name AS est_name' +
+      '       pl.status_pgto, pl.forma_pgto, pl.email_aluno, pl.telefone_aluno, e.name AS est_name' +
       ' FROM planos_aula pl' +
       ' LEFT JOIN establishments e ON pl.est_id = e.id' +
       ' WHERE TRIM(pl.nome_aluno) ILIKE TRIM($1)' +
@@ -352,7 +352,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
 
     const { rows: reservas } = await pool.query(
       'SELECT r.id, r.date AS data, r.total, r.status_pgto, r.forma_pgto,' +
-      '       r.start_time, r.end_time, e.name AS est_name, p.name AS ponto_name, r.client_email' +
+      '       r.start_time, r.end_time, e.name AS est_name, p.name AS ponto_name, r.client_email, r.client_phone' +
       ' FROM reservations r' +
       ' LEFT JOIN establishments e ON r.est_id = e.id' +
       ' LEFT JOIN points p ON r.point_id = p.id' +
@@ -472,15 +472,19 @@ router.post('/resumo-aluno/whatsapp', auth, adminOrManager, async (req, res) => 
   const { aluno_nome, mes, resumo = {}, telefone: telefoneManual } = req.body;
   if (!aluno_nome) return res.status(400).json({ error: 'aluno_nome é obrigatório' });
 
-  // Busca telefone no cadastro do aluno (se não for passado manualmente)
+  // Busca telefone: 1) manual, 2) tabela alunos, 3) dados do próprio resumo
   let telefone = telefoneManual;
   if (!telefone) {
     const { rows } = await pool.query(
-      `SELECT telefone FROM alunos WHERE TRIM(nome) ILIKE TRIM($1) LIMIT 1`, [aluno_nome]
+      `SELECT telefone FROM alunos WHERE TRIM(nome) ILIKE TRIM($1) AND telefone IS NOT NULL AND telefone <> '' LIMIT 1`, [aluno_nome]
     ).catch(() => ({ rows: [] }));
     telefone = rows[0]?.telefone;
   }
-  if (!telefone) return res.status(400).json({ error: 'Aluno sem telefone cadastrado' });
+  if (!telefone && resumo) {
+    telefone = (resumo.aulas || []).map(a => a.telefone_aluno).find(Boolean)
+      || (resumo.reservas || []).map(r => r.client_phone).find(Boolean);
+  }
+  if (!telefone) return res.status(400).json({ error: 'Telefone não encontrado. Cadastre o telefone do aluno em Alunos / Clientes.' });
 
   const wa = require('../services/whatsapp');
   const fmtMoney = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
