@@ -6,17 +6,43 @@ const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 // GET /api/crm-users
 router.get('/', auth, adminOrManager, async (req, res) => {
   try {
-    const { rows } = await pool.query(`
-      SELECT cu.id, cu.name, cu.email, cu.role, cu.est_id,
-             COALESCE(cu.est_ids, '{}') AS est_ids,
-             e.name AS est_name, cu.created_at,
-             COALESCE(cu.ativo, TRUE) AS ativo
-      FROM crm_users cu
-      LEFT JOIN establishments e ON cu.est_id = e.id
-      ORDER BY cu.name
-    `);
+    let rows;
+    if (req.user.role === 'admin') {
+      // admin vê todos (exceto outros admins da lista)
+      const result = await pool.query(`
+        SELECT cu.id, cu.name, cu.email, cu.role, cu.est_id,
+               COALESCE(cu.est_ids, '{}') AS est_ids,
+               e.name AS est_name, cu.created_at,
+               COALESCE(cu.ativo, TRUE) AS ativo
+        FROM crm_users cu
+        LEFT JOIN establishments e ON cu.est_id = e.id
+        WHERE cu.role != 'admin'
+        ORDER BY cu.name
+      `);
+      rows = result.rows;
+    } else {
+      // gerente vê apenas usuários dos seus estabelecimentos
+      const ids = Array.from(new Set([
+        ...(req.user.est_ids || []),
+        ...(req.user.est_id ? [req.user.est_id] : []),
+      ])).map(Number).filter(Boolean);
+      if (!ids.length) { res.json([]); return; }
+      const result = await pool.query(`
+        SELECT cu.id, cu.name, cu.email, cu.role, cu.est_id,
+               COALESCE(cu.est_ids, '{}') AS est_ids,
+               e.name AS est_name, cu.created_at,
+               COALESCE(cu.ativo, TRUE) AS ativo
+        FROM crm_users cu
+        LEFT JOIN establishments e ON cu.est_id = e.id
+        WHERE cu.role != 'admin'
+          AND (cu.est_id = ANY($1) OR cu.est_ids && $1::integer[])
+        ORDER BY cu.name
+      `, [ids]);
+      rows = result.rows;
+    }
     res.json(rows);
   } catch (err) {
+    console.error('[GET /crm-users]', err.message);
     res.status(500).json({ error: 'Erro ao listar usuarios' });
   }
 });

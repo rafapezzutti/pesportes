@@ -2070,6 +2070,9 @@ function CRMAlunos({crmUser,showToast}){
   const [showForm,setShowForm]=useState(false);
   const [editA,setEditA]=useState(null);
   const [delA,setDelA]=useState(null);
+  const [search,setSearch]=useState('');
+  const [page,setPage]=useState(0);
+  const PAGE_SIZE=20;
   const BLANK={nome:'',cpf:'',email:'',telefone:'',data_nascimento:'',est_id:'',professor_id:''};
   const [f,setF]=useState(BLANK);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -2126,32 +2129,52 @@ function CRMAlunos({crmUser,showToast}){
       <Btn onClick={openNew}>+ Novo Aluno</Btn>
     </div>
 
-    {alunos.length===0
-      ?<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎽</p><p className="text-lg">Nenhum aluno cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro aluno</Btn></div>
-      :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-100">
-            <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {alunos.map(a=><tr key={a.id} className="hover:bg-gray-50">
-              <td className="px-4 py-3 font-semibold text-gray-800">{a.nome}</td>
-              <td className="px-4 py-3 text-gray-500">{a.cpf||'—'}</td>
-              <td className="px-4 py-3 text-gray-500">{a.email||'—'}</td>
-              <td className="px-4 py-3 text-gray-500">{a.telefone||'—'}</td>
-              <td className="px-4 py-3 text-gray-500">{a.data_nascimento?fmtDate(a.data_nascimento):'—'}</td>
-              <td className="px-4 py-3 text-gray-500">{a.est_name||'—'}</td>
-              <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
-                <Btn variant="secondary" size="sm" onClick={()=>openEdit(a)}>Editar</Btn>
-                <Btn variant="danger" size="sm" onClick={()=>setDelA(a)}>Excluir</Btn>
-              </div></td>
-            </tr>)}
-          </tbody>
-        </table>
-        </div>
-      </div>
-    }
+    {/* Search box */}
+    <div className="mb-4">
+      <Inp value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="🔍 Filtrar por nome..."/>
+    </div>
+
+    {(()=>{
+      const filtered=alunos.filter(a=>!search||a.nome.toLowerCase().includes(search.toLowerCase()));
+      const totalPages=Math.ceil(filtered.length/PAGE_SIZE);
+      const paged=filtered.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
+      if(alunos.length===0)return<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎽</p><p className="text-lg">Nenhum aluno cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro aluno</Btn></div>;
+      return<>
+        {filtered.length===0?<div className="text-center py-12 text-gray-400"><p className="text-3xl mb-2">🔍</p><p>Nenhum aluno encontrado para "{search}"</p></div>:<>
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paged.map(a=><tr key={a.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-semibold text-gray-800">{a.nome}</td>
+                  <td className="px-4 py-3 text-gray-500">{a.cpf||'—'}</td>
+                  <td className="px-4 py-3 text-gray-500">{a.email||'—'}</td>
+                  <td className="px-4 py-3 text-gray-500">{a.telefone||'—'}</td>
+                  <td className="px-4 py-3 text-gray-500">{a.data_nascimento?fmtDate(a.data_nascimento):'—'}</td>
+                  <td className="px-4 py-3 text-gray-500">{a.est_name||'—'}</td>
+                  <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
+                    <Btn variant="secondary" size="sm" onClick={()=>openEdit(a)}>Editar</Btn>
+                    <Btn variant="danger" size="sm" onClick={()=>setDelA(a)}>Excluir</Btn>
+                  </div></td>
+                </tr>)}
+              </tbody>
+            </table>
+            </div>
+          </div>
+          {totalPages>1&&<div className="flex items-center justify-between mt-4">
+            <p className="text-sm text-gray-400">{filtered.length} alunos{search?' encontrados':''} • Página {page+1} de {totalPages}</p>
+            <div className="flex gap-2">
+              <Btn variant="secondary" size="sm" onClick={()=>setPage(p=>Math.max(0,p-1))} disabled={page===0}>← Anterior</Btn>
+              {Array.from({length:totalPages},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=><button key={i} onClick={()=>setPage(i)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${i===page?'bg-emerald-600 text-white border-emerald-600':'border-gray-200 text-gray-600 hover:border-emerald-400'}`}>{i+1}</button>)}
+              <Btn variant="secondary" size="sm" onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} disabled={page===totalPages-1}>Próximo →</Btn>
+            </div>
+          </div>}
+        </>}
+      </>;
+    })()}
 
     <Modal open={showForm} onClose={()=>setShowForm(false)} title={editA?'Editar Aluno':'Novo Aluno'}>
       <div className="space-y-3">
