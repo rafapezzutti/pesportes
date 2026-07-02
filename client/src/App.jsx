@@ -1372,6 +1372,7 @@ function CRMPlanosAula({showToast}){
   const [showForm,setShowForm]=useState(false);
   const [editPl,setEditPl]=useState(null);
   const [delPl,setDelPl]=useState(null);
+  const [excluirPl,setExcluirPl]=useState(null);
   const [alunosCad,setAlunosCad]=useState([]);
   const BLANK_PL={est_id:'',professor_id:'',nome_aluno:'',telefone_aluno:'',email_aluno:'',tipo_plano:'avulso',valor:'',recorrencia:'nenhuma',dias_semana:[],horario_inicio:'',horario_fim:'',data_inicio:TODAY,data_fim:'',observacoes:''};
   const [f,setF]=useState(BLANK_PL);
@@ -1408,6 +1409,11 @@ function CRMPlanosAula({showToast}){
     catch(e){showToast(e.message,'error');}
   };
 
+  const excluir=async(pl)=>{
+    try{await planoApi.remove(pl.id);showToast('Plano excluído','info');load();}
+    catch(e){showToast(e.message,'error');}
+  };
+
   const STATUS_COLOR={ativo:'bg-emerald-100 text-emerald-700',cancelado:'bg-red-100 text-red-700',concluido:'bg-gray-100 text-gray-600'};
   const STATUS_LABEL={ativo:'Ativo',cancelado:'Cancelado',concluido:'Concluído'};
 
@@ -1440,10 +1446,11 @@ function CRMPlanosAula({showToast}){
                 <p className="font-semibold text-emerald-700">💰 {fmt$(pl.valor)}</p>
               </div>
             </div>
-            {pl.status==='ativo'&&<div className="flex gap-2 shrink-0">
-              <Btn variant="secondary" size="sm" onClick={()=>openEdit(pl)}>Editar</Btn>
-              <Btn variant="danger" size="sm" onClick={()=>setDelPl(pl)}>Cancelar</Btn>
-            </div>}
+            <div className="flex gap-2 shrink-0">
+              {pl.status==='ativo'&&<Btn variant="secondary" size="sm" onClick={()=>openEdit(pl)}>Editar</Btn>}
+              {pl.status==='ativo'&&<Btn variant="danger" size="sm" onClick={()=>setDelPl(pl)}>Cancelar</Btn>}
+              <Btn variant="danger" size="sm" onClick={()=>setExcluirPl(pl)}>Excluir</Btn>
+            </div>
           </div>
         </div>)}
       </div>
@@ -1498,6 +1505,12 @@ function CRMPlanosAula({showToast}){
     <Modal open={!!delPl} onClose={()=>setDelPl(null)} title="Cancelar Plano">
       <p className="text-sm text-gray-600 mb-5">Cancelar o plano de <strong>{delPl?.nome_aluno}</strong>?</p>
       <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setDelPl(null)}>Voltar</Btn><Btn variant="danger" className="flex-1" onClick={()=>{cancel(delPl);setDelPl(null);}}>Confirmar Cancelamento</Btn></div>
+    </Modal>
+
+    <Modal open={!!excluirPl} onClose={()=>setExcluirPl(null)} title="Excluir Plano">
+      <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4 text-sm text-red-700">⚠️ Esta ação é permanente e não pode ser desfeita.</div>
+      <p className="text-sm text-gray-600 mb-5">Excluir definitivamente o plano de <strong>{excluirPl?.nome_aluno}</strong>?</p>
+      <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setExcluirPl(null)}>Cancelar</Btn><Btn variant="danger" className="flex-1" onClick={()=>{excluir(excluirPl);setExcluirPl(null);}}>Excluir Definitivamente</Btn></div>
     </Modal>
   </div>;
 }
