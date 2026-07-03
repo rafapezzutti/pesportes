@@ -338,7 +338,12 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
 
   try {
     const aBase = hasMes ? [aluno_nome, from, to] : [aluno_nome];
-    const dateClauseAula = hasMes ? ' AND pl.data_inicio <= $3 AND (pl.data_fim IS NULL OR pl.data_fim >= $2)' : '';
+    // Avulso: só aparece se data_inicio cair dentro do período
+    // Recorrente: aparece se o plano estiver ativo durante o período (sobreposição)
+    const dateClauseAula = hasMes
+      ? " AND ((COALESCE(pl.tipo_plano,'avulso')='avulso' AND pl.data_inicio >= $2 AND pl.data_inicio <= $3)" +
+        "  OR  (COALESCE(pl.tipo_plano,'avulso')<>'avulso' AND pl.data_inicio <= $3 AND (pl.data_fim IS NULL OR pl.data_fim >= $2)))"
+      : '';
     const dateClauseOther = hasMes ? ' AND tbl.data >= $2 AND tbl.data <= $3' : '';
 
     const { rows: aulas } = await pool.query(

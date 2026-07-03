@@ -1425,7 +1425,8 @@ function CRMPlanosAula({showToast}){
 
   if(loading)return<Spinner/>;
 
-  const planosFilt=clientF.trim()?planos.filter(pl=>pl.nome_aluno?.toLowerCase().includes(clientF.toLowerCase())):planos;
+  const normSlash=(s='')=>s.replace(/\s*\/\s*/g,' / ').toLowerCase();
+  const planosFilt=clientF.trim()?planos.filter(pl=>normSlash(pl.nome_aluno).includes(normSlash(clientF))):planos;
 
   return<div>
     <div className="flex items-center justify-between mb-4">
