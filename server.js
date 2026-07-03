@@ -71,6 +71,7 @@ app.use('/api/repasse',          require('./routes/repasse'));
 app.use('/api/comissao-gerente',  require('./routes/comissao-gerente'));
 app.use('/api/horarios-livres',    require('./routes/horarios-livres'));
 app.use('/api/expenses',         require('./routes/expenses'));
+app.use('/api/rankings',         require('./routes/rankings'));
 app.use('/api/finance',          require('./routes/finance'));
 app.use('/api/reviews',          require('./routes/reviews'));
 app.use('/api/bar-produtos',     require('./routes/bar_produtos'));
@@ -275,6 +276,22 @@ async function runMigrations() {
     `ALTER TABLE crm_users ADD CONSTRAINT crm_users_role_check CHECK (role IN ('admin','manager','simples','profissional','professor','recepcao'))`,
     `ALTER TABLE establishments ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}'`,
     `ALTER TABLE establishments ADD COLUMN IF NOT EXISTS slot_interval INTEGER DEFAULT 60`,
+    `CREATE TABLE IF NOT EXISTS rankings (
+      id              SERIAL PRIMARY KEY,
+      est_id          INTEGER REFERENCES establishments(id) ON DELETE SET NULL,
+      nome_aluno      TEXT NOT NULL,
+      telefone_aluno  TEXT,
+      email_aluno     TEXT,
+      valor           NUMERIC(10,2) NOT NULL DEFAULT 0,
+      data_inicio     DATE,
+      data_fim        DATE,
+      observacoes     TEXT,
+      status          TEXT NOT NULL DEFAULT 'ativo',
+      status_pgto     TEXT NOT NULL DEFAULT 'pendente',
+      forma_pgto      TEXT,
+      created_at      TIMESTAMPTZ DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ DEFAULT NOW()
+    )`,
     `ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT NULL`,
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS crm_user_id INTEGER REFERENCES crm_users(id) ON DELETE SET NULL`,
     `CREATE TABLE IF NOT EXISTS whatsapp_automations (

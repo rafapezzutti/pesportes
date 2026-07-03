@@ -242,7 +242,16 @@ router.get('/contas-a-receber', auth, crmOnly, async (req, res) => {
        LEFT JOIN establishments e ON m.est_id = e.id
        ${w4} ORDER BY m.data_venda DESC`, p4).catch(e => { console.error('[contas-a-receber] manut query:', e.message); return { rows: [] }; });
 
-    const all = [...reservas, ...aulas, ...bar, ...manut]
+    const { params: p5, ws: w5 } = scopeWhere('rk', 'data_inicio');
+    const { rows: rankings } = await pool.query(
+      `SELECT rk.id, 'ranking' AS tipo, rk.nome_aluno AS cliente, rk.data_inicio AS data,
+              rk.valor AS total, rk.status_pgto, rk.forma_pgto, e.name AS est_name
+       FROM rankings rk
+       LEFT JOIN establishments e ON e.id = rk.est_id
+       ${w5} AND rk.status = 'ativo' ORDER BY rk.data_inicio DESC`, p5
+    ).catch(e => { console.error('[contas-a-receber] rankings query:', e.message); return { rows: [] }; });
+
+    const all = [...reservas, ...aulas, ...bar, ...manut, ...rankings]
       .sort((a, b) => new Date(b.data) - new Date(a.data));
 
     res.json(all);
@@ -256,7 +265,7 @@ router.get('/contas-a-receber', auth, crmOnly, async (req, res) => {
 router.patch('/contas-a-receber/:tipo/:id', auth, adminOrManager, async (req, res) => {
   const { tipo, id } = req.params;
   const { status_pgto, forma_pgto } = req.body;
-  const tableMap = { reserva: 'reservations', aula: 'planos_aula', bar: 'bar_vendas', manutencao: 'manutencao_vendas' };
+  const tableMap = { reserva: 'reservations', aula: 'planos_aula', bar: 'bar_vendas', manutencao: 'manutencao_vendas', ranking: 'rankings' };
   const table = tableMap[tipo];
   if (!table) return res.status(400).json({ error: 'Tipo inválido' });
   try {
@@ -299,6 +308,8 @@ router.get('/clientes', auth, crmOnly, async (req, res) => {
         SELECT cliente_nome AS nome FROM bar_vendas         WHERE cliente_nome IS NOT NULL AND cliente_nome <> '' ${scopeSql}
         UNION ALL
         SELECT cliente_nome AS nome FROM manutencao_vendas  WHERE cliente_nome IS NOT NULL AND cliente_nome <> '' ${scopeSql}
+        UNION ALL
+        SELECT nome_aluno   AS nome FROM rankings           WHERE nome_aluno   IS NOT NULL AND nome_aluno   <> '' ${scopeSql}
       ) t
       ORDER BY nome
     `, scopeParams);
@@ -389,16 +400,34 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       ' ORDER BY m.data_venda',
       buildParams(aBase));
 
+    // Rankings — sempre recorrente (overlap)
+    const dateClauseRanking = hasMes
+      ? ' AND rk.data_inicio <= $3 AND (rk.data_fim IS NULL OR rk.data_fim >= $2)'
+      : '';
+    const { rows: rankings } = await pool.query(
+      'SELECT rk.id, rk.data_inicio AS data, rk.valor AS total,' +
+      '       rk.status_pgto, rk.forma_pgto, rk.email_aluno, rk.telefone_aluno, e.name AS est_name' +
+      ' FROM rankings rk' +
+      ' LEFT JOIN establishments e ON e.id = rk.est_id' +
+      " WHERE REPLACE(REPLACE(REPLACE(TRIM(rk.nome_aluno), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1" +
+      " AND rk.status = 'ativo'" +
+      dateClauseRanking +
+      statusClause('rk.status_pgto') +
+      ' ORDER BY rk.data_inicio',
+      buildParams(aBase));
+
     const totalAulas    = aulas.reduce((s, r) => s + Number(r.total), 0);
     const totalReservas = reservas.reduce((s, r) => s + Number(r.total), 0);
     const totalBar      = bar.reduce((s, r) => s + Number(r.total), 0);
     const totalManut    = manutencao.reduce((s, r) => s + Number(r.total), 0);
+    const totalRanking  = rankings.reduce((s, r) => s + Number(r.total), 0);
 
     res.json({
       aluno_nome, mes: mes || null, modo: hasMes ? 'mes' : 'pendencias_gerais',
-      aulas, reservas, bar, manutencao,
+      aulas, reservas, bar, manutencao, rankings,
       totais: { aulas: totalAulas, reservas: totalReservas, bar: totalBar, manutencao: totalManut,
-                geral: totalAulas + totalReservas + totalBar + totalManut },
+                ranking: totalRanking,
+                geral: totalAulas + totalReservas + totalBar + totalManut + totalRanking },
     });
   } catch (err) {
     console.error('[GET /finance/resumo-aluno]', err);

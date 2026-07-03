@@ -197,6 +197,14 @@ export const barApi = {
   remove:   (id)         => del(`/bar/${id}`),
 };
 
+// ── Rankings ──────────────────────────────────────────────────────
+export const rankingApi = {
+  list:   (params={})  => get('/rankings?' + new URLSearchParams(params).toString()),
+  create: (data)       => post('/rankings', data),
+  update: (id, data)   => put(`/rankings/${id}`, data),
+  remove: (id)         => del(`/rankings/${id}`),
+};
+
 // ── Manutenção ────────────────────────────────────────────────────
 export const manutencaoApi = {
   list:   (params={})  => get('/manutencao?' + new URLSearchParams(params).toString()),
