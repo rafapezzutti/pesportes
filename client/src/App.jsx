@@ -1378,6 +1378,8 @@ function CRMPlanosAula({showToast}){
   const [excluirPl,setExcluirPl]=useState(null);
   const [alunosCad,setAlunosCad]=useState([]);
   const [showSug,setShowSug]=useState(false);
+  const [clientF,setClientF]=useState('');
+  const [showClientFSug,setShowClientFSug]=useState(false);
   const BLANK_PL={est_id:'',professor_id:'',nome_aluno:'',telefone_aluno:'',email_aluno:'',tipo_plano:'avulso',valor:'',recorrencia:'nenhuma',dias_semana:[],horario_inicio:'',horario_fim:'',data_inicio:TODAY,data_fim:'',observacoes:''};
   const [f,setF]=useState(BLANK_PL);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -1423,16 +1425,24 @@ function CRMPlanosAula({showToast}){
 
   if(loading)return<Spinner/>;
 
+  const planosFilt=clientF.trim()?planos.filter(pl=>pl.nome_aluno?.toLowerCase().includes(clientF.toLowerCase())):planos;
+
   return<div>
-    <div className="flex items-center justify-between mb-5">
-      <p className="text-sm text-gray-500">{planos.length} plano{planos.length!==1?'s':''} cadastrado{planos.length!==1?'s':''}</p>
+    <div className="flex items-center justify-between mb-4">
+      <div className="relative flex-1 max-w-xs">
+        <input value={clientF} onChange={e=>{setClientF(e.target.value);setShowClientFSug(true);}} onFocus={()=>setShowClientFSug(true)} onBlur={()=>setTimeout(()=>setShowClientFSug(false),150)} placeholder="Filtrar por aluno..." className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-8" autoComplete="off"/>
+        {clientF&&<button onClick={()=>setClientF('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>}
+        {showClientFSug&&clientF.length>0&&(()=>{const m=alunosCad.filter(a=>a.nome.toLowerCase().includes(clientF.toLowerCase())).slice(0,8);if(!m.length)return null;return<ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">{m.map(a=><li key={a.id} onMouseDown={()=>{setClientF(a.nome);setShowClientFSug(false);}} className="px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 hover:text-emerald-700">{a.nome}</li>)}</ul>;})()} 
+      </div>
       <Btn onClick={openNew}>+ Novo Plano / Aula</Btn>
     </div>
+    <p className="text-xs text-gray-400 mb-3">{planosFilt.length} de {planos.length} plano{planos.length!==1?'s':''}</p>
 
     {planos.length===0
       ?<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">📚</p><p>Nenhum plano de aula cadastrado</p></div>
+      :planosFilt.length===0?<div className="text-center py-12 text-gray-400"><p className="text-3xl mb-2">🔍</p><p>Nenhum plano para "{clientF}"</p></div>
       :<div className="space-y-3">
-        {planos.map(pl=><div key={pl.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+        {planosFilt.map(pl=><div key={pl.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -1676,6 +1686,8 @@ function CRMReservations({showToast,crmUser}){
   const [loading,setLoading]=useState(true);
   const [dateF,setDateF]=useState(TODAY);
   const [statusF,setStatusF]=useState('');
+  const [clientF,setClientF]=useState('');
+  const [showClientFSug,setShowClientFSug]=useState(false);
   const [reschRes,setReschRes]=useState(null);
   const [newDate,setNewDate]=useState('');
   const [newSlots,setNewSlots]=useState([]);
@@ -1702,7 +1714,11 @@ function CRMReservations({showToast,crmUser}){
   const selectMbAluno=(a)=>{setMb(m=>({...m,name:a.nome,phone:a.telefone||'',email:a.email||''}));setMbNameInput(a.nome);setMbShowSugg(false);};
   const resetMbModal=()=>{setShowManual(false);setMb(MBL);setMbNameInput('');setMbShowSugg(false);setMbVisitante(false);};
 
+  const resFilt=clientF.trim()?reservations.filter(r=>r.client_name?.toLowerCase().includes(clientF.toLowerCase())):reservations;
+  const clientSugNames=[...new Set(reservations.map(r=>r.client_name).filter(Boolean))].filter(n=>clientF&&n.toLowerCase().includes(clientF.toLowerCase())).slice(0,8);
+
   const load=useCallback(()=>{
+    setLoading(true);
     const params={};
     if(dateF)params.date=dateF;
     if(statusF)params.status=statusF;
@@ -1841,11 +1857,12 @@ function CRMReservations({showToast,crmUser}){
     <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-4 items-end">
       <div><p className="text-xs text-gray-400 mb-1 font-medium">Data</p><input type="date" value={dateF} onChange={e=>{setDateF(e.target.value);setLoading(true);}} className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></div>
       <div><p className="text-xs text-gray-400 mb-1 font-medium">Status</p><Sel value={statusF} onChange={e=>{setStatusF(e.target.value);setLoading(true);}} options={[{value:'confirmed',label:'Confirmada'},{value:'cancelled',label:'Cancelada'},{value:'completed',label:'Concluída'}]} placeholder="Todos"/></div>
-      <Btn variant="secondary" size="sm" onClick={()=>{setDateF('');setStatusF('');}}>Limpar</Btn>
+      <div className="relative"><p className="text-xs text-gray-400 mb-1 font-medium">Cliente</p><div className="relative"><input value={clientF} onChange={e=>{setClientF(e.target.value);setShowClientFSug(true);}} onFocus={()=>setShowClientFSug(true)} onBlur={()=>setTimeout(()=>setShowClientFSug(false),150)} placeholder="Nome do cliente..." className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-44 pr-7" autoComplete="off"/>{clientF&&<button onClick={()=>setClientF('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>}{showClientFSug&&clientSugNames.length>0&&<ul className="absolute z-50 left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-full">{clientSugNames.map(n=><li key={n} onMouseDown={()=>{setClientF(n);setShowClientFSug(false);}} className="px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 whitespace-nowrap">{n}</li>)}</ul>}</div></div>
+      <Btn variant="secondary" size="sm" onClick={()=>{setDateF('');setStatusF('');setClientF('');}}>Limpar</Btn>
     </div>
     {loading?<Spinner/>:<div className="space-y-3">
-      {reservations.length===0&&<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">📭</p><p>Nenhuma reserva encontrada</p></div>}
-      {reservations.map(r=><div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+      {resFilt.length===0&&<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">📭</p><p>{clientF?`Nenhuma reserva para "${clientF}"`:'Nenhuma reserva encontrada'}</p></div>}
+      {resFilt.map(r=><div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
