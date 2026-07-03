@@ -43,7 +43,7 @@ router.get('/:id/slots', async (req, res) => {
   try {
     // Busca o ponto e o estabelecimento
     const { rows: ptRows } = await pool.query(
-      'SELECT p.*, e.operating_hours as est_hours FROM points p JOIN establishments e ON p.est_id = e.id WHERE p.id = $1',
+      'SELECT p.*, e.operating_hours as est_hours, COALESCE(e.slot_interval, 60) as slot_interval FROM points p JOIN establishments e ON p.est_id = e.id WHERE p.id = $1',
       [req.params.id]
     );
     if (!ptRows.length) return res.status(404).json({ error: 'Ponto não encontrado' });
@@ -74,20 +74,19 @@ router.get('/:id/slots', async (req, res) => {
       + String(nowBRT.getMonth() + 1).padStart(2, '0') + '-'
       + String(nowBRT.getDate()).padStart(2, '0');
     const nowMins = nowBRT.getHours() * 60 + nowBRT.getMinutes();
+    const slotInterval = pt.slot_interval || 60;
     const slots = [];
 
-    // Slots de 30 em 30 minutos
     for (let h = sh; h < eh; h++) {
-      for (let m = 0; m < 60; m += 30) {
+      for (let m = 0; m < 60; m += slotInterval) {
         const t = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-        // Ignora horários passados no dia atual (em horário de Brasília)
         if (date === todayStr && h * 60 + m < nowMins) continue;
         const taken = resList.some(r => r.start_time <= t && t < r.end_time);
         slots.push({ time: t, available: !taken });
       }
     }
 
-    res.json(slots);
+    res.json({ interval: slotInterval, slots });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao buscar horários' });

@@ -274,6 +274,7 @@ async function runMigrations() {
     `ALTER TABLE crm_users DROP CONSTRAINT IF EXISTS crm_users_role_check`,
     `ALTER TABLE crm_users ADD CONSTRAINT crm_users_role_check CHECK (role IN ('admin','manager','simples','profissional','professor','recepcao'))`,
     `ALTER TABLE establishments ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}'`,
+    `ALTER TABLE establishments ADD COLUMN IF NOT EXISTS slot_interval INTEGER DEFAULT 60`,
     `ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT NULL`,
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS crm_user_id INTEGER REFERENCES crm_users(id) ON DELETE SET NULL`,
     `CREATE TABLE IF NOT EXISTS whatsapp_automations (

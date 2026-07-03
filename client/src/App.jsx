@@ -336,7 +336,10 @@ function MyReservations({publicUser,navigate,showToast}){
   const [newDate,setNewDate]=useState('');
   const [newSlots,setNewSlots]=useState([]);
   const [rSlots,setRSlots]=useState([]);
+  const [rSlotInterval,setRSlotInterval]=useState(60);
   const [rSlotsLoading,setRSlotsLoading]=useState(false);
+  const _parseRS=(t)=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
+  const _addRS=(t,n)=>{const tot=_parseRS(t)+n;return String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0');};
 
   const load=useCallback(()=>{
     setLoading(true);
@@ -347,7 +350,7 @@ function MyReservations({publicUser,navigate,showToast}){
   useEffect(()=>{
     if(!reschRes||!newDate)return;
     setRSlotsLoading(true);
-    pointApi.slots(reschRes.point_id,newDate).then(setRSlots).catch(()=>setRSlots([])).finally(()=>setRSlotsLoading(false));
+    pointApi.slots(reschRes.point_id,newDate).then(d=>{setRSlots(d.slots||d);setRSlotInterval(d.interval||60);}).catch(()=>setRSlots([])).finally(()=>setRSlotsLoading(false));
     setNewSlots([]);
   },[reschRes,newDate]);
 
@@ -370,15 +373,15 @@ function MyReservations({publicUser,navigate,showToast}){
     if(!s.available)return;
     setNewSlots(prev=>{
       const next=prev.includes(s.time)?prev.filter(t=>t!==s.time):[...prev,s.time].sort();
-      for(let i=1;i<next.length;i++){if(parseInt(next[i].split(':')[0])-parseInt(next[i-1].split(':')[0])!==1)return prev;}
+      for(let i=1;i<next.length;i++){if(_parseRS(next[i])-_parseRS(next[i-1])!==rSlotInterval)return prev;}
       return next;
     });
   };
 
   const handleReschedule=async()=>{
     const ns=newSlots[0];
-    const ne=`${String(parseInt(newSlots[newSlots.length-1].split(':')[0])+1).padStart(2,'0')}:00`;
-    try{await resApi.reschedule(reschRes.id,newDate,ns,ne,newSlots.length);showToast('Reserva remarcada! Email enviado.','success');setReschRes(null);load();}
+    const ne=_addRS(newSlots[newSlots.length-1],rSlotInterval);
+    try{await resApi.reschedule(reschRes.id,newDate,ns,ne,newSlots.length*rSlotInterval/60);showToast('Reserva remarcada! Email enviado.','success');setReschRes(null);load();}
     catch(e){showToast(e.message,'error');}
   };
 
@@ -753,7 +756,7 @@ function CRMDashboard(){
 // CRM ESTABLISHMENT
 // ================================================================
 function CRMEstablishment({showToast}){
-  const BLANK={name:'',responsible:'',cpf_cnpj:'',phone:'',email:'',site:'',unimidia:'nao',aulas:false,street:'',number:'',complement:'',cep:'',city:'',state:'',photos:[],main_photo:'',operating_hours:{...DEFAULT_HOURS}};
+  const BLANK={name:'',responsible:'',cpf_cnpj:'',phone:'',email:'',site:'',unimidia:'nao',aulas:false,slot_interval:60,street:'',number:'',complement:'',cep:'',city:'',state:'',photos:[],main_photo:'',operating_hours:{...DEFAULT_HOURS}};
   const [tab,setTab]=useState('consulta');
   const [ests,setEsts]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -771,8 +774,8 @@ function CRMEstablishment({showToast}){
   const openNew=()=>{setEditId(null);setForm(BLANK);setTab('cadastro');};
   const openEdit=async(e)=>{
     setEditId(e.id);
-    setForm({...BLANK,name:e.name||'',phone:e.phone||'',street:e.street||'',number:e.number||'',complement:e.complement||'',cep:e.cep||'',city:e.city||'',state:e.state||'',photos:e.photos||[],main_photo:e.main_photo||'',operating_hours:e.operating_hours||{...DEFAULT_HOURS},aulas:!!e.aulas});
-    try{const full=await estApi.getFull(e.id);setForm(f=>({...f,responsible:full.responsible||'',cpf_cnpj:full.cpf_cnpj||'',email:full.email||'',site:full.site||'',unimidia:full.unimidia_divulgacao?'sim':'nao',aulas:!!full.aulas}));}catch{}
+    setForm({...BLANK,name:e.name||'',phone:e.phone||'',street:e.street||'',number:e.number||'',complement:e.complement||'',cep:e.cep||'',city:e.city||'',state:e.state||'',photos:e.photos||[],main_photo:e.main_photo||'',operating_hours:e.operating_hours||{...DEFAULT_HOURS},aulas:!!e.aulas,slot_interval:e.slot_interval||60});
+    try{const full=await estApi.getFull(e.id);setForm(f=>({...f,responsible:full.responsible||'',cpf_cnpj:full.cpf_cnpj||'',email:full.email||'',site:full.site||'',unimidia:full.unimidia_divulgacao?'sim':'nao',aulas:!!full.aulas,slot_interval:full.slot_interval||60}));}catch{}
     setTab('cadastro');
   };
 
@@ -845,7 +848,7 @@ function CRMEstablishment({showToast}){
       {editId&&<p className="text-xs text-emerald-600 font-medium mb-4">✏️ Editando estabelecimento existente — <button className="underline" onClick={openNew}>ou criar novo</button></p>}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4"><h2 className="font-bold text-gray-700">Dados Gerais</h2><Field label="Nome do Local" badge="pub" required><Inp value={form.name} onChange={e=>upd('name',e.target.value)}/></Field><Field label="Responsável" badge="int" required><Inp value={form.responsible} onChange={e=>upd('responsible',e.target.value)}/></Field><Field label="CPF / CNPJ" badge="int"><Inp value={form.cpf_cnpj} onChange={e=>upd('cpf_cnpj',e.target.value)}/></Field><Field label="Telefone" badge="pub" required><Inp value={form.phone} onChange={e=>upd('phone',e.target.value)} placeholder="(00) 00000-0000"/></Field><Field label="Email" badge="int"><Inp type="email" value={form.email} onChange={e=>upd('email',e.target.value)}/></Field><Field label="Site" badge="pub"><Inp type="url" value={form.site} onChange={e=>upd('site',e.target.value)} placeholder="https://www.exemplo.com.br"/></Field><Field label="Divulgação via Unimídia"><Sel value={form.unimidia} onChange={e=>upd('unimidia',e.target.value)} options={[{value:'nao',label:'Não'},{value:'sim',label:'Sim — quero divulgar via Unimídia'}]}/></Field>
 <Field label="Aulas" help="Habilita cadastro de professores e planos de aula para este estabelecimento"><label className="flex items-center gap-3 cursor-pointer mt-1"><input type="checkbox" checked={!!form.aulas} onChange={e=>upd('aulas',e.target.checked)} className="w-5 h-5 accent-emerald-600 rounded"/><span className="text-sm text-gray-700">{form.aulas?'Sim — este estabelecimento oferece aulas':'Não'}</span></label></Field>
-</div><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Endereço <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><Field label="CEP" help={cepLoading?'Buscando endereço...':''}><Inp value={form.cep} onChange={e=>handleCEP(e.target.value)} placeholder="00000-000"/></Field><Field label="Rua"><Inp value={form.street} onChange={e=>upd('street',e.target.value)}/></Field><div className="grid grid-cols-2 gap-3"><Field label="Número"><Inp value={form.number} onChange={e=>upd('number',e.target.value)}/></Field><Field label="Complemento"><Inp value={form.complement} onChange={e=>upd('complement',e.target.value)}/></Field></div><div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Field label="Cidade"><Inp value={form.city} onChange={e=>upd('city',e.target.value)}/></Field></div><Field label="UF"><Inp value={form.state} onChange={e=>upd('state',e.target.value.toUpperCase().slice(0,2))} placeholder="SP"/></Field></div></div></div><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Fotos <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><label className={`flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors ${uploading?'border-emerald-300 bg-emerald-50':'border-gray-300 hover:border-emerald-400 hover:bg-emerald-50'}`}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={addPhotosFromFiles} disabled={uploading}/><span className="text-3xl">{uploading?'⏳':'📷'}</span><div className="text-center"><p className="text-sm font-medium text-gray-700">{uploading?'Processando...':'Clique para adicionar fotos'}</p><p className="text-xs text-gray-400">JPEG · PNG · WebP · máx. 20MB por foto · otimizadas automaticamente</p></div></label>{form.photos.length===0&&<p className="text-xs text-gray-400 text-center py-1">Nenhuma foto adicionada</p>}<div className="grid grid-cols-2 gap-2">{form.photos.map((ph,i)=><div key={i} className={`relative rounded-xl overflow-hidden border-2 ${form.main_photo===ph?'border-emerald-500':'border-transparent'}`}><img src={ph} alt="" className="w-full h-28 object-cover" onError={e=>e.target.style.display='none'}/><div className="absolute bottom-0 left-0 right-0 flex gap-1 p-1.5"><button onClick={()=>upd('main_photo',ph)} className="flex-1 text-xs text-white bg-emerald-600/90 rounded-lg py-1">{form.main_photo===ph?'★ Principal':'★'}</button><button onClick={()=>rmPhoto(ph)} className="text-xs text-white bg-red-600/90 rounded-lg px-2 py-1">✕</button></div></div>)}</div></div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h2 className="font-bold text-gray-700 mb-1">Horário de Funcionamento <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><p className="text-xs text-gray-400 mb-3">Padrão herdado por todos os pontos</p><HoursEditor value={form.operating_hours} onChange={v=>upd('operating_hours',v)}/></div></div></div>
+</div><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Endereço <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><Field label="CEP" help={cepLoading?'Buscando endereço...':''}><Inp value={form.cep} onChange={e=>handleCEP(e.target.value)} placeholder="00000-000"/></Field><Field label="Rua"><Inp value={form.street} onChange={e=>upd('street',e.target.value)}/></Field><div className="grid grid-cols-2 gap-3"><Field label="Número"><Inp value={form.number} onChange={e=>upd('number',e.target.value)}/></Field><Field label="Complemento"><Inp value={form.complement} onChange={e=>upd('complement',e.target.value)}/></Field></div><div className="grid grid-cols-3 gap-3"><div className="col-span-2"><Field label="Cidade"><Inp value={form.city} onChange={e=>upd('city',e.target.value)}/></Field></div><Field label="UF"><Inp value={form.state} onChange={e=>upd('state',e.target.value.toUpperCase().slice(0,2))} placeholder="SP"/></Field></div></div></div><div className="space-y-5"><div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3"><h2 className="font-bold text-gray-700">Fotos <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><label className={`flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors ${uploading?'border-emerald-300 bg-emerald-50':'border-gray-300 hover:border-emerald-400 hover:bg-emerald-50'}`}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={addPhotosFromFiles} disabled={uploading}/><span className="text-3xl">{uploading?'⏳':'📷'}</span><div className="text-center"><p className="text-sm font-medium text-gray-700">{uploading?'Processando...':'Clique para adicionar fotos'}</p><p className="text-xs text-gray-400">JPEG · PNG · WebP · máx. 20MB por foto · otimizadas automaticamente</p></div></label>{form.photos.length===0&&<p className="text-xs text-gray-400 text-center py-1">Nenhuma foto adicionada</p>}<div className="grid grid-cols-2 gap-2">{form.photos.map((ph,i)=><div key={i} className={`relative rounded-xl overflow-hidden border-2 ${form.main_photo===ph?'border-emerald-500':'border-transparent'}`}><img src={ph} alt="" className="w-full h-28 object-cover" onError={e=>e.target.style.display='none'}/><div className="absolute bottom-0 left-0 right-0 flex gap-1 p-1.5"><button onClick={()=>upd('main_photo',ph)} className="flex-1 text-xs text-white bg-emerald-600/90 rounded-lg py-1">{form.main_photo===ph?'★ Principal':'★'}</button><button onClick={()=>rmPhoto(ph)} className="text-xs text-white bg-red-600/90 rounded-lg px-2 py-1">✕</button></div></div>)}</div></div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h2 className="font-bold text-gray-700 mb-1">Horário de Funcionamento <span className="text-xs font-normal text-blue-500 ml-1">🌐 Público</span></h2><p className="text-xs text-gray-400 mb-3">Padrão herdado por todos os pontos</p><HoursEditor value={form.operating_hours} onChange={v=>upd('operating_hours',v)}/></div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h2 className="font-bold text-gray-700 mb-3">Reservas</h2><Field label="Intervalo dos slots de horário"><label className="flex items-center gap-3 cursor-pointer mt-1"><input type="checkbox" checked={form.slot_interval===30} onChange={e=>upd('slot_interval',e.target.checked?30:60)} className="w-5 h-5 accent-emerald-600 rounded"/><span className="text-sm text-gray-700">{form.slot_interval===30?'30 minutos (meia hora)':'60 minutos (1 hora)'}</span></label></Field></div></div></div>
     </div>}
   </div>;
 }
@@ -1061,7 +1064,7 @@ function CRMRecorrentes({showToast,crmUser}){
     // Pega slots de uma data qualquer (não importa qual, só pra listar horários disponíveis)
     const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
     const ds=tomorrow.toISOString().split('T')[0];
-    pointApi.slots(rn.pointId,ds).then(s=>setRnSlots(s.map(x=>x.time))).catch(()=>setRnSlots([]));
+    pointApi.slots(rn.pointId,ds).then(d=>{const s=d.slots||d;setRnSlots(s.map(x=>x.time));}).catch(()=>setRnSlots([]));
   },[rn.pointId]);
 
   const saveNew=async()=>{
@@ -1554,9 +1557,10 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
   const [nameInput,setNameInput]=useState('');
   const [showSugg,setShowSugg]=useState(false);
   const [visitante,setVisitante]=useState(false);
+  const [slotRInterval,setSlotRInterval]=useState(60);
   const parseT=(t)=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
   const addMins=(t,mins)=>{const total=parseT(t)+mins;return String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');};
-  const durLabel=(n)=>n*30>=60?(n/2)+'h':n*30+'min';
+  const durLabel=(n)=>n*slotRInterval>=60?(n*slotRInterval/60)+'h':n*slotRInterval+'min';
   const sugg=alunos.filter(a=>nameInput.length>1&&a.nome.toLowerCase().includes(nameInput.toLowerCase())).slice(0,6);
 
   useEffect(()=>{
@@ -1576,14 +1580,14 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
 
   useEffect(()=>{
     if(!pointId||!date){setSlots([]);setSelSlots([]);return;}
-    pointApi.slots(pointId,date).then(data=>setSlots(data.filter(x=>x.available).map(x=>x.time))).catch(()=>setSlots([]));
+    pointApi.slots(pointId,date).then(data=>{setSlotRInterval(data.interval||60);setSlots((data.slots||data).filter(x=>x.available).map(x=>x.time));}).catch(()=>setSlots([]));
     setSelSlots([]);
   },[pointId,date]);
 
   const toggleSlotR=(s)=>{
     setSelSlots(prev=>{
       if(prev.includes(s)){const idx=prev.indexOf(s);return prev.slice(0,idx);}
-      if(prev.length===0||parseT(s)===parseT(prev[prev.length-1])+30)return[...prev,s];
+      if(prev.length===0||parseT(s)===parseT(prev[prev.length-1])+slotRInterval)return[...prev,s];
       return[s];
     });
   };
@@ -1600,9 +1604,9 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
     setSaving(true);
     try{
       const s=selSlots[0];
-      const e=addMins(selSlots[selSlots.length-1],30);
+      const e=addMins(selSlots[selSlots.length-1],slotRInterval);
       const clientName=visitante?(name.trim()||'Visitante'):name;
-      await resApi.manualCreate({point_id:Number(pointId),est_id:Number(estId),date,start_time:s,end_time:e,hours:selSlots.length/2,client_name:clientName,client_phone:phone||'',payment_method:'pix',professor_id:crmUser?.professor_id||null});
+      await resApi.manualCreate({point_id:Number(pointId),est_id:Number(estId),date,start_time:s,end_time:e,hours:selSlots.length*slotRInterval/60,client_name:clientName,client_phone:phone||'',payment_method:'pix',professor_id:crmUser?.professor_id||null});
       showToast('Reserva criada com sucesso!','success');
       onClose();
     }catch(e){showToast(e.message,'error');}
@@ -1630,7 +1634,7 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
     </div>
 
     {pointId&&slots.length>0&&<div>
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Horário {selSlots.length>0&&<span className="text-emerald-600 normal-case font-medium">— {selSlots[0]} a {addMins(selSlots[selSlots.length-1],30)} ({durLabel(selSlots.length)})</span>}</p>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Horário {selSlots.length>0&&<span className="text-emerald-600 normal-case font-medium">— {selSlots[0]} a {addMins(selSlots[selSlots.length-1],slotRInterval)} ({durLabel(selSlots.length)})</span>}</p>
       <div className="flex flex-wrap gap-1.5">
         {slots.map(s=><button key={s} type="button" onClick={()=>toggleSlotR(s)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${selSlots.includes(s)?'bg-emerald-600 text-white border-emerald-600':'border-gray-200 text-gray-600 hover:border-emerald-400'}`}>{s}</button>)}
       </div>
@@ -1676,6 +1680,8 @@ function CRMReservations({showToast,crmUser}){
   const [newDate,setNewDate]=useState('');
   const [newSlots,setNewSlots]=useState([]);
   const [rSlots,setRSlots]=useState([]);
+  const [rSlotIntervalM,setRSlotIntervalM]=useState(60);
+  const [mbSlotInterval,setMbSlotInterval]=useState(60);
 
   // ── Nova reserva manual ──
   const [showManual,setShowManual]=useState(false);
@@ -1706,7 +1712,7 @@ function CRMReservations({showToast,crmUser}){
 
   useEffect(()=>{
     if(!reschRes||!newDate)return;
-    pointApi.slots(reschRes.point_id,newDate).then(setRSlots).catch(()=>setRSlots([]));
+    pointApi.slots(reschRes.point_id,newDate).then(d=>{setRSlots(d.slots||d);setRSlotIntervalM(d.interval||60);}).catch(()=>setRSlots([]));
     setNewSlots([]);
   },[reschRes,newDate]);
 
@@ -1731,7 +1737,7 @@ function CRMReservations({showToast,crmUser}){
   },[mb.estId]);
   useEffect(()=>{
     if(!mb.pointId||!mb.date){setMbSlots([]);updMb('slots',[]);return;}
-    pointApi.slots(mb.pointId,mb.date).then(setMbSlots).catch(()=>setMbSlots([]));
+    pointApi.slots(mb.pointId,mb.date).then(d=>{setMbSlots(d.slots||d);setMbSlotInterval(d.interval||60);}).catch(()=>setMbSlots([]));
     updMb('slots',[]);
   },[mb.pointId,mb.date]);
   // Preenche valor/hora padrão do ponto ao selecioná-lo
@@ -1745,13 +1751,13 @@ function CRMReservations({showToast,crmUser}){
 
   const parseTm=(t)=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
   const addMinsM=(t,mins)=>{const total=parseTm(t)+mins;return String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');};
-  const durLabelM=(n)=>n*30>=60?(n/2)+'h':n*30+'min';
+  const durLabelM=(n)=>n*mbSlotInterval>=60?(n*mbSlotInterval/60)+'h':n*mbSlotInterval+'min';
   const toggleMbSlot=(s)=>{
     if(!s.available)return;
     setMb(m=>{
       const prev=m.slots;
       const next=prev.includes(s.time)?prev.filter(t=>t!==s.time):[...prev,s.time].sort();
-      for(let i=1;i<next.length;i++){if(parseTm(next[i])-parseTm(next[i-1])!==30)return m;}
+      for(let i=1;i<next.length;i++){if(parseTm(next[i])-parseTm(next[i-1])!==mbSlotInterval)return m;}
       return{...m,slots:next};
     });
   };
@@ -1764,12 +1770,12 @@ function CRMReservations({showToast,crmUser}){
     }
     const clientName=mbVisitante?(mb.name.trim()||'Visitante'):mb.name;
     const s=mb.slots.length?mb.slots[0]:undefined;
-    const e=mb.slots.length?addMinsM(mb.slots[mb.slots.length-1],30):undefined;
+    const e=mb.slots.length?addMinsM(mb.slots[mb.slots.length-1],mbSlotInterval):undefined;
     setMbSaving(true);
     try{
       await resApi.manualCreate({
         point_id:mb.pointId?Number(mb.pointId):undefined,est_id:Number(mb.estId),
-        date:mb.date||undefined,start_time:s,end_time:e,hours:mb.slots.length/2||undefined,
+        date:mb.date||undefined,start_time:s,end_time:e,hours:mb.slots.length*mbSlotInterval/60||undefined,
         payment_method:mb.pm,client_name:clientName,client_phone:mb.phone,client_email:mb.email||undefined,
         participantes:mb.participantes.filter(p=>p.nome),
         price_per_hour:mb.pricePerHour!==''?Number(mb.pricePerHour):undefined,
@@ -1784,7 +1790,7 @@ function CRMReservations({showToast,crmUser}){
     if(!s.available)return;
     setNewSlots(prev=>{
       const next=prev.includes(s.time)?prev.filter(t=>t!==s.time):[...prev,s.time].sort();
-      for(let i=1;i<next.length;i++){if(parseTm(next[i])-parseTm(next[i-1])!==30)return prev;}
+      for(let i=1;i<next.length;i++){if(parseTm(next[i])-parseTm(next[i-1])!==rSlotIntervalM)return prev;}
       return next;
     });
   };
@@ -1801,8 +1807,8 @@ function CRMReservations({showToast,crmUser}){
 
   const handleReschedule=async()=>{
     const ns=newSlots[0];
-    const ne=addMinsM(newSlots[newSlots.length-1],30);
-    try{await resApi.reschedule(reschRes.id,newDate,ns,ne,newSlots.length/2);showToast('Remarcada!','success');setReschRes(null);load();}
+    const ne=addMinsM(newSlots[newSlots.length-1],rSlotIntervalM);
+    try{await resApi.reschedule(reschRes.id,newDate,ns,ne,newSlots.length*rSlotIntervalM/60);showToast('Remarcada!','success');setReschRes(null);load();}
     catch(e){showToast(e.message,'error');}
   };
 
@@ -1810,10 +1816,10 @@ function CRMReservations({showToast,crmUser}){
   const PAY_OPTS=[{value:'pix',label:'Pix'},{value:'credito',label:'Crédito'},{value:'debito',label:'Débito'},{value:'dinheiro',label:'Dinheiro'}];
 
   const mbStartT=mb.slots[0]||'';
-  const mbEndT=mb.slots.length?addMinsM(mb.slots[mb.slots.length-1],30):'';
+  const mbEndT=mb.slots.length?addMinsM(mb.slots[mb.slots.length-1],mbSlotInterval):'';
   const mbPt=mbPoints.find(p=>String(p.id)===String(mb.pointId));
   const mbEffectivePrice=mb.pricePerHour!==''?Number(mb.pricePerHour):(mbPt?.price_per_hour||0);
-  const mbTotal=mbEffectivePrice*mb.slots.length/2;
+  const mbTotal=mbEffectivePrice*mb.slots.length*mbSlotInterval/60;
   const mbPriceOverridden=mbPt&&Number(mb.pricePerHour)!==mbPt.price_per_hour;
 
   const [resTab,setResTab]=useState('reservas');

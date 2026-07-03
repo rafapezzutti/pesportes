@@ -4,7 +4,8 @@ const jwt   = require('jsonwebtoken');
 const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 
 const PUBLIC_COLS = `id, name, street, number, complement, cep, city, state,
-                     phone, site, photos, main_photo, operating_hours, unimidia_divulgacao, aulas`;
+                     phone, site, photos, main_photo, operating_hours, unimidia_divulgacao, aulas,
+                     COALESCE(slot_interval, 60) AS slot_interval`;
 
 // GET /api/establishments
 // — Público (marketplace): retorna todos
@@ -86,7 +87,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
   const {
     name, responsible, cpf_cnpj, street, number, complement,
     cep, city, state, phone, email, site, photos, main_photo,
-    operating_hours, unimidia_divulgacao, aulas
+    operating_hours, unimidia_divulgacao, aulas, slot_interval
   } = req.body;
 
   if (!name || !responsible || !phone)
@@ -97,15 +98,16 @@ router.post('/', auth, adminOrManager, async (req, res) => {
       INSERT INTO establishments
         (name, responsible, cpf_cnpj, street, number, complement,
          cep, city, state, phone, email, site, photos, main_photo,
-         operating_hours, unimidia_divulgacao, aulas)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         operating_hours, unimidia_divulgacao, aulas, slot_interval)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
       RETURNING *`,
       [name, responsible, cpf_cnpj, street, number, complement,
        cep, city, state, phone, email, site || null,
        photos || [], main_photo || null,
        JSON.stringify(operating_hours || {}),
        unimidia_divulgacao === true || unimidia_divulgacao === 'true',
-       aulas === true || aulas === 'true']
+       aulas === true || aulas === 'true',
+       slot_interval === 30 ? 30 : 60]
     );
     const newEst = rows[0];
 
@@ -131,7 +133,7 @@ router.put('/:id', auth, adminOrManager, async (req, res) => {
   const {
     name, responsible, cpf_cnpj, street, number, complement,
     cep, city, state, phone, email, site, photos, main_photo,
-    operating_hours, unimidia_divulgacao, aulas
+    operating_hours, unimidia_divulgacao, aulas, slot_interval
   } = req.body;
 
   try {
@@ -140,14 +142,15 @@ router.put('/:id', auth, adminOrManager, async (req, res) => {
         name=$1, responsible=$2, cpf_cnpj=$3, street=$4, number=$5,
         complement=$6, cep=$7, city=$8, state=$9, phone=$10, email=$11,
         site=$12, photos=$13, main_photo=$14, operating_hours=$15,
-        unimidia_divulgacao=$16, aulas=$17, updated_at=NOW()
-      WHERE id=$18 RETURNING *`,
+        unimidia_divulgacao=$16, aulas=$17, slot_interval=$18, updated_at=NOW()
+      WHERE id=$19 RETURNING *`,
       [name, responsible, cpf_cnpj, street, number, complement,
        cep, city, state, phone, email, site || null,
        photos || [], main_photo || null,
        JSON.stringify(operating_hours || {}),
        unimidia_divulgacao === true || unimidia_divulgacao === 'true',
        aulas === true || aulas === 'true',
+       slot_interval === 30 ? 30 : 60,
        req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Nao encontrado' });
