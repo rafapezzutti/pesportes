@@ -73,18 +73,18 @@ router.get('/:id/slots', async (req, res) => {
     const todayStr = nowBRT.getFullYear() + '-'
       + String(nowBRT.getMonth() + 1).padStart(2, '0') + '-'
       + String(nowBRT.getDate()).padStart(2, '0');
-    const nowHour = nowBRT.getHours();
-    const nowMin  = nowBRT.getMinutes();
+    const nowMins = nowBRT.getHours() * 60 + nowBRT.getMinutes();
     const slots = [];
 
+    // Slots de 30 em 30 minutos
     for (let h = sh; h < eh; h++) {
-      const t = `${String(h).padStart(2,'0')}:00`;
-      // Ignora horários passados no dia atual (em horário de Brasília)
-      if (date === todayStr) {
-        if (h < nowHour || (h === nowHour && nowMin > 0)) continue;
+      for (let m = 0; m < 60; m += 30) {
+        const t = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        // Ignora horários passados no dia atual (em horário de Brasília)
+        if (date === todayStr && h * 60 + m < nowMins) continue;
+        const taken = resList.some(r => r.start_time <= t && t < r.end_time);
+        slots.push({ time: t, available: !taken });
       }
-      const taken = resList.some(r => r.start_time <= t && t < r.end_time);
-      slots.push({ time: t, available: !taken });
     }
 
     res.json(slots);

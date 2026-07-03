@@ -1553,6 +1553,10 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
   const [alunos,setAlunos]=useState([]);
   const [nameInput,setNameInput]=useState('');
   const [showSugg,setShowSugg]=useState(false);
+  const [visitante,setVisitante]=useState(false);
+  const parseT=(t)=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
+  const addMins=(t,mins)=>{const total=parseT(t)+mins;return String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');};
+  const durLabel=(n)=>n*30>=60?(n/2)+'h':n*30+'min';
   const sugg=alunos.filter(a=>nameInput.length>1&&a.nome.toLowerCase().includes(nameInput.toLowerCase())).slice(0,6);
 
   useEffect(()=>{
@@ -1576,10 +1580,10 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
     setSelSlots([]);
   },[pointId,date]);
 
-  const toggleSlot=(s)=>{
+  const toggleSlotR=(s)=>{
     setSelSlots(prev=>{
       if(prev.includes(s)){const idx=prev.indexOf(s);return prev.slice(0,idx);}
-      if(prev.length===0||parseInt(s)===parseInt(prev[prev.length-1])+1)return[...prev,s];
+      if(prev.length===0||parseT(s)===parseT(prev[prev.length-1])+30)return[...prev,s];
       return[s];
     });
   };
@@ -1592,13 +1596,13 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
   const save=async()=>{
     if(!pointId){showToast('Selecione uma quadra','error');return;}
     if(!selSlots.length){showToast('Selecione pelo menos 1 horário','error');return;}
-    if(!name){showToast('Nome é obrigatório','error');return;}
-    if(!phone){showToast('Telefone é obrigatório','error');return;}
+    if(!visitante&&!name){showToast('Nome é obrigatório','error');return;}
     setSaving(true);
     try{
       const s=selSlots[0];
-      const e=String(parseInt(selSlots[selSlots.length-1])+1).padStart(2,'0')+':00';
-      await resApi.manualCreate({point_id:Number(pointId),est_id:Number(estId),date,start_time:s,end_time:e,hours:selSlots.length,client_name:name,client_phone:phone,payment_method:'pix',professor_id:crmUser?.professor_id||null});
+      const e=addMins(selSlots[selSlots.length-1],30);
+      const clientName=visitante?(name.trim()||'Visitante'):name;
+      await resApi.manualCreate({point_id:Number(pointId),est_id:Number(estId),date,start_time:s,end_time:e,hours:selSlots.length/2,client_name:clientName,client_phone:phone||'',payment_method:'pix',professor_id:crmUser?.professor_id||null});
       showToast('Reserva criada com sucesso!','success');
       onClose();
     }catch(e){showToast(e.message,'error');}
@@ -1626,23 +1630,31 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
     </div>
 
     {pointId&&slots.length>0&&<div>
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Horário {selSlots.length>0&&<span className="text-emerald-600 normal-case font-medium">— {selSlots[0]} a {String(parseInt(selSlots[selSlots.length-1])+1).padStart(2,'0')}:00 ({selSlots.length}h)</span>}</p>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Horário {selSlots.length>0&&<span className="text-emerald-600 normal-case font-medium">— {selSlots[0]} a {addMins(selSlots[selSlots.length-1],30)} ({durLabel(selSlots.length)})</span>}</p>
       <div className="flex flex-wrap gap-1.5">
-        {slots.map(s=><button key={s} type="button" onClick={()=>toggleSlot(s)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${selSlots.includes(s)?'bg-emerald-600 text-white border-emerald-600':'border-gray-200 text-gray-600 hover:border-emerald-400'}`}>{s}</button>)}
+        {slots.map(s=><button key={s} type="button" onClick={()=>toggleSlotR(s)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${selSlots.includes(s)?'bg-emerald-600 text-white border-emerald-600':'border-gray-200 text-gray-600 hover:border-emerald-400'}`}>{s}</button>)}
       </div>
     </div>}
     {pointId&&date&&slots.length===0&&<p className="text-sm text-amber-500 text-center py-2 bg-amber-50 rounded-lg">Nenhum horário livre neste dia</p>}
 
-    <div className="relative">
+    <div>
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cliente</p>
+      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none mb-3">
+        <input type="checkbox" checked={visitante} onChange={e=>{setVisitante(e.target.checked);setName('');setNameInput('');setPhone('');setShowSugg(false);}} className="w-4 h-4 rounded accent-emerald-600"/>
+        <span>Visitante <span className="text-gray-400 text-xs">(sem cadastro)</span></span>
+      </label>
       <div className="grid grid-cols-2 gap-3">
-        <div className="relative">
-          <Inp value={nameInput} onChange={e=>{setNameInput(e.target.value);setName(e.target.value);setShowSugg(true);}} placeholder="Nome" onBlur={()=>setTimeout(()=>setShowSugg(false),150)}/>
-          {showSugg&&sugg.length>0&&<div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden">
-            {sugg.map(a=><button key={a.id} type="button" onMouseDown={()=>selectAluno(a)} className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 text-gray-700">{a.nome}{a.telefone&&<span className="text-xs text-gray-400 ml-2">{a.telefone}</span>}</button>)}
-          </div>}
-        </div>
-        <Inp type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Telefone"/>
+        {visitante?(
+          <Inp value={name} onChange={e=>setName(e.target.value)} placeholder="Nome (opcional)"/>
+        ):(
+          <div className="relative">
+            <Inp value={nameInput} onChange={e=>{setNameInput(e.target.value);setName(e.target.value);setShowSugg(true);}} placeholder="Nome (busca alunos)" onBlur={()=>setTimeout(()=>setShowSugg(false),150)} onFocus={()=>{if(nameInput)setShowSugg(true);}}/>
+            {showSugg&&sugg.length>0&&<div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden">
+              {sugg.map(a=><button key={a.id} type="button" onMouseDown={()=>selectAluno(a)} className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 text-gray-700">{a.nome}{a.telefone&&<span className="text-xs text-gray-400 ml-2">{a.telefone}</span>}</button>)}
+            </div>}
+          </div>
+        )}
+        <Inp type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder={visitante?"Telefone (opcional)":"Telefone"}/>
       </div>
     </div>
 
@@ -1731,12 +1743,15 @@ function CRMReservations({showToast,crmUser}){
 
 
 
+  const parseTm=(t)=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
+  const addMinsM=(t,mins)=>{const total=parseTm(t)+mins;return String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');};
+  const durLabelM=(n)=>n*30>=60?(n/2)+'h':n*30+'min';
   const toggleMbSlot=(s)=>{
     if(!s.available)return;
     setMb(m=>{
       const prev=m.slots;
       const next=prev.includes(s.time)?prev.filter(t=>t!==s.time):[...prev,s.time].sort();
-      for(let i=1;i<next.length;i++){if(parseInt(next[i])-parseInt(next[i-1])!==1)return m;}
+      for(let i=1;i<next.length;i++){if(parseTm(next[i])-parseTm(next[i-1])!==30)return m;}
       return{...m,slots:next};
     });
   };
@@ -1749,12 +1764,12 @@ function CRMReservations({showToast,crmUser}){
     }
     const clientName=mbVisitante?(mb.name.trim()||'Visitante'):mb.name;
     const s=mb.slots.length?mb.slots[0]:undefined;
-    const e=mb.slots.length?`${String(parseInt(mb.slots[mb.slots.length-1])+1).padStart(2,'0')}:00`:undefined;
+    const e=mb.slots.length?addMinsM(mb.slots[mb.slots.length-1],30):undefined;
     setMbSaving(true);
     try{
       await resApi.manualCreate({
         point_id:mb.pointId?Number(mb.pointId):undefined,est_id:Number(mb.estId),
-        date:mb.date||undefined,start_time:s,end_time:e,hours:mb.slots.length||undefined,
+        date:mb.date||undefined,start_time:s,end_time:e,hours:mb.slots.length/2||undefined,
         payment_method:mb.pm,client_name:clientName,client_phone:mb.phone,client_email:mb.email||undefined,
         participantes:mb.participantes.filter(p=>p.nome),
         price_per_hour:mb.pricePerHour!==''?Number(mb.pricePerHour):undefined,
@@ -1769,7 +1784,7 @@ function CRMReservations({showToast,crmUser}){
     if(!s.available)return;
     setNewSlots(prev=>{
       const next=prev.includes(s.time)?prev.filter(t=>t!==s.time):[...prev,s.time].sort();
-      for(let i=1;i<next.length;i++){if(parseInt(next[i].split(':')[0])-parseInt(next[i-1].split(':')[0])!==1)return prev;}
+      for(let i=1;i<next.length;i++){if(parseTm(next[i])-parseTm(next[i-1])!==30)return prev;}
       return next;
     });
   };
@@ -1786,8 +1801,8 @@ function CRMReservations({showToast,crmUser}){
 
   const handleReschedule=async()=>{
     const ns=newSlots[0];
-    const ne=`${String(parseInt(newSlots[newSlots.length-1].split(':')[0])+1).padStart(2,'00')}:00`;
-    try{await resApi.reschedule(reschRes.id,newDate,ns,ne,newSlots.length);showToast('Remarcada!','success');setReschRes(null);load();}
+    const ne=addMinsM(newSlots[newSlots.length-1],30);
+    try{await resApi.reschedule(reschRes.id,newDate,ns,ne,newSlots.length/2);showToast('Remarcada!','success');setReschRes(null);load();}
     catch(e){showToast(e.message,'error');}
   };
 
@@ -1795,10 +1810,10 @@ function CRMReservations({showToast,crmUser}){
   const PAY_OPTS=[{value:'pix',label:'Pix'},{value:'credito',label:'Crédito'},{value:'debito',label:'Débito'},{value:'dinheiro',label:'Dinheiro'}];
 
   const mbStartT=mb.slots[0]||'';
-  const mbEndT=mb.slots.length?`${String(parseInt(mb.slots[mb.slots.length-1])+1).padStart(2,'0')}:00`:'';
+  const mbEndT=mb.slots.length?addMinsM(mb.slots[mb.slots.length-1],30):'';
   const mbPt=mbPoints.find(p=>String(p.id)===String(mb.pointId));
   const mbEffectivePrice=mb.pricePerHour!==''?Number(mb.pricePerHour):(mbPt?.price_per_hour||0);
-  const mbTotal=mbEffectivePrice*mb.slots.length;
+  const mbTotal=mbEffectivePrice*mb.slots.length/2;
   const mbPriceOverridden=mbPt&&Number(mb.pricePerHour)!==mbPt.price_per_hour;
 
   const [resTab,setResTab]=useState('reservas');
@@ -1918,7 +1933,7 @@ function CRMReservations({showToast,crmUser}){
         </div>}
         <div className="bg-emerald-50 rounded-xl p-3 text-sm space-y-2">
           {mb.slots.length>0&&<><div className="flex justify-between"><span className="text-gray-500">Período</span><span className="font-medium">{mbStartT} – {mbEndT}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">Duração</span><span className="font-medium">{mb.slots.length}h</span></div></>}
+          <div className="flex justify-between"><span className="text-gray-500">Duração</span><span className="font-medium">{durLabelM(mb.slots.length)}</span></div></>}
           <div className="flex justify-between items-center">
             <span className="text-gray-500">Valor/hora{mbPriceOverridden&&<span className="ml-1 text-xs text-amber-600 font-normal">(ajustado)</span>}</span>
             <div className="flex items-center gap-1">
