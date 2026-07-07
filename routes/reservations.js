@@ -112,8 +112,8 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
           payment_method, client_name, client_phone, client_email,
           participantes, price_per_hour: priceOverride, professor_id } = req.body;
 
-  if (!est_id || !client_name || !client_phone)
-    return res.status(400).json({ error: 'Nome, telefone e estabelecimento são obrigatórios' });
+  if (!est_id || !client_name)
+    return res.status(400).json({ error: 'Nome e estabelecimento são obrigatórios' });
 
   try {
     // Só verifica conflito se data e horário foram informados
@@ -169,7 +169,7 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
          professor_id, crm_user_id)
       VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
       [point_id || null, est_id, date || null, start_time || null, end_time || null, hours || null, total, pm,
-       client_name.trim(), client_phone.trim(), client_email ? client_email.trim() : null,
+       client_name.trim(), (client_phone||'').trim(), client_email ? client_email.trim() : null,
        JSON.stringify(parts), resolvedProfId, req.user.id]
     ).catch(async (err) => {
       // Coluna crm_user_id pode não existir em DBs antigos — retry sem ela
@@ -180,7 +180,7 @@ router.post('/manual', auth, crmOnly, async (req, res) => {
              payment_method, client_name, client_phone, client_email, participantes, professor_id)
           VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
           [point_id || null, est_id, date || null, start_time || null, end_time || null, hours || null, total, pm,
-           client_name.trim(), client_phone.trim(), client_email ? client_email.trim() : null,
+           client_name.trim(), (client_phone||'').trim(), client_email ? client_email.trim() : null,
            JSON.stringify(parts), resolvedProfId]
         );
       }
