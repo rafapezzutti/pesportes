@@ -242,6 +242,7 @@ async function runMigrations() {
     `ALTER TABLE reservations ALTER COLUMN start_time  DROP NOT NULL`,
     `ALTER TABLE reservations ALTER COLUMN end_time    DROP NOT NULL`,
     `ALTER TABLE reservations ALTER COLUMN hours       DROP NOT NULL`,
+    `ALTER TABLE reservations ALTER COLUMN hours       TYPE NUMERIC(6,2) USING hours::numeric`,
     // Backfill: preenche data_venda com created_at para registros antigos que ficaram NULL
     `UPDATE bar_vendas        SET data_venda = created_at::date WHERE data_venda IS NULL`,
     `UPDATE manutencao_vendas SET data_venda = created_at::date WHERE data_venda IS NULL`,
