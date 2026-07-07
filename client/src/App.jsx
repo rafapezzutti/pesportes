@@ -349,18 +349,6 @@ function MyReservations({publicUser,navigate,showToast}){
   },[]);
   useEffect(()=>{load();},[load]);
 
-  const loadGrade=useCallback(()=>{
-    if(!dateF)return;
-    setGradeLoading(true);
-    // get estId from first reservation or from crmUser
-    const params={from:dateF,to:dateF};
-    // resolve estId: from crmUser or pick from reservations
-    const estId=crmUser?.est_id||(crmUser?.est_ids?.length?crmUser.est_ids[0]:null);
-    if(estId)params.estId=estId;
-    else{setGradeLoading(false);return;}
-    horariosLivresApi.get(params).then(d=>setGradeData(d)).catch(()=>setGradeData(null)).finally(()=>setGradeLoading(false));
-  },[dateF,crmUser]);
-  useEffect(()=>{if(viewMode==='grade')loadGrade();},[viewMode,loadGrade]);
 
   useEffect(()=>{
     if(!reschRes||!newDate)return;
@@ -1967,6 +1955,17 @@ function CRMReservations({showToast,crmUser}){
     resApi.list(params).then(setReservations).catch(()=>{}).finally(()=>setLoading(false));
   },[dateF,statusF]);
   useEffect(()=>{load();},[load]);
+
+  const loadGrade=useCallback(()=>{
+    if(!dateF)return;
+    setGradeLoading(true);
+    const params={from:dateF,to:dateF};
+    const estId=crmUser?.est_id||(crmUser?.est_ids?.length?crmUser.est_ids[0]:null);
+    if(estId)params.estId=estId;
+    else{setGradeLoading(false);return;}
+    horariosLivresApi.get(params).then(d=>setGradeData(d)).catch(()=>setGradeData(null)).finally(()=>setGradeLoading(false));
+  },[dateF,crmUser]);
+  useEffect(()=>{if(viewMode==='grade')loadGrade();},[viewMode,loadGrade]);
 
   useEffect(()=>{
     if(!reschRes||!newDate)return;
