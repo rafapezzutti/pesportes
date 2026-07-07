@@ -333,8 +333,7 @@ function MyReservations({publicUser,navigate,showToast}){
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('upcoming');
   const [reschRes,setReschRes]=useState(null);
-  const [editRes,setEditRes]=useState(null);
-  const [editF,setEditF]=useState({});
+
   const [newDate,setNewDate]=useState('');
   const [newSlots,setNewSlots]=useState([]);
   const [rSlots,setRSlots]=useState([]);
@@ -366,11 +365,7 @@ function MyReservations({publicUser,navigate,showToast}){
     try{await resApi.cancel(id);showToast('Reserva cancelada. Email enviado.','info');load();}
     catch(e){showToast(e.message,'error');}
   };
-  const openEditRes=(r)=>{setEditF({client_name:r.client_name||'',client_phone:r.client_phone||'',client_email:r.client_email||'',payment_method:r.payment_method||'pix',status:r.status||'confirmed',status_pgto:r.status_pgto||'pendente',total:r.total||0,observacoes:r.observacoes||''});setEditRes(r);};
-  const saveEdit=async()=>{
-    try{await resApi.update(editRes.id,editF);showToast('Reserva atualizada!','success');setEditRes(null);load();}
-    catch(e){showToast(e.message,'error');}
-  };
+
   const handleDelete=async(id)=>{
     if(!window.confirm('Excluir esta reserva permanentemente?'))return;
     try{await resApi.remove(id);showToast('Reserva excluída','info');load();}
@@ -1918,6 +1913,8 @@ function CRMReservations({showToast,crmUser}){
   const [viewMode,setViewMode]=useState('lista');
   const [gradeData,setGradeData]=useState(null);
   const [gradeLoading,setGradeLoading]=useState(false);
+  const [editRes,setEditRes]=useState(null);
+  const [editF,setEditF]=useState({});
   const [reschRes,setReschRes]=useState(null);
   const [newDate,setNewDate]=useState('');
   const [newSlots,setNewSlots]=useState([]);
@@ -2054,6 +2051,11 @@ function CRMReservations({showToast,crmUser}){
 
   const handleCancel=async(id)=>{
     try{await resApi.cancel(id);showToast('Reserva cancelada','success');load();}
+    catch(e){showToast(e.message,'error');}
+  };
+  const openEditRes=(r)=>{setEditF({client_name:r.client_name||'',client_phone:r.client_phone||'',client_email:r.client_email||'',payment_method:r.payment_method||'pix',status:r.status||'confirmed',status_pgto:r.status_pgto||'pendente',total:r.total||0,observacoes:r.observacoes||''});setEditRes(r);};
+  const saveEdit=async()=>{
+    try{await resApi.update(editRes.id,editF);showToast('Reserva atualizada!','success');setEditRes(null);load();}
     catch(e){showToast(e.message,'error');}
   };
   const handleDelete=async(id)=>{
