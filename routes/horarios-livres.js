@@ -30,7 +30,8 @@ router.get('/', auth, async (req, res) => {
 
     const { rows: points } = await pool.query(
       `SELECT p.id, p.name, p.type, p.custom_hours,
-              e.operating_hours AS est_hours
+              e.operating_hours AS est_hours,
+              COALESCE(e.slot_interval, 60) AS slot_interval
        FROM points p
        JOIN establishments e ON p.est_id = e.id
        WHERE ${ptFilter}
@@ -85,20 +86,30 @@ router.get('/', auth, async (req, res) => {
           continue;
         }
 
-        const [sh] = dayHours.start.split(':').map(Number);
-        const [eh] = dayHours.end.split(':').map(Number);
+        const [sh, sm = 0] = dayHours.start.split(':').map(Number);
+        const [eh, em = 0] = dayHours.end.split(':').map(Number);
+        const startMin = sh * 60 + sm;
+        const endMin   = eh * 60 + em;
+        const interval = pt.slot_interval || 60;
         const occupied = resIdx[pt.id]?.[day] || [];
 
+        // helper: "HH:MM" → minutes
+        const toMin = t => { const [hh,mm=0] = t.split(':').map(Number); return hh*60+mm; };
+
         slots[pt.id][day] = {};
-        for (let h = sh; h < eh; h++) {
-          const t = `${String(h).padStart(2,'0')}:00`;
-          const isTaken = occupied.some(r => r.start_time <= t && t < r.end_time);
+        for (let m = startMin; m < endMin; m += interval) {
+          const hh = String(Math.floor(m/60)).padStart(2,'0');
+          const mm = String(m % 60).padStart(2,'0');
+          const t = `${hh}:${mm}`;
+          const slotEnd = m + interval;
+          // slot is taken if any reservation overlaps [m, slotEnd)
+          const isTaken = occupied.some(r => toMin(r.start) < slotEnd && toMin(r.end) > m);
           slots[pt.id][day][t] = !isTaken; // true = livre
         }
       }
     }
 
-    res.json({ points: points.map(p => ({ id: p.id, name: p.name, type: p.type })), days, slots });
+    res.json({ points: points.map(p => ({ id: p.id, name: p.name, type: p.type, slot_interval: p.slot_interval })), days, slots });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao calcular horários livres' });

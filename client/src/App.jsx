@@ -349,6 +349,19 @@ function MyReservations({publicUser,navigate,showToast}){
   },[]);
   useEffect(()=>{load();},[load]);
 
+  const loadGrade=useCallback(()=>{
+    if(!dateF)return;
+    setGradeLoading(true);
+    // get estId from first reservation or from crmUser
+    const params={from:dateF,to:dateF};
+    // resolve estId: from crmUser or pick from reservations
+    const estId=crmUser?.est_id||(crmUser?.est_ids?.length?crmUser.est_ids[0]:null);
+    if(estId)params.estId=estId;
+    else{setGradeLoading(false);return;}
+    horariosLivresApi.get(params).then(d=>setGradeData(d)).catch(()=>setGradeData(null)).finally(()=>setGradeLoading(false));
+  },[dateF,crmUser]);
+  useEffect(()=>{if(viewMode==='grade')loadGrade();},[viewMode,loadGrade]);
+
   useEffect(()=>{
     if(!reschRes||!newDate)return;
     setRSlotsLoading(true);
@@ -1386,6 +1399,9 @@ function CRMPlanosAula({showToast}){
   const [alunosCad,setAlunosCad]=useState([]);
   const [showSug,setShowSug]=useState(false);
   const [clientF,setClientF]=useState('');
+  const [viewMode,setViewMode]=useState('lista');
+  const [gradeData,setGradeData]=useState(null);
+  const [gradeLoading,setGradeLoading]=useState(false);
   const [showClientFSug,setShowClientFSug]=useState(false);
   const BLANK_PL={est_id:'',professor_id:'',nome_aluno:'',telefone_aluno:'',email_aluno:'',tipo_plano:'avulso',valor:'',recorrencia:'nenhuma',dias_semana:[],horario_inicio:'',horario_fim:'',data_inicio:TODAY,data_fim:'',observacoes:''};
   const [f,setF]=useState(BLANK_PL);
@@ -1819,6 +1835,91 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
   </div>;
 }
 
+
+// ================================================================
+// GRADE QUADRAS — resumo visual por quadra/data
+// ================================================================
+function GradeQuadras({data, date, reservations}){
+  if(!data||!data.points?.length) return(
+    <div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🏟️</p><p>Nenhuma quadra encontrada</p></div>
+  );
+
+  const {points, slots} = data;
+  const daySlots = data.days?.[0] ? Object.keys(slots[points[0]?.id]?.[date]||{}).sort() : [];
+
+  // Build occupation map from reservations for this date
+  // resMap[pointId][time] = {client_name, start_time, end_time, status, id}
+  const resMap = {};
+  for(const r of reservations){
+    if(!r.point_id) continue;
+    if(!resMap[r.point_id]) resMap[r.point_id]={};
+    // mark all slots this reservation covers
+    const toMin=t=>{const[h,m=0]=t.split(':').map(Number);return h*60+m;};
+    const sMin=toMin(r.start_time), eMin=toMin(r.end_time);
+    for(const t of daySlots){
+      const tMin=toMin(t);
+      if(tMin>=sMin&&tMin<eMin) resMap[r.point_id][t]=r;
+    }
+  }
+
+  return(
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-xs border-separate border-spacing-0">
+        <thead>
+          <tr>
+            <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2.5 text-left font-semibold text-gray-500 border-b border-r border-gray-200 w-16">Hora</th>
+            {points.map(pt=>(
+              <th key={pt.id} className="px-2 py-2.5 text-center font-semibold text-gray-700 border-b border-r border-gray-200 min-w-[110px] bg-gray-50">
+                <p>{pt.name}</p>
+                <p className="text-gray-400 font-normal text-xs">{pt.type}</p>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {daySlots.map((time,i)=>(
+            <tr key={time} className={i%2===0?'bg-white':'bg-gray-50/50'}>
+              <td className="sticky left-0 z-10 bg-inherit px-3 py-1.5 font-mono text-gray-400 border-r border-gray-100 whitespace-nowrap">{time}</td>
+              {points.map(pt=>{
+                const res=resMap[pt.id]?.[time];
+                const isFree=slots[pt.id]?.[date]?.[time];
+                if(res){
+                  // Only show label on first slot of reservation
+                  const toMin=t=>{const[h,m=0]=t.split(':').map(Number);return h*60+m;};
+                  const isFirst=toMin(time)===toMin(res.start_time);
+                  return(
+                    <td key={pt.id} className="px-1 py-1 border-r border-gray-100">
+                      <div className="bg-red-100 border border-red-200 rounded px-1.5 py-1 text-center">
+                        {isFirst&&<><p className="font-semibold text-red-700 truncate max-w-[90px]">{res.client_name||'—'}</p>
+                        <p className="text-red-400">{res.start_time}–{res.end_time}</p></>}
+                        {!isFirst&&<p className="text-red-300">▓</p>}
+                      </div>
+                    </td>
+                  );
+                }
+                return(
+                  <td key={pt.id} className="px-1 py-1 border-r border-gray-100">
+                    <div className={`rounded px-1.5 py-1 text-center ${isFree?'bg-emerald-50 text-emerald-600':'bg-gray-100 text-gray-400'}`}>
+                      {isFree?'livre':'—'}
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+          {daySlots.length===0&&(
+            <tr><td colSpan={points.length+1} className="text-center py-12 text-gray-400">Selecione uma data para ver a grade</td></tr>
+          )}
+        </tbody>
+      </table>
+      <div className="flex gap-4 px-3 py-3 text-xs text-gray-500 border-t border-gray-100 mt-1">
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200 inline-block"/>livre</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-100 border border-red-200 inline-block"/>reservado</span>
+      </div>
+    </div>
+  );
+}
+
 // ================================================================
 // CRM RESERVATIONS
 // ================================================================
@@ -2001,8 +2102,17 @@ function CRMReservations({showToast,crmUser}){
       <div><p className="text-xs text-gray-400 mb-1 font-medium">Status</p><Sel value={statusF} onChange={e=>{setStatusF(e.target.value);setLoading(true);}} options={[{value:'confirmed',label:'Confirmada'},{value:'cancelled',label:'Cancelada'},{value:'completed',label:'Concluída'}]} placeholder="Todos"/></div>
       <div className="relative"><p className="text-xs text-gray-400 mb-1 font-medium">Cliente</p><div className="relative"><input value={clientF} onChange={e=>{setClientF(e.target.value);setShowClientFSug(true);}} onFocus={()=>setShowClientFSug(true)} onBlur={()=>setTimeout(()=>setShowClientFSug(false),150)} placeholder="Nome do cliente..." className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-44 pr-7" autoComplete="off"/>{clientF&&<button onClick={()=>setClientF('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>}{showClientFSug&&clientSugNames.length>0&&<ul className="absolute z-50 left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-full">{clientSugNames.map(n=><li key={n} onMouseDown={()=>{setClientF(n);setShowClientFSug(false);}} className="px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 whitespace-nowrap">{n}</li>)}</ul>}</div></div>
       <Btn variant="secondary" size="sm" onClick={()=>{setDateF('');setStatusF('');setClientF('');}}>Limpar</Btn>
+      <div className="ml-auto flex rounded-xl border border-gray-200 overflow-hidden text-xs font-medium">
+        <button onClick={()=>setViewMode('lista')} className={`px-3 py-1.5 ${viewMode==='lista'?'bg-emerald-600 text-white':'bg-white text-gray-500 hover:bg-gray-50'}`}>☰ Lista</button>
+        <button onClick={()=>{setViewMode('grade');loadGrade();}} className={`px-3 py-1.5 ${viewMode==='grade'?'bg-emerald-600 text-white':'bg-white text-gray-500 hover:bg-gray-50'}`}>⊞ Grade</button>
+      </div>
     </div>
-    {loading?<Spinner/>:<div className="space-y-3">
+    {viewMode==='grade'?(
+      gradeLoading?<Spinner text="Carregando grade..."/>:
+      !gradeData?<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🏟️</p><p>Selecione um estabelecimento no filtro</p></div>:
+      <GradeQuadras data={gradeData} date={dateF||TODAY} reservations={reservations}/>
+    ):(
+    loading?<Spinner/>:<div className="space-y-3">
       {resFilt.length===0&&<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">📭</p><p>{clientF?`Nenhuma reserva para "${clientF}"`:'Nenhuma reserva encontrada'}</p></div>}
       {resFilt.map(r=><div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
         {/* Header: nome + badge */}
@@ -2026,7 +2136,8 @@ function CRMReservations({showToast,crmUser}){
           <Btn variant="danger" size="sm" onClick={()=>handleDelete(r.id)}>Excluir</Btn>
         </div>
       </div>)}
-    </div>}
+    </div>
+    )}
 
     {/* Modal Remarcar */}
     <Modal open={!!reschRes} onClose={()=>setReschRes(null)} title="Remarcar Reserva">{reschRes&&<div className="space-y-4"><div className="bg-gray-50 rounded-xl p-3 text-sm"><p className="font-semibold">{reschRes.point_name}</p><p className="text-gray-500">Atual: {fmtDate(dateStr(reschRes))} • {reschRes.start_time}–{reschRes.end_time}</p></div><Field label="Nova data"><input type="date" value={newDate} onChange={e=>{setNewDate(e.target.value);setNewSlots([]);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></Field>{newDate&&<div><p className="text-sm font-medium text-gray-700 mb-2">Novo horário</p><div className="grid grid-cols-4 gap-1.5">{rSlots.map(s=><button key={s.time} onClick={()=>toggleSlot(s)} disabled={!s.available} className={`py-2 text-xs rounded-lg border font-medium ${newSlots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'}`}>{s.time}</button>)}</div></div>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setReschRes(null)}>Cancelar</Btn><Btn className="flex-1" disabled={!newDate||!newSlots.length} onClick={handleReschedule}>Confirmar</Btn></div></div>}</Modal>
