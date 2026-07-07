@@ -93,6 +93,7 @@ export const resApi = {
   setStatus:  (id, status)           => patch(`/reservations/${id}`, { status }),
   manualCreate:        (data)          => post('/reservations/manual', data),
   updateParticipantes: (id, parts)     => patch(`/reservations/${id}/participantes`, { participantes: parts }),
+  update:              (id, data)       => put(`/reservations/${id}`, data),
   remove:              (id)            => del(`/reservations/${id}`),
 };
 

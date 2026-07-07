@@ -281,6 +281,34 @@ router.patch('/:id/reschedule', anyAuth, async (req, res) => {
   }
 });
 
+// PUT /api/reservations/:id — edição completa (CRM)
+router.put('/:id', auth, crmOnly, async (req, res) => {
+  const { client_name, client_phone, client_email, payment_method, status, status_pgto, forma_pgto, total, observacoes } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE reservations SET
+         client_name   = COALESCE($1, client_name),
+         client_phone  = COALESCE($2, client_phone),
+         client_email  = COALESCE($3, client_email),
+         payment_method= COALESCE($4, payment_method),
+         status        = COALESCE($5, status),
+         status_pgto   = COALESCE($6, status_pgto),
+         forma_pgto    = COALESCE($7, forma_pgto),
+         total         = COALESCE($8, total),
+         observacoes   = $9
+       WHERE id=$10 RETURNING *`,
+      [client_name||null, client_phone||null, client_email||null, payment_method||null,
+       status||null, status_pgto||null, forma_pgto||null, total!=null?parseFloat(total):null,
+       observacoes||null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Reserva não encontrada' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao editar reserva' });
+  }
+});
+
 // PATCH /api/reservations/:id — status (CRM)
 router.patch('/:id', auth, crmOnly, async (req, res) => {
   const { status } = req.body;

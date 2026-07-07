@@ -333,6 +333,8 @@ function MyReservations({publicUser,navigate,showToast}){
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('upcoming');
   const [reschRes,setReschRes]=useState(null);
+  const [editRes,setEditRes]=useState(null);
+  const [editF,setEditF]=useState({});
   const [newDate,setNewDate]=useState('');
   const [newSlots,setNewSlots]=useState([]);
   const [rSlots,setRSlots]=useState([]);
@@ -361,6 +363,11 @@ function MyReservations({publicUser,navigate,showToast}){
 
   const handleCancel=async(id)=>{
     try{await resApi.cancel(id);showToast('Reserva cancelada. Email enviado.','info');load();}
+    catch(e){showToast(e.message,'error');}
+  };
+  const openEditRes=(r)=>{setEditF({client_name:r.client_name||'',client_phone:r.client_phone||'',client_email:r.client_email||'',payment_method:r.payment_method||'pix',status:r.status||'confirmed',status_pgto:r.status_pgto||'pendente',total:r.total||0,observacoes:r.observacoes||''});setEditRes(r);};
+  const saveEdit=async()=>{
+    try{await resApi.update(editRes.id,editF);showToast('Reserva atualizada!','success');setEditRes(null);load();}
     catch(e){showToast(e.message,'error');}
   };
   const handleDelete=async(id)=>{
@@ -2013,6 +2020,7 @@ function CRMReservations({showToast,crmUser}){
             </div>
           </div>
           <div className="flex gap-2 shrink-0 flex-wrap">
+            <Btn variant="secondary" size="sm" onClick={()=>openEditRes(r)}>Editar</Btn>
             {r.status==='confirmed'&&<><Btn variant="secondary" size="sm" onClick={()=>{setReschRes(r);setNewDate('');setNewSlots([]);}}>Remarcar</Btn>
             <Btn variant="danger" size="sm" onClick={()=>handleCancel(r.id)}>Cancelar</Btn></>}
             <Btn variant="danger" size="sm" onClick={()=>handleDelete(r.id)}>Excluir</Btn>
@@ -2023,6 +2031,35 @@ function CRMReservations({showToast,crmUser}){
 
     {/* Modal Remarcar */}
     <Modal open={!!reschRes} onClose={()=>setReschRes(null)} title="Remarcar Reserva">{reschRes&&<div className="space-y-4"><div className="bg-gray-50 rounded-xl p-3 text-sm"><p className="font-semibold">{reschRes.point_name}</p><p className="text-gray-500">Atual: {fmtDate(dateStr(reschRes))} • {reschRes.start_time}–{reschRes.end_time}</p></div><Field label="Nova data"><input type="date" value={newDate} onChange={e=>{setNewDate(e.target.value);setNewSlots([]);}} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/></Field>{newDate&&<div><p className="text-sm font-medium text-gray-700 mb-2">Novo horário</p><div className="grid grid-cols-4 gap-1.5">{rSlots.map(s=><button key={s.time} onClick={()=>toggleSlot(s)} disabled={!s.available} className={`py-2 text-xs rounded-lg border font-medium ${newSlots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'}`}>{s.time}</button>)}</div></div>}<div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setReschRes(null)}>Cancelar</Btn><Btn className="flex-1" disabled={!newDate||!newSlots.length} onClick={handleReschedule}>Confirmar</Btn></div></div>}</Modal>
+
+
+    {/* Modal Editar Reserva */}
+    <Modal open={!!editRes} onClose={()=>setEditRes(null)} title="Editar Reserva" maxW="max-w-lg">
+      {editRes&&<div className="space-y-3">
+        <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-600">
+          <p className="font-semibold text-gray-800">{editRes.est_name} — {editRes.point_name}</p>
+          <p>{fmtDate(dateStr(editRes))} • {editRes.start_time} – {editRes.end_time}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Nome do cliente"><Inp value={editF.client_name} onChange={e=>setEditF(p=>({...p,client_name:e.target.value}))}/></Field>
+          <Field label="Telefone"><Inp type="tel" value={editF.client_phone} onChange={e=>setEditF(p=>({...p,client_phone:e.target.value}))} placeholder="(opcional)"/></Field>
+        </div>
+        <Field label="Email"><Inp type="email" value={editF.client_email} onChange={e=>setEditF(p=>({...p,client_email:e.target.value}))} placeholder="(opcional)"/></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Forma de pagamento"><Sel value={editF.payment_method} onChange={e=>setEditF(p=>({...p,payment_method:e.target.value}))} options={[{value:'pix',label:'Pix'},{value:'dinheiro',label:'Dinheiro'},{value:'cartao_credito',label:'Cartão Crédito'},{value:'cartao_debito',label:'Cartão Débito'},{value:'transferencia',label:'Transferência'}]}/></Field>
+          <Field label="Status pgto"><Sel value={editF.status_pgto} onChange={e=>setEditF(p=>({...p,status_pgto:e.target.value}))} options={[{value:'pendente',label:'Pendente'},{value:'pago',label:'Pago'},{value:'isento',label:'Isento'}]}/></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Status reserva"><Sel value={editF.status} onChange={e=>setEditF(p=>({...p,status:e.target.value}))} options={[{value:'confirmed',label:'Confirmada'},{value:'completed',label:'Concluída'},{value:'cancelled',label:'Cancelada'}]}/></Field>
+          <Field label="Valor total (R$)"><Inp type="number" value={editF.total} onChange={e=>setEditF(p=>({...p,total:e.target.value}))}/></Field>
+        </div>
+        <Field label="Observações"><textarea value={editF.observacoes} onChange={e=>setEditF(p=>({...p,observacoes:e.target.value}))} rows={2} placeholder="Detalhes..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"/></Field>
+        <div className="flex gap-3 pt-1">
+          <Btn variant="secondary" className="flex-1" onClick={()=>setEditRes(null)}>Cancelar</Btn>
+          <Btn className="flex-1" onClick={saveEdit}>Salvar</Btn>
+        </div>
+      </div>}
+    </Modal>
 
     {/* Modal Reserva Rápida */}
     <Modal open={showRapida} onClose={()=>setShowRapida(false)} title="🚀 Reserva Rápida" maxW="max-w-lg">
