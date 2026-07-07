@@ -1914,9 +1914,9 @@ function CRMReservations({showToast,crmUser}){
 
   const saveManual=async()=>{
     if(mbVisitante){
-      if(!mb.phone||!mb.estId){showToast('Telefone e estabelecimento são obrigatórios','error');return;}
+      if(!mb.estId){showToast('Estabelecimento é obrigatório','error');return;}
     } else {
-      if(!mb.name||!mb.phone||!mb.estId){showToast('Nome, telefone e estabelecimento são obrigatórios','error');return;}
+      if(!mb.name||!mb.estId){showToast('Nome e estabelecimento são obrigatórios','error');return;}
     }
     const clientName=mbVisitante?(mb.name.trim()||'Visitante'):mb.name;
     const s=mb.slots.length?mb.slots[0]:undefined;
@@ -2131,7 +2131,7 @@ function CRMReservations({showToast,crmUser}){
 
         <div className="flex gap-3 pt-1">
           <Btn variant="secondary" className="flex-1" onClick={()=>resetMbModal()}>Cancelar</Btn>
-          <Btn className="flex-1" disabled={mbSaving||(!mbVisitante&&!mb.name)||!mb.phone||!mb.estId} onClick={saveManual}>{mbSaving?'Salvando...':'Confirmar Reserva'}</Btn>
+          <Btn className="flex-1" disabled={mbSaving||(!mbVisitante&&!mb.name)||!mb.estId} onClick={saveManual}>{mbSaving?'Salvando...':'Confirmar Reserva'}</Btn>
         </div>
       </div>
     </Modal>
