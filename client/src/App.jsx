@@ -1071,8 +1071,8 @@ function CRMRecorrentes({showToast,crmUser}){
   },[rn.pointId]);
 
   const saveNew=async()=>{
-    if(!rn.estId||!rn.pointId||rn.dayOfWeek===''||!rn.startTime||!rn.endTime||!rn.clientName||!rn.clientPhone){
-      showToast('Preencha: estabelecimento, ponto, dia da semana, horário, nome e telefone','error');return;
+    if(!rn.estId||!rn.pointId||rn.dayOfWeek===''||!rn.startTime||!rn.endTime||!rn.clientName){
+      showToast('Preencha: estabelecimento, ponto, dia da semana, horário e nome','error');return;
     }
     setSaving(true);
     try{
@@ -2124,7 +2124,7 @@ function CRMReservations({showToast,crmUser}){
         {/* Info compacta */}
         <div className="text-sm text-gray-500 space-y-0.5 mb-3">
           <p className="font-medium text-gray-700">🏢 {r.est_name}</p>
-          <p>👤 {r.client_name||r.user_name||'—'}{r.client_phone?` • ${r.client_phone}`:''}</p>
+          <p>👤 {r.client_name||r.user_name||'—'}{r.client_phone&&r.client_phone!==''?` • ${r.client_phone}`:''}</p>
           <p>📅 {fmtDate(dateStr(r))} • {r.start_time}–{r.end_time} <span className="text-gray-400">({r.hours}h)</span></p>
           <p className="font-semibold text-emerald-700">💰 {fmt$(r.total)}{r.payment_method?` • ${PAY_LABEL[r.payment_method]||r.payment_method}`:''}</p>
           {r.professor_nome&&<p className="text-amber-600 text-xs">🎓 {r.professor_nome}{r.percentual_repasse?` — academia ${r.percentual_repasse}% = ${fmt$(r.total*r.percentual_repasse/100)}`:''}</p>}
