@@ -1802,7 +1802,7 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
             </div>}
           </div>
         )}
-        <Inp type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder={visitante?"Telefone (opcional)":"Telefone"}/>
+        <Inp type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Telefone (opcional)"/>
       </div>
     </div>
 
