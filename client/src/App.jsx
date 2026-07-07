@@ -2005,26 +2005,25 @@ function CRMReservations({showToast,crmUser}){
     {loading?<Spinner/>:<div className="space-y-3">
       {resFilt.length===0&&<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">📭</p><p>{clientF?`Nenhuma reserva para "${clientF}"`:'Nenhuma reserva encontrada'}</p></div>}
       {resFilt.map(r=><div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <h3 className="font-bold text-gray-800">{r.point_name}</h3>
-              <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusColor(r.status)}`}>{statusLabel(r.status)}</span>
-            </div>
-            <div className="text-sm text-gray-500 space-y-0.5">
-              <p>🏢 {r.est_name}</p>
-              <p>👤 {r.user_name} — {r.user_email}</p>
-              <p>📅 {fmtDate(dateStr(r))} • {r.start_time} – {r.end_time} ({r.hours}h)</p>
-              <p>💰 {fmt$(r.total)} {r.payment_method?`• ${PAY_LABEL[r.payment_method]||r.payment_method}`:''}</p>
-              {r.professor_nome&&<p className="text-amber-600">🎓 Prof. {r.professor_nome}{r.percentual_repasse?` — academia ${r.percentual_repasse}% = ${fmt$(r.total*r.percentual_repasse/100)}`:''}</p>}
-            </div>
-          </div>
-          <div className="flex gap-2 shrink-0 flex-wrap">
-            <Btn variant="secondary" size="sm" onClick={()=>openEditRes(r)}>Editar</Btn>
-            {r.status==='confirmed'&&<><Btn variant="secondary" size="sm" onClick={()=>{setReschRes(r);setNewDate('');setNewSlots([]);}}>Remarcar</Btn>
-            <Btn variant="danger" size="sm" onClick={()=>handleCancel(r.id)}>Cancelar</Btn></>}
-            <Btn variant="danger" size="sm" onClick={()=>handleDelete(r.id)}>Excluir</Btn>
-          </div>
+        {/* Header: nome + badge */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h3 className="font-bold text-gray-800 truncate">{r.point_name}</h3>
+          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full shrink-0 ${statusColor(r.status)}`}>{statusLabel(r.status)}</span>
+        </div>
+        {/* Info compacta */}
+        <div className="text-sm text-gray-500 space-y-0.5 mb-3">
+          <p className="font-medium text-gray-700">🏢 {r.est_name}</p>
+          <p>👤 {r.client_name||r.user_name||'—'}{r.client_phone?` • ${r.client_phone}`:''}</p>
+          <p>📅 {fmtDate(dateStr(r))} • {r.start_time}–{r.end_time} <span className="text-gray-400">({r.hours}h)</span></p>
+          <p className="font-semibold text-emerald-700">💰 {fmt$(r.total)}{r.payment_method?` • ${PAY_LABEL[r.payment_method]||r.payment_method}`:''}</p>
+          {r.professor_nome&&<p className="text-amber-600 text-xs">🎓 {r.professor_nome}{r.percentual_repasse?` — academia ${r.percentual_repasse}% = ${fmt$(r.total*r.percentual_repasse/100)}`:''}</p>}
+        </div>
+        {/* Botões numa linha com scroll se necessário */}
+        <div className="flex gap-2 flex-wrap">
+          <Btn variant="secondary" size="sm" onClick={()=>openEditRes(r)}>Editar</Btn>
+          {r.status==='confirmed'&&<><Btn variant="secondary" size="sm" onClick={()=>{setReschRes(r);setNewDate('');setNewSlots([]);}}>Remarcar</Btn>
+          <Btn variant="danger" size="sm" onClick={()=>handleCancel(r.id)}>Cancelar</Btn></>}
+          <Btn variant="danger" size="sm" onClick={()=>handleDelete(r.id)}>Excluir</Btn>
         </div>
       </div>)}
     </div>}
