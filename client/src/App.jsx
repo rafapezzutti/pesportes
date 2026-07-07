@@ -4440,7 +4440,7 @@ function CRMHorariosLivres({crmUser,showToast}){
                     return <td key={pt.id} className="px-2 py-1.5 text-center">
                       {ds[slot]
                         ?<span className="inline-block text-xs font-bold text-emerald-700 bg-emerald-100 rounded-lg px-3 py-1.5 w-full text-center">LIVRE</span>
-                        :<span className="inline-block text-xs font-medium text-gray-400 bg-gray-100 rounded-lg px-3 py-1.5 w-full text-center">reservado</span>}
+                        :<span className="inline-block text-xs font-medium text-red-600 bg-red-100 rounded-lg px-3 py-1.5 w-full text-center">reservado</span>}
                     </td>;
                   })}
                 </tr>;
@@ -4450,7 +4450,7 @@ function CRMHorariosLivres({crmUser,showToast}){
         </div>
         <div className="flex gap-4 mt-4 pt-3 border-t border-gray-100">
           <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="inline-block w-10 text-center text-xs font-bold text-emerald-700 bg-emerald-100 rounded px-1">LIVRE</span> Disponível</div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="inline-block w-16 text-center text-xs font-medium text-gray-400 bg-gray-100 rounded px-1">reservado</span> Ocupado</div>
+          <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="inline-block w-16 text-center text-xs font-medium text-red-600 bg-red-100 rounded px-1">reservado</span> Ocupado</div>
         </div>
       </div>
     </div>}
