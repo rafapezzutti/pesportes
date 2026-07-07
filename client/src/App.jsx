@@ -1387,9 +1387,6 @@ function CRMPlanosAula({showToast}){
   const [alunosCad,setAlunosCad]=useState([]);
   const [showSug,setShowSug]=useState(false);
   const [clientF,setClientF]=useState('');
-  const [viewMode,setViewMode]=useState('lista');
-  const [gradeData,setGradeData]=useState(null);
-  const [gradeLoading,setGradeLoading]=useState(false);
   const [showClientFSug,setShowClientFSug]=useState(false);
   const BLANK_PL={est_id:'',professor_id:'',nome_aluno:'',telefone_aluno:'',email_aluno:'',tipo_plano:'avulso',valor:'',recorrencia:'nenhuma',dias_semana:[],horario_inicio:'',horario_fim:'',data_inicio:TODAY,data_fim:'',observacoes:''};
   const [f,setF]=useState(BLANK_PL);
@@ -1918,6 +1915,9 @@ function CRMReservations({showToast,crmUser}){
   const [statusF,setStatusF]=useState('');
   const [clientF,setClientF]=useState('');
   const [showClientFSug,setShowClientFSug]=useState(false);
+  const [viewMode,setViewMode]=useState('lista');
+  const [gradeData,setGradeData]=useState(null);
+  const [gradeLoading,setGradeLoading]=useState(false);
   const [reschRes,setReschRes]=useState(null);
   const [newDate,setNewDate]=useState('');
   const [newSlots,setNewSlots]=useState([]);
