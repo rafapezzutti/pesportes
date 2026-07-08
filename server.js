@@ -324,6 +324,8 @@ async function runMigrations() {
     `ALTER TABLE alunos ADD COLUMN IF NOT EXISTS mensalidade_valor     NUMERIC(10,2)`,
     `ALTER TABLE alunos ADD COLUMN IF NOT EXISTS mensalidade_vencimento DATE`,
     `ALTER TABLE alunos ADD COLUMN IF NOT EXISTS mensalidade_aviso_em  TIMESTAMPTZ`,
+    // observacoes nas reservas
+    `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS observacoes TEXT`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
