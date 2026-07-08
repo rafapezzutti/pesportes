@@ -2053,7 +2053,8 @@ function CRMReservations({showToast,crmUser}){
     try{await resApi.cancel(id);showToast('Reserva cancelada','success');load();}
     catch(e){showToast(e.message,'error');}
   };
-  const openEditRes=(r)=>{setEditF({client_name:r.client_name||'',client_phone:r.client_phone||'',client_email:r.client_email||'',payment_method:r.payment_method||'pix',status:r.status||'confirmed',status_pgto:r.status_pgto||'pendente',total:r.total||0,observacoes:r.observacoes||''});setEditRes(r);};
+  const calcEditHours=(st,et)=>{if(!st||!et)return '';const[sh,sm]=st.split(':').map(Number);const[eh,em]=et.split(':').map(Number);const d=((eh*60+em)-(sh*60+sm))/60;return d>0?String(d):'';};
+  const openEditRes=(r)=>{const ds=dateStr(r);setEditF({client_name:r.client_name||'',client_phone:r.client_phone||'',client_email:r.client_email||'',payment_method:r.payment_method||'pix',status:r.status||'confirmed',status_pgto:r.status_pgto||'pendente',total:r.total||0,observacoes:r.observacoes||'',date:ds||'',start_time:r.start_time||'',end_time:r.end_time||'',hours:r.hours!=null?String(r.hours):''});setEditRes(r);};
   const saveEdit=async()=>{
     try{await resApi.update(editRes.id,editF);showToast('Reserva atualizada!','success');setEditRes(null);load();}
     catch(e){showToast(e.message,'error');}
@@ -2149,20 +2150,33 @@ function CRMReservations({showToast,crmUser}){
       {editRes&&<div className="space-y-3">
         <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-600">
           <p className="font-semibold text-gray-800">{editRes.est_name} — {editRes.point_name}</p>
-          <p>{fmtDate(dateStr(editRes))} • {editRes.start_time} – {editRes.end_time}</p>
+          <p className="text-xs text-gray-400">Original: {fmtDate(dateStr(editRes))} • {editRes.start_time} – {editRes.end_time}</p>
         </div>
+        {/* Data e horários */}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Data"><Inp type="date" value={editF.date} onChange={e=>setEditF(p=>({...p,date:e.target.value}))}/></Field>
+          <Field label="Horas"><Inp type="number" step="0.5" min="0.5" value={editF.hours} onChange={e=>setEditF(p=>({...p,hours:e.target.value}))} placeholder="ex: 1.5"/></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Início"><Inp type="time" value={editF.start_time} onChange={e=>{const st=e.target.value;setEditF(p=>{const h=calcEditHours(st,p.end_time);return{...p,start_time:st,...(h?{hours:h}:{})};});}}/></Field>
+          <Field label="Fim"><Inp type="time" value={editF.end_time} onChange={e=>{const et=e.target.value;setEditF(p=>{const h=calcEditHours(p.start_time,et);return{...p,end_time:et,...(h?{hours:h}:{})};});}}/></Field>
+        </div>
+        <hr className="border-gray-100"/>
+        {/* Cliente */}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Nome do cliente"><Inp value={editF.client_name} onChange={e=>setEditF(p=>({...p,client_name:e.target.value}))}/></Field>
           <Field label="Telefone"><Inp type="tel" value={editF.client_phone} onChange={e=>setEditF(p=>({...p,client_phone:e.target.value}))} placeholder="(opcional)"/></Field>
         </div>
         <Field label="Email"><Inp type="email" value={editF.client_email} onChange={e=>setEditF(p=>({...p,client_email:e.target.value}))} placeholder="(opcional)"/></Field>
+        <hr className="border-gray-100"/>
+        {/* Pagamento */}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Forma de pagamento"><Sel value={editF.payment_method} onChange={e=>setEditF(p=>({...p,payment_method:e.target.value}))} options={[{value:'pix',label:'Pix'},{value:'dinheiro',label:'Dinheiro'},{value:'cartao_credito',label:'Cartão Crédito'},{value:'cartao_debito',label:'Cartão Débito'},{value:'transferencia',label:'Transferência'}]}/></Field>
-          <Field label="Status pgto"><Sel value={editF.status_pgto} onChange={e=>setEditF(p=>({...p,status_pgto:e.target.value}))} options={[{value:'pendente',label:'Pendente'},{value:'pago',label:'Pago'},{value:'isento',label:'Isento'}]}/></Field>
+          <Field label="Valor total (R$)"><Inp type="number" step="0.01" value={editF.total} onChange={e=>setEditF(p=>({...p,total:e.target.value}))}/></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Status reserva"><Sel value={editF.status} onChange={e=>setEditF(p=>({...p,status:e.target.value}))} options={[{value:'confirmed',label:'Confirmada'},{value:'completed',label:'Concluída'},{value:'cancelled',label:'Cancelada'}]}/></Field>
-          <Field label="Valor total (R$)"><Inp type="number" value={editF.total} onChange={e=>setEditF(p=>({...p,total:e.target.value}))}/></Field>
+          <Field label="Status pgto"><Sel value={editF.status_pgto} onChange={e=>setEditF(p=>({...p,status_pgto:e.target.value}))} options={[{value:'pendente',label:'Pendente'},{value:'pago',label:'Pago'},{value:'isento',label:'Isento'}]}/></Field>
         </div>
         <Field label="Observações"><textarea value={editF.observacoes} onChange={e=>setEditF(p=>({...p,observacoes:e.target.value}))} rows={2} placeholder="Detalhes..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"/></Field>
         <div className="flex gap-3 pt-1">

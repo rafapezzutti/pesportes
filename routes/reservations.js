@@ -283,7 +283,7 @@ router.patch('/:id/reschedule', anyAuth, async (req, res) => {
 
 // PUT /api/reservations/:id — edição completa (CRM)
 router.put('/:id', auth, crmOnly, async (req, res) => {
-  const { client_name, client_phone, client_email, payment_method, status, status_pgto, forma_pgto, total, observacoes } = req.body;
+  const { client_name, client_phone, client_email, payment_method, status, status_pgto, forma_pgto, total, observacoes, date, start_time, end_time, hours } = req.body;
   try {
     const { rows } = await pool.query(
       `UPDATE reservations SET
@@ -295,11 +295,16 @@ router.put('/:id', auth, crmOnly, async (req, res) => {
          status_pgto   = COALESCE($6, status_pgto),
          forma_pgto    = COALESCE($7, forma_pgto),
          total         = COALESCE($8, total),
-         observacoes   = $9
-       WHERE id=$10 RETURNING *`,
+         observacoes   = $9,
+         date          = COALESCE($10, date),
+         start_time    = COALESCE($11, start_time),
+         end_time      = COALESCE($12, end_time),
+         hours         = COALESCE($13, hours)
+       WHERE id=$14 RETURNING *`,
       [client_name||null, client_phone||null, client_email||null, payment_method||null,
        status||null, status_pgto||null, forma_pgto||null, total!=null?parseFloat(total):null,
-       observacoes||null, req.params.id]
+       observacoes||null, date||null, start_time||null, end_time||null,
+       hours!=null&&hours!==''?parseFloat(hours):null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Reserva não encontrada' });
     res.json(rows[0]);
