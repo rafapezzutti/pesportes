@@ -320,6 +320,10 @@ async function runMigrations() {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_wa_logs_est_created ON whatsapp_automation_logs(est_id, created_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_wa_logs_status      ON whatsapp_automation_logs(status, created_at DESC)`,
+    // mensalidade nos alunos
+    `ALTER TABLE alunos ADD COLUMN IF NOT EXISTS mensalidade_valor     NUMERIC(10,2)`,
+    `ALTER TABLE alunos ADD COLUMN IF NOT EXISTS mensalidade_vencimento DATE`,
+    `ALTER TABLE alunos ADD COLUMN IF NOT EXISTS mensalidade_aviso_em  TIMESTAMPTZ`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>

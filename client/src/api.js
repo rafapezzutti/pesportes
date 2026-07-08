@@ -236,10 +236,11 @@ export const impersonateApi = {
 
 // ── Alunos ────────────────────────────────────────────────────────
 export const alunoApi = {
-  list:   ()           => get('/alunos'),
-  create: (data)       => post('/alunos', data),
-  update: (id, data)   => put(`/alunos/${id}`, data),
-  remove: (id)         => del(`/alunos/${id}`),
+  list:             ()           => get('/alunos'),
+  create:           (data)       => post('/alunos', data),
+  update:           (id, data)   => put(`/alunos/${id}`, data),
+  remove:           (id)         => del(`/alunos/${id}`),
+  notificarVencidos:(alunoIds)   => post('/alunos/notificar-vencidos', alunoIds ? { alunoIds } : {}),
 };
 
 // ── Reservas Recorrentes ──────────────────────────────────────────
@@ -282,7 +283,7 @@ export const comissaoGerenteApi = {
   marcarPago:   (id, ate)   => req('PATCH', `/comissao-gerente/${id}/marcar-pago`, { ate }),
 };
 
-// ── Horários Livres ───────────────────────────────────────────────
+// ── Horários Livres ─────────────────────────────────────────────
 export const horariosLivresApi = {
   get: (params={}) => get('/horarios-livres?' + new URLSearchParams(params).toString()),
 };

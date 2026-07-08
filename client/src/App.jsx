@@ -2473,7 +2473,7 @@ function CRMAlunos({crmUser,showToast}){
   const [filtroAtivo,setFiltroAtivo]=useState('todos');
   const [page,setPage]=useState(0);
   const PAGE_SIZE=20;
-  const BLANK={nome:'',cpf:'',email:'',telefone:'',data_nascimento:'',est_id:'',professor_id:'',ativo:true};
+  const BLANK={nome:'',cpf:'',email:'',telefone:'',data_nascimento:'',est_id:'',professor_id:'',ativo:true,mensalidade_valor:'',mensalidade_vencimento:''};
   const [f,setF]=useState(BLANK);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
 
@@ -2497,7 +2497,9 @@ function CRMAlunos({crmUser,showToast}){
   const openEdit=(a)=>{
     setF({nome:a.nome||'',cpf:a.cpf||'',email:a.email||'',telefone:a.telefone||'',
           data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:'',
-          est_id:a.est_id||'',professor_id:a.professor_id||defaultProfId,ativo:a.ativo!==false});
+          est_id:a.est_id||'',professor_id:a.professor_id||defaultProfId,ativo:a.ativo!==false,
+          mensalidade_valor:a.mensalidade_valor!=null?String(a.mensalidade_valor):'',
+          mensalidade_vencimento:a.mensalidade_vencimento?a.mensalidade_vencimento.split('T')[0]:''});
     setEditA(a);setShowForm(true);
   };
 
@@ -2523,6 +2525,23 @@ function CRMAlunos({crmUser,showToast}){
       showToast('Aluno removido','info');setDelA(null);
     }catch(e){showToast(e.message,'error');}
   };
+  const [notifLoading,setNotifLoading]=useState(false);
+  const notificar=async(ids)=>{
+    if(!window.confirm(ids?'Enviar aviso de mensalidade por WhatsApp para este aluno?':'Enviar aviso por WhatsApp para TODOS os alunos com mensalidade vencida?'))return;
+    setNotifLoading(true);
+    try{const r=await alunoApi.notificarVencidos(ids||null);showToast(`WhatsApp enviado: ${r.sent} sucesso, ${r.failed} erro`,'success');load();}
+    catch(e){showToast(e.message||'Erro ao notificar','error');}
+    finally{setNotifLoading(false);}
+  };
+  const TODAY_STR=new Date().toISOString().split('T')[0];
+  const vencStatus=(a)=>{
+    if(!a.mensalidade_vencimento)return null;
+    const v=a.mensalidade_vencimento.split('T')[0];
+    if(v<TODAY_STR)return'vencida';
+    const d7=new Date();d7.setDate(d7.getDate()+7);
+    if(new Date(v)<=d7)return'vence_breve';
+    return'em_dia';
+  };
 
   if(loading)return<Spinner/>;
 
@@ -2537,12 +2556,13 @@ function CRMAlunos({crmUser,showToast}){
     <div className="mb-4 flex gap-3 flex-wrap">
       <div className="flex-1 min-w-48"><Inp value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="🔍 Filtrar por nome..."/></div>
       <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-medium">
-        {[['todos','Todos'],['ativo','✅ Ativos'],['inativo','❌ Inativos']].map(([v,l])=><button key={v} onClick={()=>{setFiltroAtivo(v);setPage(0);}} className={`px-3 py-2 ${filtroAtivo===v?'bg-emerald-600 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>)}
+        {[['todos','Todos'],['ativo','✅ Ativos'],['inativo','❌ Inativos'],['vencida','🔴 Mens. Vencida']].map(([v,l])=><button key={v} onClick={()=>{setFiltroAtivo(v);setPage(0);}} className={`px-3 py-2 ${filtroAtivo===v?'bg-emerald-600 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>)}
       </div>
+      <Btn variant="secondary" size="sm" disabled={notifLoading} onClick={()=>notificar(null)}>📲 Avisar vencidos</Btn>
     </div>
 
     {(()=>{
-      const filtered=alunos.filter(a=>{if(search&&!a.nome.toLowerCase().includes(search.toLowerCase()))return false;if(filtroAtivo==='ativo'&&a.ativo===false)return false;if(filtroAtivo==='inativo'&&a.ativo!==false)return false;return true;});
+      const filtered=alunos.filter(a=>{if(search&&!a.nome.toLowerCase().includes(search.toLowerCase()))return false;if(filtroAtivo==='ativo'&&a.ativo===false)return false;if(filtroAtivo==='inativo'&&a.ativo!==false)return false;if(filtroAtivo==='vencida'&&vencStatus(a)!=='vencida')return false;return true;});
       const totalPages=Math.ceil(filtered.length/PAGE_SIZE);
       const paged=filtered.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
       if(alunos.length===0)return<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎽</p><p className="text-lg">Nenhum aluno cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro aluno</Btn></div>;
@@ -2552,7 +2572,7 @@ function CRMAlunos({crmUser,showToast}){
             <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Professor','Status','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
+                <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Professor','Mensalidade','Status','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {paged.map(a=><tr key={a.id} className={`hover:bg-gray-50 ${a.ativo===false?'opacity-60':''}`}>
@@ -2564,8 +2584,10 @@ function CRMAlunos({crmUser,showToast}){
                   <td className="px-4 py-3 text-gray-500">{a.est_name||'—'}</td>
                   <td className="px-4 py-3 text-gray-500">{a.professor_id?(profs.find(p=>p.id===a.professor_id)?.nome||'—'):'—'}</td>
                   <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${a.ativo!==false?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}`}>{a.ativo!==false?'Ativo':'Inativo'}</span></td>
+                  <td className="px-4 py-3">{(()=>{const vs=vencStatus(a);if(!vs)return<span className="text-gray-300 text-xs">—</span>;const vd=a.mensalidade_vencimento?.split('T')[0];const val=a.mensalidade_valor?` ${fmt$(a.mensalidade_valor)}`:'';if(vs==='vencida')return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">🔴 Vencida{val}</span><p className="text-xs text-gray-400 mt-0.5">venc. {vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;if(vs==='vence_breve')return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">🟡 Vence em breve{val}</span><p className="text-xs text-gray-400 mt-0.5">venc. {vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">🟢 Em dia{val}</span><p className="text-xs text-gray-400 mt-0.5">venc. {vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;})()}</td>
                   <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
                     <Btn variant="secondary" size="sm" onClick={()=>openEdit(a)}>Editar</Btn>
+                    {vencStatus(a)==='vencida'&&a.telefone&&<Btn size="sm" onClick={()=>notificar([a.id])} disabled={notifLoading} style={{background:'#25D366',color:'white',border:'none'}}>📲</Btn>}
                     <Btn variant="danger" size="sm" onClick={()=>setDelA(a)}>Excluir</Btn>
                   </div></td>
                 </tr>)}
@@ -2599,6 +2621,13 @@ function CRMAlunos({crmUser,showToast}){
         <Field label="Estabelecimento"><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione (opcional)"/></Field>
         {(crmUser?.role==='admin'||crmUser?.role==='manager')&&profs.length>0&&<Field label="Professor responsável"><Sel value={f.professor_id} onChange={e=>upd('professor_id',e.target.value)} options={profs.map(p=>({value:p.id,label:p.nome+(p.est_name?' — '+p.est_name:'')}))} placeholder="Selecione (opcional)"/></Field>}
         {isProfessor&&<div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm text-blue-700">🎓 Aluno será vinculado ao seu perfil de professor</div>}
+        <div className="border-t border-gray-100 pt-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Mensalidade</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Valor (R$)"><Inp type="number" step="0.01" value={f.mensalidade_valor} onChange={e=>upd('mensalidade_valor',e.target.value)} placeholder="ex: 150,00"/></Field>
+            <Field label="Próximo vencimento"><Inp type="date" value={f.mensalidade_vencimento} onChange={e=>upd('mensalidade_vencimento',e.target.value)}/></Field>
+          </div>
+        </div>
         <div className="flex items-center gap-3 py-1 border-t border-gray-100 mt-1">
           <input type="checkbox" id="ativo-chk" checked={f.ativo!==false} onChange={e=>upd('ativo',e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded"/>
           <label htmlFor="ativo-chk" className="text-sm font-medium text-gray-700 cursor-pointer">Aluno ativo</label>
