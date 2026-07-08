@@ -213,11 +213,34 @@ router.get('/contas-a-receber', auth, crmOnly, async (req, res) => {
       }
     }
 
-    const { params: p2, ws: w2 } = scopeWhere('pl', 'data_inicio');
+    // Planos de aula: usa lógica de sobreposição para planos recorrentes
+    // (avulso: data_inicio no período; recorrente: ativo durante o período)
+    const p2 = [];
+    const w2parts = [];
+    if (req.user.role === 'manager' && req.user.est_ids?.length) {
+      p2.push(req.user.est_ids); w2parts.push(`(pl.est_id = ANY($${p2.length}) OR pl.est_id IS NULL)`);
+    } else if (req.user.role === 'simples' && req.user.est_id) {
+      p2.push(req.user.est_id); w2parts.push(`(pl.est_id = $${p2.length} OR pl.est_id IS NULL)`);
+    }
+    if (estId) { p2.push(estId); w2parts.push(`pl.est_id = $${p2.length}`); }
+    if (from && to) {
+      p2.push(from); const fi = p2.length;
+      p2.push(to);   const ti = p2.length;
+      w2parts.push(
+        `((COALESCE(pl.tipo_plano,'avulso')='avulso' AND pl.data_inicio >= $${fi} AND pl.data_inicio <= $${ti})` +
+        ` OR (COALESCE(pl.tipo_plano,'avulso')<>'avulso' AND pl.data_inicio <= $${ti} AND (pl.data_fim IS NULL OR pl.data_fim >= $${fi})))`
+      );
+    } else if (from) {
+      p2.push(from); w2parts.push(`pl.data_inicio >= $${p2.length}`);
+    } else if (to) {
+      p2.push(to); w2parts.push(`pl.data_inicio <= $${p2.length}`);
+    }
+    if (status) { p2.push(status); w2parts.push(`COALESCE(pl.status_pgto,'pendente') = $${p2.length}`); }
+    const w2 = w2parts.length ? 'WHERE ' + w2parts.join(' AND ') : '';
     const { rows: aulas } = await pool.query(
       `SELECT pl.id, 'aula' AS tipo, pl.nome_aluno AS cliente, pl.data_inicio AS data,
               pl.valor AS total, pl.status_pgto, pl.forma_pgto, e.name AS est_name,
-              COALESCE(pl.tipo, 'avulso') AS subtipo
+              COALESCE(pl.tipo_plano, pl.tipo, 'avulso') AS subtipo
        FROM planos_aula pl
        LEFT JOIN establishments e ON pl.est_id = e.id
        ${w2} ORDER BY pl.data_inicio DESC`, p2).catch(e => { console.error('[contas-a-receber] aulas query:', e.message); return { rows: [] }; });

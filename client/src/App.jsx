@@ -3702,7 +3702,7 @@ function CRMFinanceiro({crmUser,showToast}){
                 <td className="px-4 py-2.5 text-gray-500">{a.data?fmtDate(a.data.split('T')[0]):'—'}</td>
                 <td className="px-4 py-2.5 text-gray-500">{a.est_name||'—'}</td>
                 <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(a.total)}</td>
-                <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[a.status_pgto||'pendente']}`}>{a.status_pgto||'pendente'}</span></td>
+                <td className="px-4 py-2.5"><select value={a.status_pgto||'pendente'} onChange={async e=>{await contasApi.updatePgto('aula',a.id,{status_pgto:e.target.value}).catch(()=>{});const p={aluno_nome:selAluno};if(selMes)p.mes=selMes;if(selResumoStatus)p.status_pgto=selResumoStatus;contasApi.resumoAluno(p).then(setResumo).catch(()=>{});}} className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-400 ${PGTO_STATUS_BADGE[a.status_pgto||'pendente']}`}>{PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
               </tr>)}
             </tbody></table></div>
           </div>}
@@ -3716,7 +3716,7 @@ function CRMFinanceiro({crmUser,showToast}){
                 <td className="px-4 py-2.5 text-gray-500">{r.data?fmtDate(r.data.split('T')[0]):'—'} {r.start_time&&`${r.start_time}–${r.end_time}`}</td>
                 <td className="px-4 py-2.5 text-gray-500">{r.est_name||'—'}</td>
                 <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(r.total)}</td>
-                <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[r.status_pgto||'pendente']}`}>{r.status_pgto||'pendente'}</span></td>
+                <td className="px-4 py-2.5"><select value={r.status_pgto||'pendente'} onChange={async e=>{await contasApi.updatePgto('reserva',r.id,{status_pgto:e.target.value}).catch(()=>{});const p={aluno_nome:selAluno};if(selMes)p.mes=selMes;if(selResumoStatus)p.status_pgto=selResumoStatus;contasApi.resumoAluno(p).then(setResumo).catch(()=>{});}} className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-400 ${PGTO_STATUS_BADGE[r.status_pgto||'pendente']}`}>{PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
               </tr>)}
             </tbody></table></div>
           </div>}
@@ -3730,7 +3730,7 @@ function CRMFinanceiro({crmUser,showToast}){
                 <td className="px-4 py-2.5 text-gray-500">{b.data?fmtDate(b.data.split('T')[0]):'—'}</td>
                 <td className="px-4 py-2.5 text-gray-500">{b.est_name||'—'}</td>
                 <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(b.total)}</td>
-                <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[b.status_pgto||'pendente']}`}>{b.status_pgto||'pendente'}</span></td>
+                <td className="px-4 py-2.5"><select value={b.status_pgto||'pendente'} onChange={async e=>{await contasApi.updatePgto('bar',b.id,{status_pgto:e.target.value}).catch(()=>{});const p={aluno_nome:selAluno};if(selMes)p.mes=selMes;if(selResumoStatus)p.status_pgto=selResumoStatus;contasApi.resumoAluno(p).then(setResumo).catch(()=>{});}} className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-400 ${PGTO_STATUS_BADGE[b.status_pgto||'pendente']}`}>{PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
               </tr>)}
             </tbody></table></div>
           </div>}
@@ -3744,12 +3744,12 @@ function CRMFinanceiro({crmUser,showToast}){
                 <td className="px-4 py-2.5 text-gray-500">{m.data?fmtDate(m.data.split('T')[0]):'—'}</td>
                 <td className="px-4 py-2.5 text-gray-500">{m.est_name||'—'}</td>
                 <td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(m.total)}</td>
-                <td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[m.status_pgto||'pendente']}`}>{m.status_pgto||'pendente'}</span></td>
+                <td className="px-4 py-2.5"><select value={m.status_pgto||'pendente'} onChange={async e=>{await contasApi.updatePgto('manutencao',m.id,{status_pgto:e.target.value}).catch(()=>{});const p={aluno_nome:selAluno};if(selMes)p.mes=selMes;if(selResumoStatus)p.status_pgto=selResumoStatus;contasApi.resumoAluno(p).then(setResumo).catch(()=>{});}} className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-400 ${PGTO_STATUS_BADGE[m.status_pgto||'pendente']}`}>{PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
               </tr>)}
             </tbody></table></div>
           </div>}
 
-          {resumo.rankings?.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4"><div className="px-4 py-3 bg-cyan-50 border-b border-cyan-100"><h3 className="font-bold text-cyan-700 text-sm">🏆 Ranking ({resumo.rankings.length})</h3></div><div className="overflow-x-auto"><table className="w-full text-sm"><tbody className="divide-y divide-gray-50">{resumo.rankings.map(rk=><tr key={rk.id} className="hover:bg-gray-50"><td className="px-4 py-2.5 text-gray-600">Mensal</td><td className="px-4 py-2.5 text-gray-500">{rk.data?fmtDate(rk.data.split('T')[0]):'—'}</td><td className="px-4 py-2.5 text-gray-500">{rk.est_name||'—'}</td><td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(rk.total)}</td><td className="px-4 py-2.5"><span className={`text-xs font-semibold px-2 py-0.5 rounded ${PGTO_STATUS_BADGE[rk.status_pgto||'pendente']}`}>{rk.status_pgto||'pendente'}</span></td></tr>)}</tbody></table></div></div>}
+          {resumo.rankings?.length>0&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4"><div className="px-4 py-3 bg-cyan-50 border-b border-cyan-100"><h3 className="font-bold text-cyan-700 text-sm">🏆 Ranking ({resumo.rankings.length})</h3></div><div className="overflow-x-auto"><table className="w-full text-sm"><tbody className="divide-y divide-gray-50">{resumo.rankings.map(rk=><tr key={rk.id} className="hover:bg-gray-50"><td className="px-4 py-2.5 text-gray-600">Mensal</td><td className="px-4 py-2.5 text-gray-500">{rk.data?fmtDate(rk.data.split('T')[0]):'—'}</td><td className="px-4 py-2.5 text-gray-500">{rk.est_name||'—'}</td><td className="px-4 py-2.5 font-semibold text-gray-800 text-right">{fmt$(rk.total)}</td><td className="px-4 py-2.5"><select value={rk.status_pgto||'pendente'} onChange={async e=>{await contasApi.updatePgto('ranking',rk.id,{status_pgto:e.target.value}).catch(()=>{});const p={aluno_nome:selAluno};if(selMes)p.mes=selMes;if(selResumoStatus)p.status_pgto=selResumoStatus;contasApi.resumoAluno(p).then(setResumo).catch(()=>{});}} className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-400 ${PGTO_STATUS_BADGE[rk.status_pgto||'pendente']}`}>{PGTO_STATUS_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td></tr>)}</tbody></table></div></div>}
           {resumo.aulas.length===0&&resumo.reservas.length===0&&resumo.bar.length===0&&!(resumo.manutencao?.length>0)&&!(resumo.rankings?.length>0)&&
             <div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🔍</p>
             <p>{resumo.modo==='pendencias_gerais'?<>Nenhuma pendência encontrada para <strong>{resumo.aluno_nome}</strong>. Tudo em dia! ✅</>:<>Nenhum registro para <strong>{resumo.aluno_nome}</strong> em {new Date((resumo.mes||selMes)+'-15').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</>}</p></div>}
