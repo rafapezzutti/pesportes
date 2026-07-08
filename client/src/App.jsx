@@ -3378,11 +3378,14 @@ function CRMFinanceiro({crmUser,showToast}){
   const loadRep  =useCallback(()=>{repasseApi.list({from,to}).then(setRep).catch(()=>{});},[from,to]);
   const loadProj =useCallback(()=>{financeApi.projecao({saldoInicial:parseFloat(saldoIni)||0}).then(setProj).catch(()=>{});},[saldoIni]);
   const loadComissao=useCallback(()=>{comissaoGerenteApi.list({from,to}).then(setComissao).catch(()=>{});},[from,to]);
-  const loadContas=useCallback(()=>{
+  const loadContas=useCallback((clienteOverride)=>{
     setContasLoading(true);
-    const p={from,to};if(contasFiltStatus)p.status=contasFiltStatus;
+    const cliente=clienteOverride!==undefined?clienteOverride:contasFiltCliente;
+    // Se há filtro de cliente ativo, busca TODO o histórico (sem filtro de data)
+    const p=cliente?{}:{from,to};
+    if(contasFiltStatus)p.status=contasFiltStatus;
     contasApi.list(p).then(setContas).catch(()=>setContas([])).finally(()=>setContasLoading(false));
-  },[from,to,contasFiltStatus]);
+  },[from,to,contasFiltStatus,contasFiltCliente]);
 
   useEffect(()=>{
     if(tab==='fluxo')loadFluxo();
@@ -3544,9 +3547,10 @@ function CRMFinanceiro({crmUser,showToast}){
         </div>
         <div className="w-56">
           <p className="text-xs text-gray-400 mb-1 font-medium">Filtrar por cliente</p>
-          <input value={contasFiltCliente} onChange={e=>{setContasFiltCliente(e.target.value);setContasPage(0);}} placeholder="Nome do cliente..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"/>
+          <input value={contasFiltCliente} onChange={e=>{const v=e.target.value;setContasFiltCliente(v);setContasPage(0);loadContas(v);}} placeholder="Nome do cliente..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"/>
         </div>
-        <Btn variant="secondary" size="sm" onClick={loadContas}>🔄 Atualizar</Btn>
+        <Btn variant="secondary" size="sm" onClick={()=>loadContas()}>🔄 Atualizar</Btn>
+        {contasFiltCliente&&<span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">📅 Período ignorado — mostrando todo o histórico de "{contasFiltCliente}"</span>}
         {(()=>{const cf=contas.filter(c=>!contasFiltCliente||((c.cliente||'').toLowerCase().includes(contasFiltCliente.toLowerCase())));return<div className="ml-auto text-sm text-gray-500">{cf.length} registro{cf.length!==1?'s':''} •{' '}<strong className="text-emerald-700">{fmt$(cf.reduce((s,c)=>s+Number(c.total),0))}</strong></div>;})()}
       </div>
       {contasLoading?<Spinner/>:(()=>{
