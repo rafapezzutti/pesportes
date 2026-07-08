@@ -64,7 +64,7 @@ export const estApi = {
 export const pointApi = {
   list:    (estId)        => get(`/points${estId ? `?estId=${estId}` : ''}`),
   get:     (id)           => get(`/points/${id}`),
-  slots:   (id, date)     => get(`/points/${id}/slots?date=${date}`),
+  slots:   (id, date, crm) => get(`/points/${id}/slots?date=${date}${crm ? '&crm=1' : ''}`),
   create:  (data)         => post('/points', data),
   update:  (id, data)     => put(`/points/${id}`, data),
   remove:  (id)           => del(`/points/${id}`),

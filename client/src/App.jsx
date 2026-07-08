@@ -182,7 +182,7 @@ function EstDetail({estId,points,navigate,publicUser,onReserve}){
   useEffect(()=>{
     if(!selPt||!selDate){setSlots([]);return;}
     setSlotsLoading(true);
-    pointApi.slots(selPt.id,selDate).then(setSlots).catch(()=>setSlots([])).finally(()=>setSlotsLoading(false));
+    pointApi.slots(selPt.id,selDate,true).then(setSlots).catch(()=>setSlots([])).finally(()=>setSlotsLoading(false));
     setSelSlots([]);
   },[selPt,selDate]);
 
@@ -352,7 +352,7 @@ function MyReservations({publicUser,navigate,showToast}){
   useEffect(()=>{
     if(!reschRes||!newDate)return;
     setRSlotsLoading(true);
-    pointApi.slots(reschRes.point_id,newDate).then(d=>{setRSlots(d.slots||d);setRSlotInterval(d.interval||60);}).catch(()=>setRSlots([])).finally(()=>setRSlotsLoading(false));
+    pointApi.slots(reschRes.point_id,newDate,true).then(d=>{setRSlots(d.slots||d);setRSlotInterval(d.interval||60);}).catch(()=>setRSlots([])).finally(()=>setRSlotsLoading(false));
     setNewSlots([]);
   },[reschRes,newDate]);
 
@@ -1727,7 +1727,7 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
 
   useEffect(()=>{
     if(!pointId||!date){setSlots([]);setSelSlots([]);return;}
-    pointApi.slots(pointId,date).then(data=>{setSlotRInterval(data.interval||60);setSlots((data.slots||data).filter(x=>x.available).map(x=>x.time));}).catch(()=>setSlots([]));
+    pointApi.slots(pointId,date,true).then(data=>{setSlotRInterval(data.interval||60);setSlots((data.slots||data).filter(x=>x.available).map(x=>x.time));}).catch(()=>setSlots([]));
     setSelSlots([]);
   },[pointId,date]);
 
@@ -1966,7 +1966,7 @@ function CRMReservations({showToast,crmUser}){
 
   useEffect(()=>{
     if(!reschRes||!newDate)return;
-    pointApi.slots(reschRes.point_id,newDate).then(d=>{setRSlots(d.slots||d);setRSlotIntervalM(d.interval||60);}).catch(()=>setRSlots([]));
+    pointApi.slots(reschRes.point_id,newDate,true).then(d=>{setRSlots(d.slots||d);setRSlotIntervalM(d.interval||60);}).catch(()=>setRSlots([]));
     setNewSlots([]);
   },[reschRes,newDate]);
 
@@ -1991,7 +1991,7 @@ function CRMReservations({showToast,crmUser}){
   },[mb.estId]);
   useEffect(()=>{
     if(!mb.pointId||!mb.date){setMbSlots([]);updMb('slots',[]);return;}
-    pointApi.slots(mb.pointId,mb.date).then(d=>{setMbSlots(d.slots||d);setMbSlotInterval(d.interval||60);}).catch(()=>setMbSlots([]));
+    pointApi.slots(mb.pointId,mb.date,true).then(d=>{setMbSlots(d.slots||d);setMbSlotInterval(d.interval||60);}).catch(()=>setMbSlots([]));
     updMb('slots',[]);
   },[mb.pointId,mb.date]);
   // Preenche valor/hora padrão do ponto ao selecioná-lo
