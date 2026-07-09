@@ -2471,6 +2471,8 @@ function CRMAlunos({crmUser,showToast}){
   const [delA,setDelA]=useState(null);
   const [search,setSearch]=useState('');
   const [filtroAtivo,setFiltroAtivo]=useState('todos');
+  const [filtroProfessor,setFiltroProfessor]=useState('');
+  const [selected,setSelected]=useState(new Set());
   const [page,setPage]=useState(0);
   const PAGE_SIZE=20;
   const BLANK={nome:'',cpf:'',email:'',telefone:'',data_nascimento:'',est_id:'',professor_id:'',ativo:true,mensalidade_valor:'',mensalidade_vencimento:''};
@@ -2526,10 +2528,11 @@ function CRMAlunos({crmUser,showToast}){
     }catch(e){showToast(e.message,'error');}
   };
   const [notifLoading,setNotifLoading]=useState(false);
-  const notificar=async(ids)=>{
-    if(!window.confirm(ids?'Enviar aviso de mensalidade por WhatsApp para este aluno?':'Enviar aviso por WhatsApp para TODOS os alunos com mensalidade vencida?'))return;
+  const notificar=async(ids, force=false)=>{
+    const msg=force&&ids?`Enviar cobrança por WhatsApp para ${ids.length} aluno${ids.length!==1?'s':''}?`:ids?'Enviar aviso de mensalidade por WhatsApp para este aluno?':'Enviar aviso por WhatsApp para TODOS os alunos com mensalidade vencida?';
+    if(!window.confirm(msg))return;
     setNotifLoading(true);
-    try{const r=await alunoApi.notificarVencidos(ids||null);showToast(`WhatsApp enviado: ${r.sent} sucesso, ${r.failed} erro`,'success');load();}
+    try{const r=await alunoApi.notificarVencidos(ids||null,force);showToast(`WhatsApp enviado: ${r.sent} sucesso, ${r.failed} erro`,'success');load();setSelected(new Set());}
     catch(e){showToast(e.message||'Erro ao notificar','error');}
     finally{setNotifLoading(false);}
   };
@@ -2553,16 +2556,25 @@ function CRMAlunos({crmUser,showToast}){
     </div>
 
     {/* Search + filter */}
-    <div className="mb-4 flex gap-3 flex-wrap">
-      <div className="flex-1 min-w-48"><Inp value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="🔍 Filtrar por nome..."/></div>
+    <div className="mb-3 flex gap-3 flex-wrap">
+      <div className="flex-1 min-w-48"><Inp value={search} onChange={e=>{setSearch(e.target.value);setPage(0);setSelected(new Set());}} placeholder="🔍 Filtrar por nome..."/></div>
+      {profs.length>0&&<select value={filtroProfessor} onChange={e=>{setFiltroProfessor(e.target.value);setPage(0);setSelected(new Set());}} className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
+        <option value="">👤 Todos os professores</option>
+        {profs.map(p=><option key={p.id} value={String(p.id)}>{p.nome}</option>)}
+        <option value="sem_professor">— Sem professor</option>
+      </select>}
       <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-medium">
-        {[['todos','Todos'],['ativo','✅ Ativos'],['inativo','❌ Inativos'],['vencida','🔴 Mens. Vencida']].map(([v,l])=><button key={v} onClick={()=>{setFiltroAtivo(v);setPage(0);}} className={`px-3 py-2 ${filtroAtivo===v?'bg-emerald-600 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>)}
+        {[['todos','Todos'],['ativo','✅ Ativos'],['inativo','❌ Inativos'],['vencida','🔴 Mens. Vencida']].map(([v,l])=><button key={v} onClick={()=>{setFiltroAtivo(v);setPage(0);setSelected(new Set());}} className={`px-3 py-2 ${filtroAtivo===v?'bg-emerald-600 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>)}
       </div>
+    </div>
+    <div className="mb-4 flex gap-3 flex-wrap items-center">
       <Btn variant="secondary" size="sm" disabled={notifLoading} onClick={()=>notificar(null)}>📲 Avisar vencidos</Btn>
+      {selected.size>0&&<Btn size="sm" disabled={notifLoading} onClick={()=>notificar([...selected],true)} style={{background:'#25D366',color:'white',border:'none'}}>📲 Enviar para selecionados ({selected.size})</Btn>}
+      {selected.size>0&&<button onClick={()=>setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-600">✕ Limpar seleção</button>}
     </div>
 
     {(()=>{
-      const filtered=alunos.filter(a=>{if(search&&!a.nome.toLowerCase().includes(search.toLowerCase()))return false;if(filtroAtivo==='ativo'&&a.ativo===false)return false;if(filtroAtivo==='inativo'&&a.ativo!==false)return false;if(filtroAtivo==='vencida'&&vencStatus(a)!=='vencida')return false;return true;});
+      const filtered=alunos.filter(a=>{if(search&&!a.nome.toLowerCase().includes(search.toLowerCase()))return false;if(filtroAtivo==='ativo'&&a.ativo===false)return false;if(filtroAtivo==='inativo'&&a.ativo!==false)return false;if(filtroAtivo==='vencida'&&vencStatus(a)!=='vencida')return false;if(filtroProfessor==='sem_professor'&&a.professor_id)return false;if(filtroProfessor&&filtroProfessor!=='sem_professor'&&String(a.professor_id)!==filtroProfessor)return false;return true;});
       const totalPages=Math.ceil(filtered.length/PAGE_SIZE);
       const paged=filtered.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
       if(alunos.length===0)return<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎽</p><p className="text-lg">Nenhum aluno cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro aluno</Btn></div>;
@@ -2572,25 +2584,26 @@ function CRMAlunos({crmUser,showToast}){
             <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>{['Nome','CPF','Email','Telefone','Aniversário','Estabelecimento','Professor','Mensalidade','Status','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
+                <tr>
+                  <th className="px-3 py-3 w-8"><input type="checkbox" className="w-4 h-4 accent-emerald-600 rounded" checked={paged.length>0&&paged.every(a=>selected.has(a.id))} onChange={e=>{const next=new Set(selected);paged.forEach(a=>e.target.checked?next.add(a.id):next.delete(a.id));setSelected(next);}}/></th>
+                  {['Nome','Telefone','Estabelecimento','Professor','Mensalidade','Status','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}
+                </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {paged.map(a=><tr key={a.id} className={`hover:bg-gray-50 ${a.ativo===false?'opacity-60':''}`}>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{a.nome}</td>
-                  <td className="px-4 py-3 text-gray-500">{a.cpf||'—'}</td>
-                  <td className="px-4 py-3 text-gray-500">{a.email||'—'}</td>
-                  <td className="px-4 py-3 text-gray-500">{a.telefone||'—'}</td>
-                  <td className="px-4 py-3 text-gray-500">{a.data_nascimento?fmtDate(a.data_nascimento):'—'}</td>
-                  <td className="px-4 py-3 text-gray-500">{a.est_name||'—'}</td>
-                  <td className="px-4 py-3 text-gray-500">{a.professor_id?(profs.find(p=>p.id===a.professor_id)?.nome||'—'):'—'}</td>
+                {paged.map(a=>{const vs=vencStatus(a);return<tr key={a.id} className={`hover:bg-gray-50 ${a.ativo===false?'opacity-60':''} ${selected.has(a.id)?'bg-emerald-50':''}`}>
+                  <td className="px-3 py-3"><input type="checkbox" className="w-4 h-4 accent-emerald-600 rounded" checked={selected.has(a.id)} onChange={e=>{const next=new Set(selected);e.target.checked?next.add(a.id):next.delete(a.id);setSelected(next);}}/></td>
+                  <td className="px-4 py-3"><p className="font-semibold text-gray-800">{a.nome}</p>{a.email&&<p className="text-xs text-gray-400">{a.email}</p>}</td>
+                  <td className="px-4 py-3 text-gray-500 text-sm">{a.telefone||'—'}</td>
+                  <td className="px-4 py-3 text-gray-500 text-sm">{a.est_name||'—'}</td>
+                  <td className="px-4 py-3 text-gray-500 text-sm">{a.professor_id?(profs.find(p=>p.id===a.professor_id)?.nome||'—'):'—'}</td>
+                  <td className="px-4 py-3">{(()=>{const vd=a.mensalidade_vencimento?.split('T')[0];const val=a.mensalidade_valor?` ${fmt$(a.mensalidade_valor)}`:'';if(!vs)return<span className="text-gray-300 text-xs">—</span>;if(vs==='vencida')return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">🔴 Vencida{val}</span><p className="text-xs text-gray-400 mt-0.5">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;if(vs==='vence_breve')return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">🟡 Vence em breve{val}</span><p className="text-xs text-gray-400 mt-0.5">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">🟢 Em dia{val}</span><p className="text-xs text-gray-400 mt-0.5">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;})()}</td>
                   <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${a.ativo!==false?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}`}>{a.ativo!==false?'Ativo':'Inativo'}</span></td>
-                  <td className="px-4 py-3">{(()=>{const vs=vencStatus(a);if(!vs)return<span className="text-gray-300 text-xs">—</span>;const vd=a.mensalidade_vencimento?.split('T')[0];const val=a.mensalidade_valor?` ${fmt$(a.mensalidade_valor)}`:'';if(vs==='vencida')return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">🔴 Vencida{val}</span><p className="text-xs text-gray-400 mt-0.5">venc. {vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;if(vs==='vence_breve')return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">🟡 Vence em breve{val}</span><p className="text-xs text-gray-400 mt-0.5">venc. {vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">🟢 Em dia{val}</span><p className="text-xs text-gray-400 mt-0.5">venc. {vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;})()}</td>
                   <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
                     <Btn variant="secondary" size="sm" onClick={()=>openEdit(a)}>Editar</Btn>
-                    {vencStatus(a)==='vencida'&&a.telefone&&<Btn size="sm" onClick={()=>notificar([a.id])} disabled={notifLoading} style={{background:'#25D366',color:'white',border:'none'}}>📲</Btn>}
+                    {a.telefone&&<Btn size="sm" onClick={()=>notificar([a.id],vs!=='vencida')} disabled={notifLoading} title={vs==='vencida'?'Avisar mensalidade vencida':'Enviar cobrança'} style={{background:'#25D366',color:'white',border:'none'}}>📲</Btn>}
                     <Btn variant="danger" size="sm" onClick={()=>setDelA(a)}>Excluir</Btn>
                   </div></td>
-                </tr>)}
+                </tr>;})}
               </tbody>
             </table>
             </div>
@@ -3354,8 +3367,16 @@ function CRMFinanceiro({crmUser,showToast}){
   const [contasLoading,setContasLoading]=useState(false);
   const [contasFiltStatus,setContasFiltStatus]=useState('');
   const [contasFiltCliente,setContasFiltCliente]=useState('');
+  const [contasFiltTipo,setContasFiltTipo]=useState('todos');
   const [contasPage,setContasPage]=useState(0);
   const CONTAS_PER_PAGE=20;
+  // mensalidades por professor
+  const [mensProfs,setMensProfs]=useState([]);
+  const [mensAlunos,setMensAlunos]=useState([]);
+  const [mensLoading,setMensLoading]=useState(false);
+  const [mensSearch,setMensSearch]=useState('');
+  const [mensFiltroProfId,setMensFiltroProfId]=useState('');
+  const [mensSaving,setMensSaving]=useState(null);
   // resumo por aluno
   const [alunos,setAlunos]=useState([]);
   // relatório de alunos
@@ -3396,6 +3417,13 @@ function CRMFinanceiro({crmUser,showToast}){
     if(tab==='contas')loadContas();
     if(tab==='resumo')contasApi.clientesFinanceiros().then(nomes=>setAlunos(nomes.map(n=>({nome:n})))).catch(()=>{});
     if(tab==='rel-alunos'){setRelAlunosLoading(true);alunoApi.list().then(setRelAlunos).catch(()=>setRelAlunos([])).finally(()=>setRelAlunosLoading(false));}
+    if(tab==='mensalidades'){
+      setMensLoading(true);
+      Promise.all([alunoApi.list(),professorApi.list()])
+        .then(([a,p])=>{setMensAlunos(a.filter(al=>al.ativo!==false));setMensProfs(p);})
+        .catch(()=>{})
+        .finally(()=>setMensLoading(false));
+    }
   },[tab,loadFluxo,loadExps,loadRep,loadProj,loadComissao,loadContas]);
 
   const saveExp=async()=>{
@@ -3433,7 +3461,7 @@ function CRMFinanceiro({crmUser,showToast}){
 
     {/* tabs */}
     <div className="border-b border-gray-200 mb-5"><nav className="flex gap-1 flex-wrap">
-      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'projecao',l:'Projeção'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'},{k:'contas',l:'💳 Contas a Receber'},{k:'resumo',l:'📋 Resumo por Aluno'},{k:'comissao',l:'🏷️ Comissão Gerente'},{k:'rel-alunos',l:'👥 Alunos'}].map(t=>
+      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'projecao',l:'Projeção'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'},{k:'contas',l:'💳 Contas a Receber'},{k:'mensalidades',l:'📅 Mensalidades'},{k:'resumo',l:'📋 Resumo por Aluno'},{k:'comissao',l:'🏷️ Comissão Gerente'},{k:'rel-alunos',l:'👥 Alunos'}].map(t=>
         <button key={t.k} onClick={()=>setTab(t.k)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${tab===t.k?'border-emerald-600 text-emerald-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>{t.l}</button>)}
     </nav></div>
 
@@ -3537,6 +3565,12 @@ function CRMFinanceiro({crmUser,showToast}){
             </div>)}
         </div>;
       })()}
+      {/* sub-filtro tipo */}
+      <div className="flex gap-2 mb-3">
+        {[['todos','📊 Todos'],['reserva','🏟️ Aluguéis'],['aula','🎓 Aulas/Planos']].map(([v,l])=>(
+          <button key={v} onClick={()=>{setContasFiltTipo(v);setContasPage(0);}} className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${contasFiltTipo===v?'bg-emerald-600 text-white border-emerald-600':'bg-white text-gray-600 border-gray-200 hover:border-emerald-400'}`}>{l}</button>
+        ))}
+      </div>
       <div className="flex flex-wrap gap-3 items-end mb-4">
         <div className="w-48">
           <p className="text-xs text-gray-400 mb-1 font-medium">Filtrar por status</p>
@@ -3551,10 +3585,10 @@ function CRMFinanceiro({crmUser,showToast}){
         </div>
         <Btn variant="secondary" size="sm" onClick={()=>loadContas()}>🔄 Atualizar</Btn>
         {contasFiltCliente&&<span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">📅 Período ignorado — mostrando todo o histórico de "{contasFiltCliente}"</span>}
-        {(()=>{const cf=contas.filter(c=>!contasFiltCliente||((c.cliente||'').toLowerCase().includes(contasFiltCliente.toLowerCase())));return<div className="ml-auto text-sm text-gray-500">{cf.length} registro{cf.length!==1?'s':''} •{' '}<strong className="text-emerald-700">{fmt$(cf.reduce((s,c)=>s+Number(c.total),0))}</strong></div>;})()}
+        {(()=>{const cf=contas.filter(c=>{if(contasFiltCliente&&!(c.cliente||'').toLowerCase().includes(contasFiltCliente.toLowerCase()))return false;if(contasFiltTipo==='reserva'&&c.tipo!=='reserva')return false;if(contasFiltTipo==='aula'&&c.tipo!=='aula')return false;return true;});return<div className="ml-auto text-sm text-gray-500">{cf.length} registro{cf.length!==1?'s':''} •{' '}<strong className="text-emerald-700">{fmt$(cf.reduce((s,c)=>s+Number(c.total),0))}</strong></div>;})()}
       </div>
       {contasLoading?<Spinner/>:(()=>{
-        const cf=contas.filter(c=>!contasFiltCliente||((c.cliente||'').toLowerCase().includes(contasFiltCliente.toLowerCase())));
+        const cf=contas.filter(c=>{if(contasFiltCliente&&!(c.cliente||'').toLowerCase().includes(contasFiltCliente.toLowerCase()))return false;if(contasFiltTipo==='reserva'&&c.tipo!=='reserva')return false;if(contasFiltTipo==='aula'&&c.tipo!=='aula')return false;return true;});
         const totalPages=Math.ceil(cf.length/CONTAS_PER_PAGE)||1;
         const page=Math.min(contasPage,totalPages-1);
         const pageItems=cf.slice(page*CONTAS_PER_PAGE,(page+1)*CONTAS_PER_PAGE);
@@ -3605,6 +3639,88 @@ function CRMFinanceiro({crmUser,showToast}){
             </div>
           </div>}
         </div>;
+      })()}
+    </div>}
+
+    {/* ── aba mensalidades por professor ─────────────────────────────── */}
+    {tab==='mensalidades'&&<div>
+      <div className="flex flex-wrap gap-3 items-center mb-4">
+        <div className="flex-1 min-w-48"><Inp value={mensSearch} onChange={e=>setMensSearch(e.target.value)} placeholder="🔍 Filtrar por nome do aluno..."/></div>
+        {mensProfs.length>0&&<select value={mensFiltroProfId} onChange={e=>setMensFiltroProfId(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
+          <option value="">👤 Todos os professores</option>
+          {mensProfs.map(p=><option key={p.id} value={String(p.id)}>{p.nome}</option>)}
+          <option value="sem">— Sem professor</option>
+        </select>}
+      </div>
+      {mensLoading?<Spinner/>:(()=>{
+        const TODAY_STR=new Date().toISOString().split('T')[0];
+        const vsStatus=(a)=>{if(!a.mensalidade_vencimento)return null;const v=a.mensalidade_vencimento.split('T')[0];if(v<TODAY_STR)return'vencida';const d7=new Date();d7.setDate(d7.getDate()+7);return new Date(v)<=d7?'vence_breve':'em_dia';};
+        // agrupa por professor
+        const profMap={};
+        mensAlunos.forEach(a=>{
+          if(mensSearch&&!a.nome.toLowerCase().includes(mensSearch.toLowerCase()))return;
+          if(mensFiltroProfId==='sem'&&a.professor_id)return;
+          if(mensFiltroProfId&&mensFiltroProfId!=='sem'&&String(a.professor_id)!==mensFiltroProfId)return;
+          const key=a.professor_id?String(a.professor_id):'sem';
+          if(!profMap[key])profMap[key]={prof:mensProfs.find(p=>String(p.id)===key)||null,alunos:[]};
+          profMap[key].alunos.push(a);
+        });
+        const groups=Object.values(profMap).sort((a,b)=>{
+          if(!a.prof&&b.prof)return 1;if(a.prof&&!b.prof)return-1;
+          return(a.prof?.nome||'').localeCompare(b.prof?.nome||'','pt-BR');
+        });
+        if(groups.length===0)return<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🎓</p><p>Nenhum aluno encontrado</p></div>;
+        return<div className="space-y-6">{groups.map(g=>{
+          const profNome=g.prof?.nome||'Sem professor';
+          const total=g.alunos.length;
+          const vencidos=g.alunos.filter(a=>vsStatus(a)==='vencida').length;
+          const emDia=g.alunos.filter(a=>vsStatus(a)==='em_dia').length;
+          const semData=g.alunos.filter(a=>!a.mensalidade_vencimento).length;
+          return<div key={g.prof?.id||'sem'} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gray-50 border-b border-gray-100 px-5 py-3 flex items-center gap-3 flex-wrap">
+              <span className="text-base font-bold text-gray-800">🎓 {profNome}</span>
+              <span className="text-xs text-gray-400">{total} aluno{total!==1?'s':''}</span>
+              {vencidos>0&&<span className="text-xs font-semibold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">🔴 {vencidos} vencido{vencidos!==1?'s':''}</span>}
+              {emDia>0&&<span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🟢 {emDia} em dia</span>}
+              {semData>0&&<span className="text-xs font-semibold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">⚪ {semData} sem data</span>}
+            </div>
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-gray-50">
+                {['Aluno','Telefone','Mensalidade','Vencimento','Status','Ação'].map(h=><th key={h} className={`px-4 py-2 text-left text-xs font-semibold text-gray-400 uppercase ${h==='Ação'?'text-right':''}`}>{h}</th>)}
+              </tr></thead>
+              <tbody className="divide-y divide-gray-50">{g.alunos.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(a=>{
+                const vs=vsStatus(a);
+                const vd=a.mensalidade_vencimento?.split('T')[0];
+                const marcarPago=async()=>{
+                  if(!window.confirm(`Marcar mensalidade de ${a.nome} como paga e avançar vencimento para o próximo mês?`))return;
+                  setMensSaving(a.id);
+                  try{
+                    // Avança vencimento para o mesmo dia do mês seguinte
+                    const dataBase=vd?new Date(vd+'T12:00:00'):new Date();
+                    const proxMes=new Date(dataBase);
+                    proxMes.setMonth(proxMes.getMonth()+1);
+                    const novaData=proxMes.toISOString().split('T')[0];
+                    await alunoApi.update(a.id,{mensalidade_vencimento:novaData});
+                    setMensAlunos(prev=>prev.map(al=>al.id===a.id?{...al,mensalidade_vencimento:novaData}:al));
+                    showToast(`Mensalidade de ${a.nome} marcada como paga!`,'success');
+                  }catch(e){showToast(e.message||'Erro','error');}
+                  finally{setMensSaving(null);}
+                };
+                return<tr key={a.id} className={`hover:bg-gray-50 ${vs==='vencida'?'bg-red-50/30':''}`}>
+                  <td className="px-4 py-2.5 font-medium text-gray-800">{a.nome}</td>
+                  <td className="px-4 py-2.5 text-gray-500">{a.telefone||'—'}</td>
+                  <td className="px-4 py-2.5 font-semibold text-gray-700">{a.mensalidade_valor?fmt$(a.mensalidade_valor):'—'}</td>
+                  <td className="px-4 py-2.5 text-gray-600">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
+                  <td className="px-4 py-2.5">{!vs?<span className="text-gray-300 text-xs">—</span>:vs==='vencida'?<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">🔴 Vencida</span>:vs==='vence_breve'?<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">🟡 Vence em breve</span>:<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">🟢 Em dia</span>}</td>
+                  <td className="px-4 py-2.5 text-right"><div className="flex gap-2 justify-end">
+                    {vs==='vencida'&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
+                    {a.telefone&&<button onClick={async()=>{try{const r=await alunoApi.notificarVencidos([a.id],vs!=='vencida');showToast(`WhatsApp enviado para ${a.nome}`,'success');}catch(e){showToast(e.message||'Erro','error');}}} className="text-xs font-semibold px-2 py-1 rounded-lg text-white hover:opacity-90" style={{background:'#25D366'}}>📲</button>}
+                  </div></td>
+                </tr>;
+              })}</tbody>
+            </table>
+          </div>;
+        })}</div>;
       })()}
     </div>}
 
