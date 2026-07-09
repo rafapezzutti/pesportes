@@ -218,9 +218,9 @@ router.get('/contas-a-receber', auth, crmOnly, async (req, res) => {
     const p2 = [];
     const w2parts = [];
     if (req.user.role === 'manager' && req.user.est_ids?.length) {
-      p2.push(req.user.est_ids); w2parts.push(`(pl.est_id = ANY($${p2.length}) OR pl.est_id IS NULL)`);
+      p2.push(req.user.est_ids); w2parts.push(`pl.est_id = ANY($${p2.length})`);
     } else if (req.user.role === 'simples' && req.user.est_id) {
-      p2.push(req.user.est_id); w2parts.push(`(pl.est_id = $${p2.length} OR pl.est_id IS NULL)`);
+      p2.push(req.user.est_id); w2parts.push(`pl.est_id = $${p2.length}`);
     }
     if (estId) { p2.push(estId); w2parts.push(`pl.est_id = $${p2.length}`); }
     if (from && to) {
