@@ -20,19 +20,25 @@ function getEstId(user, bodyEstId) {
   return Number(user.est_id) || (user.est_ids && Number(user.est_ids[0])) || null;
 }
 
-// ── Conexão ───────────────────────────────────────────────────────────────────
+// ── Conexão (por estabelecimento) ────────────────────────────────────────────
 router.get('/status', auth, adminOrManager, async (req, res) => {
-  try { res.json(await wa.getStatus()); }
+  const estId = getEstId(req.user, req.query.est_id);
+  const instance = wa.instanceForEst(estId);
+  try { res.json(await wa.getStatus(instance)); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.get('/qrcode', auth, adminOrManager, async (req, res) => {
-  try { res.json(await wa.getQRCode()); }
+  const estId = getEstId(req.user, req.query.est_id);
+  const instance = wa.instanceForEst(estId);
+  try { res.json(await wa.getQRCode(instance)); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.post('/disconnect', auth, adminOrManager, async (req, res) => {
-  try { res.json(await wa.disconnect()); }
+  const estId = getEstId(req.user, req.body?.est_id);
+  const instance = wa.instanceForEst(estId);
+  try { res.json(await wa.disconnect(instance)); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 

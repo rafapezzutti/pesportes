@@ -46,7 +46,7 @@ async function getSaldoPendente(alunoId, estId) {
 }
 
 // ── I-a. Cobrança Mensal ─────────────────────────────────────────────────────
-async function runCobrancaMensal(estId, config, estName) {
+async function runCobrancaMensal(estId, config, estName, instance) {
   const diaHoje = new Date().getDate();
   const diaCfg  = Number(config.dia_do_mes ?? 5);
   if (diaHoje !== diaCfg) return { skipped: true, reason: `dia ${diaHoje} ≠ ${diaCfg}` };
@@ -66,7 +66,7 @@ async function runCobrancaMensal(estId, config, estName) {
     if (saldo <= 0) continue;
     const msg = fillTemplate(tpl, { nome: a.nome, valor: fmt$(saldo), estabelecimento: estName });
     try {
-      await wa.sendText(a.telefone, msg);
+      await wa.sendText(a.telefone, msg, instance);
       await logResult(estId, 'cobranca_mensal', 'success', a.nome, a.telefone, msg, null);
       sent++;
     } catch (err) {
@@ -79,7 +79,7 @@ async function runCobrancaMensal(estId, config, estName) {
 }
 
 // ── I-b. Saldo Pendente Antigo ───────────────────────────────────────────────
-async function runSaldoPendente(estId, config, estName) {
+async function runSaldoPendente(estId, config, estName, instance) {
   const dias  = Number(config.dias ?? 45);
   const freq  = config.frequencia || 'mensal'; // 'mensal' | 'quinzenal'
   const minDays = freq === 'quinzenal' ? 14 : 28;
@@ -121,7 +121,7 @@ async function runSaldoPendente(estId, config, estName) {
     if (saldo <= 0) continue;
     const msg = fillTemplate(tpl, { nome: a.nome, valor: fmt$(saldo), dias: String(dias), estabelecimento: estName });
     try {
-      await wa.sendText(a.telefone, msg);
+      await wa.sendText(a.telefone, msg, instance);
       await logResult(estId, 'saldo_pendente', 'success', a.nome, a.telefone, msg, null);
       sent++;
     } catch (err) {
@@ -134,7 +134,7 @@ async function runSaldoPendente(estId, config, estName) {
 }
 
 // ── II. Aniversário ──────────────────────────────────────────────────────────
-async function runAniversario(estId, config, estName) {
+async function runAniversario(estId, config, estName, instance) {
   const tpl = config.mensagem ||
     '🎉 Feliz Aniversário, {nome}!\n\nToda a equipe do {estabelecimento} deseja um dia incrível! 🎂🎊\n\nVenha nos visitar e aproveite uma surpresa especial! 🎁';
 
@@ -151,7 +151,7 @@ async function runAniversario(estId, config, estName) {
   for (const a of alunos) {
     const msg = fillTemplate(tpl, { nome: a.nome, estabelecimento: estName });
     try {
-      await wa.sendText(a.telefone, msg);
+      await wa.sendText(a.telefone, msg, instance);
       await logResult(estId, 'aniversario', 'success', a.nome, a.telefone, msg, null);
       sent++;
     } catch (err) {
@@ -174,11 +174,12 @@ async function runAutomations() {
     `);
     for (const auto of rows) {
       const { est_id, est_name, type, config } = auto;
+      const instance = wa.instanceForEst(est_id);
       try {
         let result;
-        if      (type === 'cobranca_mensal') result = await runCobrancaMensal(est_id, config || {}, est_name);
-        else if (type === 'saldo_pendente')  result = await runSaldoPendente(est_id, config || {}, est_name);
-        else if (type === 'aniversario')     result = await runAniversario(est_id, config || {}, est_name);
+        if      (type === 'cobranca_mensal') result = await runCobrancaMensal(est_id, config || {}, est_name, instance);
+        else if (type === 'saldo_pendente')  result = await runSaldoPendente(est_id, config || {}, est_name, instance);
+        else if (type === 'aniversario')     result = await runAniversario(est_id, config || {}, est_name, instance);
         console.log(`[WA-Auto] ${est_name}/${type}:`, JSON.stringify(result));
       } catch (err) {
         console.error(`[WA-Auto] Erro ${est_name}/${type}:`, err.message);

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
 const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
-const { sendText, formatPhone } = require('../services/whatsapp');
+const { sendText, formatPhone, instanceForEst } = require('../services/whatsapp');
 
 // simples também pode gerenciar alunos do seu est
 function canManageAluno(user) {
@@ -93,7 +93,7 @@ router.post('/notificar-vencidos', auth, async (req, res) => {
       const valor = a.mensalidade_valor ? `R$ ${Number(a.mensalidade_valor).toFixed(2).replace('.',',')}` : '';
       const msg = `Olá, ${a.nome.split(' ')[0]}! 👋\n\nSua mensalidade${valor ? ` de ${valor}` : ''} venceu há ${diasVenc} dia${diasVenc !== 1 ? 's' : ''}.\n\nPor favor, entre em contato para regularizar. Obrigado! 🏆`;
       try {
-        await sendText(formatPhone(a.telefone), msg);
+        await sendText(formatPhone(a.telefone), msg, instanceForEst(a.est_id));
         await pool.query(`UPDATE alunos SET mensalidade_aviso_em = NOW() WHERE id = $1`, [a.id]);
         results.push({ id: a.id, nome: a.nome, ok: true });
       } catch (e) {
