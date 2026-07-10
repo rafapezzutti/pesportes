@@ -581,9 +581,15 @@ const mensagem = [
     '\n\u{1F4B0} *Total: ' + fmtMoney(totais.geral || 0) + '*\n\n' +
     'Duvidas? Estamos a disposicao!';
 
+  // Determina a instância WhatsApp do estabelecimento do usuário
+  const estId = req.user.role === 'admin'
+    ? (req.body.est_id || req.user.est_id || null)
+    : (req.user.est_id || (req.user.est_ids && req.user.est_ids[0]) || null);
+  const instance = wa.instanceForEst(estId);
+
   try {
-    console.log('[whatsapp resumo] telefone raw:', telefone, '| aluno:', aluno_nome);
-    const result = await wa.sendText(telefone, mensagem);
+    console.log('[whatsapp resumo] telefone raw:', telefone, '| aluno:', aluno_nome, '| instance:', instance);
+    const result = await wa.sendText(telefone, mensagem, instance);
     res.json({ ok: true, messageId: result.messageId, number: result.number });
   } catch (err) {
     console.error('[POST /finance/resumo-aluno/whatsapp]', err);
