@@ -240,7 +240,7 @@ export const alunoApi = {
   create:           (data)       => post('/alunos', data),
   update:           (id, data)   => put(`/alunos/${id}`, data),
   remove:           (id)         => del(`/alunos/${id}`),
-  notificarVencidos:(alunoIds)   => post('/alunos/notificar-vencidos', alunoIds ? { alunoIds } : {}),
+  notificarVencidos:(alunoIds, force) => post('/alunos/notificar-vencidos', { ...(alunoIds ? { alunoIds } : {}), ...(force ? { force: true } : {}) }),
 };
 
 // ── Reservas Recorrentes ──────────────────────────────────────────

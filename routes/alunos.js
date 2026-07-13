@@ -56,12 +56,20 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// ── POST /notificar-vencidos — envia WhatsApp para alunos com mensalidade vencida ─
+// ── POST /notificar-vencidos — envia WhatsApp para alunos ─────────────────────
+// force=true: envia para qualquer aluno selecionado (não só vencidos)
 router.post('/notificar-vencidos', auth, async (req, res) => {
   if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });
   try {
+    const { alunoIds, force } = req.body;
     const params = [];
-    const where  = [`a.ativo = TRUE`, `a.mensalidade_vencimento IS NOT NULL`, `a.mensalidade_vencimento < CURRENT_DATE`, `a.telefone IS NOT NULL`];
+    const where  = [`a.ativo = TRUE`, `a.telefone IS NOT NULL`];
+
+    // se não for force, exige mensalidade vencida
+    if (!force) {
+      where.push(`a.mensalidade_vencimento IS NOT NULL`);
+      where.push(`a.mensalidade_vencimento < CURRENT_DATE`);
+    }
 
     // scope por estabelecimento
     if (req.user.role === 'manager') {
@@ -73,8 +81,7 @@ router.post('/notificar-vencidos', auth, async (req, res) => {
       params.push(req.user.professor_id); where.push(`a.professor_id = $${params.length}`);
     }
 
-    // filtro de IDs específicos (aviso individual)
-    const { alunoIds } = req.body;
+    // filtro de IDs específicos
     if (Array.isArray(alunoIds) && alunoIds.length) {
       params.push(alunoIds.map(Number));
       where.push(`a.id = ANY($${params.length})`);
@@ -85,13 +92,23 @@ router.post('/notificar-vencidos', auth, async (req, res) => {
       params
     );
 
+    const hoje = new Date();
     const results = [];
     for (const a of alunos) {
-      const venc = new Date(a.mensalidade_vencimento);
-      const hoje = new Date();
-      const diasVenc = Math.floor((hoje - venc) / 86400000);
       const valor = a.mensalidade_valor ? `R$ ${Number(a.mensalidade_valor).toFixed(2).replace('.',',')}` : '';
-      const msg = `Olá, ${a.nome.split(' ')[0]}! 👋\n\nSua mensalidade${valor ? ` de ${valor}` : ''} venceu há ${diasVenc} dia${diasVenc !== 1 ? 's' : ''}.\n\nPor favor, entre em contato para regularizar. Obrigado! 🏆`;
+      let msg;
+      if (a.mensalidade_vencimento) {
+        const venc = new Date(a.mensalidade_vencimento);
+        const diffDays = Math.round((hoje - venc) / 86400000);
+        if (diffDays > 0) {
+          msg = `Olá, ${a.nome.split(' ')[0]}! 👋\n\nSua mensalidade${valor ? ` de ${valor}` : ''} venceu há ${diffDays} dia${diffDays !== 1 ? 's' : ''}.\n\nPor favor, entre em contato para regularizar. Obrigado! 🏆`;
+        } else {
+          const diasRestantes = Math.abs(diffDays);
+          msg = `Olá, ${a.nome.split(' ')[0]}! 👋\n\nPassando para lembrar que sua mensalidade${valor ? ` de ${valor}` : ''} vence em ${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''}.\n\nQualquer dúvida, estamos à disposição! 🏆`;
+        }
+      } else {
+        msg = `Olá, ${a.nome.split(' ')[0]}! 👋\n\nPassando para informar que você possui${valor ? ` uma mensalidade de ${valor}` : ' uma mensalidade'} em aberto.\n\nPor favor, entre em contato para regularizar. Obrigado! 🏆`;
+      }
       try {
         await sendText(formatPhone(a.telefone), msg, instanceForEst(a.est_id));
         await pool.query(`UPDATE alunos SET mensalidade_aviso_em = NOW() WHERE id = $1`, [a.id]);

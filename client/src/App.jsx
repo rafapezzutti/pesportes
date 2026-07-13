@@ -3079,7 +3079,7 @@ function CRMProfissionalHome({crmUser,showToast}){
   const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   useEffect(()=>{
-    if(!crmUser.profissional_id)return;
+    if(!crmUser.profissional_id){setLoading(false);return;}
     profEfApi.publicGet(crmUser.profissional_id)
       .then(p=>setForm({...p,valor_hora:p.valor_hora||'',operating_hours:p.operating_hours||{...DEFAULT_HOURS}}))
       .catch(()=>{})
@@ -3098,7 +3098,8 @@ function CRMProfissionalHome({crmUser,showToast}){
     finally{setSaving(false);}
   };
 
-  if(loading||!form)return<Spinner/>;
+  if(loading)return<Spinner/>;
+  if(!form)return<div className="p-6 max-w-3xl"><div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-yellow-800"><p className="font-semibold">Perfil não vinculado</p><p className="text-sm mt-1">Esta conta não está vinculada a um profissional de Ed. Física. Peça ao administrador para realizar o vínculo em Configurações → Usuários.</p></div></div>;
   return<div className="p-6 max-w-3xl">
     <h1 className="text-2xl font-black text-gray-900 mb-6">👤 Meu Perfil</h1>
     <div className="space-y-5">
@@ -4659,8 +4660,8 @@ function CRMUserProfiles({crmUser,showToast}){
     fetch('/api/crm-users',{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}})
       .then(r=>r.json())
       .then(data=>{
-        // exclude managers and admins from this view
-        const filtered=data.filter(u=>!['admin','manager'].includes(u.role));
+        // exclude only admins from this view
+        const filtered=data.filter(u=>u.role!=='admin');
         setUsers(filtered);
         const p={};
         filtered.forEach(u=>{
