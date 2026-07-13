@@ -1370,7 +1370,7 @@ ${d.dates_skipped&&d.dates_skipped.length>0?`<p style="color:#999;font-size:12px
 // ================================================================
 // CRM GRADE DE AULAS — grade semanal/dia por professor
 // ================================================================
-const HORAS_GRADE = ['06:00','07:00','08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+const HORAS_GRADE = (()=>{const h=[];for(let m=360;m<=1260;m+=30){const hh=String(Math.floor(m/60)).padStart(2,'0');const mm=String(m%60).padStart(2,'0');h.push(`${hh}:${mm}`);}return h;})();
 const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const DIAS_UTEIS  = [1,2,3,4,5,6]; // Seg–Sáb
 const PROF_COLORS = [
@@ -1542,7 +1542,12 @@ function CRMGradeAulas({crmUser, showToast}) {
   };
 
   const alunosDisponiveis = modal
-    ? todosAlunos.filter(a=>!(modal.alunos||[]).some(x=>x.id===a.id))
+    ? todosAlunos.filter(a=>
+        // só alunos do professor daquele slot (se tiver professor_id no aluno)
+        (!modal.professor_id || !a.professor_id || a.professor_id===modal.professor_id) &&
+        // exclui os que já estão no slot
+        !(modal.alunos||[]).some(x=>x.id===a.id)
+      )
     : todosAlunos;
 
   // ── Render ────────────────────────────────────────────────────────────────
