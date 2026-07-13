@@ -81,6 +81,7 @@ app.use('/api/ponto',            require('./routes/ponto'));
 app.use('/api/alunos',                require('./routes/alunos'));
 app.use('/api/recurring-reservations', require('./routes/recurring-reservations'));
 app.use('/api/whatsapp',              require('./routes/whatsapp'));
+app.use('/api/grade-aulas',           require('./routes/grade-aulas'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));
@@ -326,6 +327,27 @@ async function runMigrations() {
     `ALTER TABLE alunos ADD COLUMN IF NOT EXISTS mensalidade_aviso_em  TIMESTAMPTZ`,
     // observacoes nas reservas
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS observacoes TEXT`,
+    // grade de aulas dos professores
+    `CREATE TABLE IF NOT EXISTS grade_aulas (
+      id              SERIAL PRIMARY KEY,
+      professor_id    INTEGER REFERENCES professores(id) ON DELETE CASCADE,
+      est_id          INTEGER REFERENCES establishments(id) ON DELETE CASCADE,
+      dia_semana      INTEGER,
+      data            DATE,
+      hora            TEXT NOT NULL,
+      max_alunos      INTEGER NOT NULL DEFAULT 4,
+      valor_por_aluno NUMERIC(10,2) NOT NULL DEFAULT 0,
+      ativo           BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at      TIMESTAMPTZ DEFAULT NOW()
+    )`,
+    `CREATE TABLE IF NOT EXISTS grade_aula_alunos (
+      id             SERIAL PRIMARY KEY,
+      grade_aula_id  INTEGER REFERENCES grade_aulas(id) ON DELETE CASCADE,
+      aluno_id       INTEGER REFERENCES alunos(id) ON DELETE CASCADE,
+      created_at     TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(grade_aula_id, aluno_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_grade_aulas_prof_hora ON grade_aulas(professor_id, hora)`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>

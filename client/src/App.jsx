@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   authApi, estApi, pointApi, userApi, resApi, dashboardApi,
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
@@ -1368,6 +1368,481 @@ ${d.dates_skipped&&d.dates_skipped.length>0?`<p style="color:#999;font-size:12px
 }
 
 // ================================================================
+// CRM GRADE DE AULAS — grade semanal/dia por professor
+// ================================================================
+const HORAS_GRADE = ['06:00','07:00','08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const DIAS_UTEIS  = [1,2,3,4,5,6]; // Seg–Sáb
+const PROF_COLORS = [
+  ['#e0e7ff','#3730a3'],['#d1fae5','#065f46'],['#fef3c7','#92400e'],
+  ['#fce7f3','#9d174d'],['#ede9fe','#5b21b6'],['#cffafe','#0e7490'],
+  ['#ffedd5','#7c2d12'],['#f0fdf4','#14532d'],
+];
+
+function gradeApi(path, opts={}) {
+  const token = localStorage.getItem('token');
+  return fetch(`/api/grade-aulas${path}`, {
+    ...opts,
+    headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}`, ...(opts.headers||{}) },
+    body: opts.body ? (typeof opts.body==='string'?opts.body:JSON.stringify(opts.body)) : undefined,
+  }).then(async r => { const d=await r.json(); if(!r.ok) throw new Error(d.error||'Erro'); return d; });
+}
+
+function CRMGradeAulas({crmUser, showToast}) {
+  const [modo,setModo]           = useState('semanal'); // 'semanal' | 'dia'
+  const [dataSel,setDataSel]     = useState(new Date().toISOString().slice(0,10));
+  const [slots,setSlots]         = useState([]);
+  const [resumo,setResumo]       = useState([]);
+  const [profs,setProfs]         = useState([]);
+  const [todosAlunos,setTodosAlunos] = useState([]);
+  const [filtProf,setFiltProf]   = useState('');
+  const [loading,setLoading]     = useState(true);
+  const [modal,setModal]         = useState(null);    // slot | null
+  const [showNew,setShowNew]     = useState(false);
+  const [newForm,setNewForm]     = useState({professor_id:'',dia_semana:'',hora:'06:00',max_alunos:4,valor_por_aluno:''});
+  const [saving,setSaving]       = useState(false);
+  const [editForm,setEditForm]   = useState(null);   // {max_alunos,valor_por_aluno} para editar slot aberto
+  const [addingAluno,setAddingAluno] = useState('');
+  const [removingId,setRemovingId]   = useState(null);
+
+  const profIdx = useMemo(()=>{
+    const m={};
+    profs.forEach((p,i)=>{ m[p.id]=i; });
+    return m;
+  },[profs]);
+
+  const color = (profId)=>{
+    const i=(profIdx[profId]??0)%PROF_COLORS.length;
+    return PROF_COLORS[i];
+  };
+
+  const load = useCallback(async()=>{
+    setLoading(true);
+    try {
+      const qs = modo==='dia' ? `data=${dataSel}` : 'semana=true';
+      const [s,r] = await Promise.all([
+        gradeApi(`?${qs}`),
+        gradeApi('/resumo'),
+      ]);
+      setSlots(Array.isArray(s)?s:[]);
+      setResumo(Array.isArray(r)?r:[]);
+    } catch(e){ showToast(e.message,'error'); }
+    finally{ setLoading(false); }
+  },[modo,dataSel]);
+
+  useEffect(()=>{
+    const tok = localStorage.getItem('token');
+    Promise.all([
+      fetch('/api/professores',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()),
+      fetch('/api/alunos',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()),
+    ]).then(([p,a])=>{
+      setProfs(Array.isArray(p)?p:[]);
+      setTodosAlunos(Array.isArray(a)?a:[]);
+    }).catch(()=>{});
+    load();
+  },[]);
+
+  useEffect(()=>{ load(); },[load]);
+
+  // Monta grid: {hora: {dia: [slot,...]}}
+  const grid = useMemo(()=>{
+    const g={};
+    for(const slot of slots){
+      if(filtProf && String(slot.professor_id)!==filtProf) continue;
+      const h=slot.hora;
+      const d=modo==='dia'?(slot.dia_semana??0):slot.dia_semana;
+      if(!g[h]) g[h]={};
+      if(!g[h][d]) g[h][d]=[];
+      g[h][d].push(slot);
+    }
+    return g;
+  },[slots,filtProf,modo]);
+
+  const fmt$ = v=>v!=null?`R$ ${Number(v).toFixed(2).replace('.',',')}`:'R$ 0,00';
+
+  // ── Ações ─────────────────────────────────────────────────────────────────
+  const criarSlot = async()=>{
+    if(!newForm.professor_id) return showToast('Selecione um professor','error');
+    if(!newForm.hora) return showToast('Informe o horário','error');
+    if(modo==='semanal' && newForm.dia_semana==='') return showToast('Selecione o dia da semana','error');
+    setSaving(true);
+    try{
+      const body={
+        professor_id: Number(newForm.professor_id),
+        hora: newForm.hora,
+        max_alunos: Number(newForm.max_alunos)||4,
+        valor_por_aluno: parseFloat(newForm.valor_por_aluno)||0,
+        ...(modo==='semanal'
+          ? {dia_semana: Number(newForm.dia_semana)}
+          : {data: dataSel}),
+      };
+      await gradeApi('',{method:'POST',body});
+      showToast('Slot criado!','success');
+      setShowNew(false);
+      setNewForm({professor_id:'',dia_semana:'',hora:'06:00',max_alunos:4,valor_por_aluno:''});
+      load();
+    }catch(e){ showToast(e.message,'error'); }
+    finally{ setSaving(false); }
+  };
+
+  const salvarEdicao = async()=>{
+    if(!modal||!editForm) return;
+    setSaving(true);
+    try{
+      await gradeApi(`/${modal.id}`,{method:'PUT',body:{
+        max_alunos: Number(editForm.max_alunos)||4,
+        valor_por_aluno: parseFloat(editForm.valor_por_aluno)||0,
+      }});
+      showToast('Slot atualizado!','success');
+      setEditForm(null);
+      load();
+      setModal(s=>s?{...s,max_alunos:Number(editForm.max_alunos),valor_por_aluno:parseFloat(editForm.valor_por_aluno)}:null);
+    }catch(e){ showToast(e.message,'error'); }
+    finally{ setSaving(false); }
+  };
+
+  const excluirSlot = async()=>{
+    if(!modal) return;
+    if(!window.confirm('Excluir este slot?')) return;
+    setSaving(true);
+    try{
+      await gradeApi(`/${modal.id}`,{method:'DELETE'});
+      showToast('Slot excluído','success');
+      setModal(null);
+      load();
+    }catch(e){ showToast(e.message,'error'); }
+    finally{ setSaving(false); }
+  };
+
+  const adicionarAluno = async()=>{
+    if(!modal||!addingAluno) return;
+    setSaving(true);
+    try{
+      await gradeApi(`/${modal.id}/alunos`,{method:'POST',body:{aluno_id:Number(addingAluno)}});
+      showToast('Aluno adicionado!','success');
+      setAddingAluno('');
+      load();
+      // atualiza modal imediatamente
+      const aluno=todosAlunos.find(a=>a.id===Number(addingAluno));
+      if(aluno) setModal(s=>s?{...s,alunos:[...s.alunos,{id:aluno.id,nome:aluno.nome,telefone:aluno.telefone}]}:null);
+    }catch(e){ showToast(e.message,'error'); }
+    finally{ setSaving(false); }
+  };
+
+  const removerAluno = async(alunoId)=>{
+    if(!modal) return;
+    setRemovingId(alunoId);
+    try{
+      await gradeApi(`/${modal.id}/alunos/${alunoId}`,{method:'DELETE'});
+      showToast('Aluno removido','success');
+      setModal(s=>s?{...s,alunos:s.alunos.filter(a=>a.id!==alunoId)}:null);
+      load();
+    }catch(e){ showToast(e.message,'error'); }
+    finally{ setRemovingId(null); }
+  };
+
+  const alunosDisponiveis = modal
+    ? todosAlunos.filter(a=>!(modal.alunos||[]).some(x=>x.id===a.id))
+    : todosAlunos;
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return(
+    <div className="p-4 md:p-6 space-y-6">
+      {/* Cabeçalho */}
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2">
+          <button
+            onClick={()=>setModo('semanal')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${modo==='semanal'?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            📅 Grade Semanal
+          </button>
+          <button
+            onClick={()=>setModo('dia')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${modo==='dia'?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            📆 Por Dia
+          </button>
+          {modo==='dia'&&(
+            <input type="date" value={dataSel} onChange={e=>setDataSel(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+          )}
+        </div>
+        <div className="flex gap-2 items-center">
+          <select value={filtProf} onChange={e=>setFiltProf(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+            <option value="">Todos os professores</option>
+            {profs.map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
+          </select>
+          <button onClick={()=>setShowNew(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+            + Novo Slot
+          </button>
+        </div>
+      </div>
+
+      {/* Grid */}
+      {loading?(
+        <div className="text-center py-16 text-gray-400">Carregando grade...</div>
+      ):(
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th className="w-16 text-left py-2 pr-3 text-gray-400 font-medium sticky left-0 bg-gray-50">Hora</th>
+                {modo==='semanal'
+                  ? DIAS_UTEIS.map(d=>(
+                      <th key={d} className="py-2 px-1 text-center text-gray-600 font-semibold min-w-[110px]">{DIAS_SEMANA[d]}</th>
+                    ))
+                  : <th className="py-2 px-1 text-center text-gray-600 font-semibold min-w-[160px]">
+                      {DIAS_SEMANA[new Date(dataSel+'T12:00:00').getDay()]} — {new Date(dataSel+'T12:00:00').toLocaleDateString('pt-BR')}
+                    </th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              {HORAS_GRADE.map(hora=>(
+                <tr key={hora} className="border-t border-gray-100">
+                  <td className="py-2 pr-3 text-gray-400 font-mono text-xs sticky left-0 bg-white">{hora}</td>
+                  {(modo==='semanal'?DIAS_UTEIS:[new Date(dataSel+'T12:00:00').getDay()]).map(d=>{
+                    const cellSlots=(grid[hora]&&grid[hora][d])||[];
+                    return(
+                      <td key={d} className="py-1 px-1 align-top">
+                        <div className="space-y-1 min-h-[36px]">
+                          {cellSlots.map(slot=>{
+                            const [bg,fg]=color(slot.professor_id);
+                            const cnt=(slot.alunos||[]).length;
+                            const cheio=cnt>=slot.max_alunos;
+                            return(
+                              <button key={slot.id}
+                                onClick={()=>{setModal(slot);setEditForm(null);setAddingAluno('');}}
+                                style={{background:bg,color:fg}}
+                                className="w-full rounded-lg px-2 py-1.5 text-left transition-opacity hover:opacity-80">
+                                <div className="font-semibold text-xs leading-tight truncate">{slot.professor_nome||'—'}</div>
+                                <div className="text-xs mt-0.5">
+                                  <span className={`font-bold ${cheio?'text-red-600':''}`}>{cnt}</span>
+                                  <span className="opacity-70">/{slot.max_alunos} • {fmt$(slot.valor_por_aluno)}/al</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Resumo por professor */}
+      {resumo.length>0&&(
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h2 className="font-bold text-gray-700 mb-3">📊 Receita semanal por professor</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-400 text-xs uppercase tracking-wide border-b border-gray-100">
+                  <th className="pb-2">Professor</th>
+                  <th className="pb-2 text-right">Slots/sem</th>
+                  <th className="pb-2 text-right">Total alunos</th>
+                  <th className="pb-2 text-right">Receita/sem</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resumo.map(r=>{
+                  const [bg,fg]=color(r.professor_id);
+                  return(
+                    <tr key={r.professor_id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2.5">
+                        <span className="inline-flex items-center gap-2">
+                          <span style={{background:bg,color:fg}} className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs">
+                            {(r.professor_nome||'?').charAt(0).toUpperCase()}
+                          </span>
+                          <span className="font-medium text-gray-800">{r.professor_nome}</span>
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-right text-gray-600">{r.total_slots}</td>
+                      <td className="py-2.5 text-right text-gray-600">{r.total_alunos||0}</td>
+                      <td className="py-2.5 text-right font-bold text-emerald-700">{fmt$(r.receita_semanal)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: slot aberto */}
+      {modal&&(
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={()=>setModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
+            <div className="p-5 border-b border-gray-100">
+              {(()=>{const [bg,fg]=color(modal.professor_id);return(
+                <div style={{background:bg}} className="rounded-xl p-3 mb-3">
+                  <p className="font-bold text-sm" style={{color:fg}}>{modal.professor_nome||'—'}</p>
+                  <p className="text-xs mt-0.5" style={{color:fg}}>
+                    {modo==='semanal'?DIAS_SEMANA[modal.dia_semana]||'—':new Date(dataSel+'T12:00:00').toLocaleDateString('pt-BR')} • {modal.hora}
+                  </p>
+                </div>
+              );})()}
+              {editForm?(
+                <div className="space-y-3">
+                  <label className="block text-xs text-gray-500">Máx. alunos</label>
+                  <input type="number" min="1" max="10" value={editForm.max_alunos}
+                    onChange={e=>setEditForm(f=>({...f,max_alunos:e.target.value}))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+                  <label className="block text-xs text-gray-500">Valor por aluno (R$)</label>
+                  <input type="number" min="0" step="0.01" value={editForm.valor_por_aluno}
+                    onChange={e=>setEditForm(f=>({...f,valor_por_aluno:e.target.value}))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+                  <div className="flex gap-2">
+                    <button onClick={salvarEdicao} disabled={saving}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50">
+                      {saving?'Salvando...':'Salvar'}
+                    </button>
+                    <button onClick={()=>setEditForm(null)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
+                  </div>
+                </div>
+              ):(
+                <div className="text-sm text-gray-600 space-y-1">
+                  <p>Máx: <b>{modal.max_alunos} alunos</b> • Valor: <b>{fmt$(modal.valor_por_aluno)}/aluno</b></p>
+                  <p>Total neste slot: <b className="text-emerald-700">{fmt$((modal.alunos||[]).length*Number(modal.valor_por_aluno))}</b></p>
+                </div>
+              )}
+            </div>
+
+            {/* Alunos no slot */}
+            <div className="p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-800 text-sm">
+                  Alunos <span className="text-gray-400">({(modal.alunos||[]).length}/{modal.max_alunos})</span>
+                </h3>
+              </div>
+
+              {(modal.alunos||[]).length===0&&(
+                <p className="text-sm text-gray-400 italic">Nenhum aluno neste slot.</p>
+              )}
+
+              <div className="space-y-2">
+                {(modal.alunos||[]).map(a=>(
+                  <div key={a.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{a.nome}</p>
+                      {a.telefone&&<p className="text-xs text-gray-400">{a.telefone}</p>}
+                    </div>
+                    <button onClick={()=>removerAluno(a.id)} disabled={removingId===a.id}
+                      className="text-red-400 hover:text-red-600 text-lg leading-none disabled:opacity-40">×</button>
+                  </div>
+                ))}
+              </div>
+
+              {(modal.alunos||[]).length<modal.max_alunos&&(
+                <div className="flex gap-2 mt-2">
+                  <select value={addingAluno} onChange={e=>setAddingAluno(e.target.value)}
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                    <option value="">+ Adicionar aluno...</option>
+                    {alunosDisponiveis.map(a=><option key={a.id} value={a.id}>{a.nome}</option>)}
+                  </select>
+                  <button onClick={adicionarAluno} disabled={!addingAluno||saving}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-40">
+                    Adicionar
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 pt-0 border-t border-gray-100 flex gap-2 justify-between">
+              <button onClick={excluirSlot} disabled={saving}
+                className="text-red-500 hover:text-red-700 text-sm px-2 py-1 disabled:opacity-40">
+                🗑 Excluir slot
+              </button>
+              <div className="flex gap-2">
+                {!editForm&&(
+                  <button onClick={()=>setEditForm({max_alunos:modal.max_alunos,valor_por_aluno:modal.valor_por_aluno})}
+                    className="text-sm text-indigo-600 hover:text-indigo-800 px-2 py-1">
+                    ✏️ Editar
+                  </button>
+                )}
+                <button onClick={()=>setModal(null)}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Novo Slot */}
+      {showNew&&(
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={()=>setShowNew(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={e=>e.stopPropagation()}>
+            <h2 className="font-bold text-gray-900">🗓️ Novo Slot de Aula</h2>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Professor *</label>
+              <select value={newForm.professor_id} onChange={e=>setNewForm(f=>({...f,professor_id:e.target.value}))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                <option value="">Selecione...</option>
+                {profs.map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+            </div>
+            {modo==='semanal'&&(
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Dia da semana *</label>
+                <select value={newForm.dia_semana} onChange={e=>setNewForm(f=>({...f,dia_semana:e.target.value}))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                  <option value="">Selecione...</option>
+                  {DIAS_UTEIS.map(d=><option key={d} value={d}>{DIAS_SEMANA[d]}</option>)}
+                </select>
+              </div>
+            )}
+            {modo==='dia'&&(
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Data</label>
+                <p className="text-sm text-gray-700 font-medium">{new Date(dataSel+'T12:00:00').toLocaleDateString('pt-BR')}</p>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Horário *</label>
+              <select value={newForm.hora} onChange={e=>setNewForm(f=>({...f,hora:e.target.value}))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                {HORAS_GRADE.map(h=><option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Máx. alunos</label>
+                <input type="number" min="1" max="10" value={newForm.max_alunos}
+                  onChange={e=>setNewForm(f=>({...f,max_alunos:e.target.value}))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Valor/aluno (R$)</label>
+                <input type="number" min="0" step="0.01" value={newForm.valor_por_aluno}
+                  onChange={e=>setNewForm(f=>({...f,valor_por_aluno:e.target.value}))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button onClick={criarSlot} disabled={saving}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-50">
+                {saving?'Criando...':'Criar Slot'}
+              </button>
+              <button onClick={()=>setShowNew(false)}
+                className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ================================================================
 // CRM PLANOS DE AULA (aba dentro de Reservas)
 // ================================================================
 function CRMPlanosAula({showToast}){
@@ -2092,8 +2567,9 @@ function CRMReservations({showToast,crmUser}){
         <Btn onClick={()=>{setShowManual(true);setMb(MBL);setMbNameInput('');setMbVisitante(false);}}>+ Nova Reserva</Btn>
       </div>}
     </div>
-    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'recorrentes',label:'🔄 Recorrentes'},{key:'aulas',label:'📚 Planos de Aula'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'},{key:'ranking',label:'🏆 Ranking'}]} active={resTab} onChange={setResTab}/>
+    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'recorrentes',label:'🔄 Recorrentes'},{key:'aulas',label:'📚 Planos de Aula'},{key:'grade',label:'🗓️ Grade de Aulas'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'},{key:'ranking',label:'🏆 Ranking'}]} active={resTab} onChange={setResTab}/>
     {resTab==='aulas'&&<CRMPlanosAula showToast={showToast}/>}
+    {resTab==='grade'&&<CRMGradeAulas showToast={showToast} crmUser={crmUser}/>}
     {resTab==='recorrentes'&&<CRMRecorrentes showToast={showToast} crmUser={crmUser}/>}
     {resTab==='bar'&&<CRMBar showToast={showToast} crmUser={crmUser}/>}
     {resTab==='manutencao'&&<CRMManutencao showToast={showToast} crmUser={crmUser}/>}
