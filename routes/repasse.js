@@ -2,10 +2,24 @@ const router = require('express').Router();
 const pool   = require('../db/pool');
 const { auth, adminOrManager } = require('../middleware/auth');
 
-// Aplica o escopo de estabelecimento conforme o papel do usuário
+function canView(user) {
+  return ['admin','manager','simples','professor'].includes(user.role);
+}
+
+// Aplica o escopo de estabelecimento + professor conforme o papel do usuário
 function scope(req, params, alias = 'pa') {
   const clauses = [];
-  if (req.user.role === 'manager' && req.user.est_ids?.length) {
+  if (req.user.role === 'professor') {
+    // professor vê apenas o próprio repasse
+    if (req.user.professor_id) {
+      params.push(req.user.professor_id);
+      clauses.push(`p.id = $${params.length}`);
+    }
+    if (req.user.est_id) {
+      params.push(req.user.est_id);
+      clauses.push(`${alias}.est_id = $${params.length}`);
+    }
+  } else if (req.user.role === 'manager' && req.user.est_ids?.length) {
     params.push(req.user.est_ids);
     clauses.push(`${alias}.est_id = ANY($${params.length})`);
   } else if (req.user.role === 'simples' && req.user.est_id) {
@@ -17,7 +31,8 @@ function scope(req, params, alias = 'pa') {
 
 // GET /api/repasse?estId=&from=&to=&status=
 // Retorna, por professor, o total de planos no período e o repasse devido (% do plano).
-router.get('/', auth, adminOrManager, async (req, res) => {
+router.get('/', auth, async (req, res) => {
+  if (!canView(req.user)) return res.status(403).json({ error: 'Sem permissão' });
   const { estId, from, to, status } = req.query;
   const params = [];
   const where = scope(req, params);
@@ -54,7 +69,13 @@ router.get('/', auth, adminOrManager, async (req, res) => {
 });
 
 // GET /api/repasse/:professorId/detalhe?from=&to= — planos do professor
-router.get('/:professorId/detalhe', auth, adminOrManager, async (req, res) => {
+router.get('/:professorId/detalhe', auth, async (req, res) => {
+  if (!canView(req.user)) return res.status(403).json({ error: 'Sem permissão' });
+  // professor só pode ver o próprio detalhe
+  if (req.user.role === 'professor' && req.user.professor_id &&
+      String(req.user.professor_id) !== String(req.params.professorId)) {
+    return res.status(403).json({ error: 'Sem permissão' });
+  }
   const { from, to } = req.query;
   const params = [req.params.professorId];
   const where = ['pa.professor_id = $1'];

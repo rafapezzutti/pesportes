@@ -3819,8 +3819,23 @@ const PGTO_FORMA_OPTS=[{value:'pix',label:'💠 Pix'},{value:'debito',label:'�
 const PGTO_STATUS_BADGE={pendente:'bg-amber-100 text-amber-700',pago:'bg-emerald-100 text-emerald-700',em_atraso:'bg-red-100 text-red-700'};
 const TIPO_LABEL={reserva:'📅 Reserva',aula:'📚 Aula/Plano',bar:'🍺 Bar',manutencao:'🛒 Loja & Equip.',ranking:'🏆 Ranking'};
 
+// Tabs do Financeiro visíveis por role
+const FIN_TABS=[
+  {k:'fluxo',       l:'Fluxo de Caixa',         roles:['admin','manager','simples']},
+  {k:'projecao',    l:'Projeção',                roles:['admin','manager','simples']},
+  {k:'despesas',    l:'Despesas',                roles:['admin','manager','simples']},
+  {k:'repasse',     l:'Repasse Professores',     roles:['admin','manager','simples','professor']},
+  {k:'contas',      l:'💳 Contas a Receber',     roles:['admin','manager','simples']},
+  {k:'mensalidades',l:'📅 Mensalidades',         roles:['admin','manager','simples','professor']},
+  {k:'resumo',      l:'📋 Resumo por Aluno',     roles:['admin','manager','simples']},
+  {k:'comissao',    l:'🏷️ Comissão Gerente',    roles:['admin','manager']},
+  {k:'rel-alunos',  l:'👥 Alunos',              roles:['admin','manager','simples']},
+];
+
 function CRMFinanceiro({crmUser,showToast}){
-  const [tab,setTab]=useState('fluxo');
+  const isProfessor=crmUser.role==='professor';
+  const visibleTabs=FIN_TABS.filter(t=>t.roles.includes(crmUser.role));
+  const [tab,setTab]=useState(isProfessor?'repasse':'fluxo');
   const mr=monthRange();
   const [from,setFrom]=useState(mr.from);
   const [to,setTo]=useState(mr.to);
@@ -3930,15 +3945,15 @@ function CRMFinanceiro({crmUser,showToast}){
     <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 flex flex-wrap gap-3 items-end">
       <div className="w-40"><p className="text-xs text-gray-400 mb-1 font-medium">De</p><Inp type="date" value={from} onChange={e=>setFrom(e.target.value)}/></div>
       <div className="w-40"><p className="text-xs text-gray-400 mb-1 font-medium">Até</p><Inp type="date" value={to} onChange={e=>setTo(e.target.value)}/></div>
-      <div className="ml-auto flex gap-2">
+      {!isProfessor&&<div className="ml-auto flex gap-2">
         <Btn variant="secondary" size="sm" onClick={()=>downloadReport(`/reports/reservas.xlsx?from=${from}&to=${to}`,`reservas_${from}_${to}.xlsx`).catch(()=>showToast&&showToast('Erro no relatório','error'))}>⬇ Reservas .xlsx</Btn>
         <Btn variant="secondary" size="sm" onClick={()=>downloadReport(`/reports/financeiro.xlsx?from=${from}&to=${to}`,`financeiro_${from}_${to}.xlsx`).catch(()=>showToast&&showToast('Erro no relatório','error'))}>⬇ Financeiro .xlsx</Btn>
-      </div>
+      </div>}
     </div>
 
     {/* tabs */}
     <div className="border-b border-gray-200 mb-5"><nav className="flex gap-1 flex-wrap">
-      {[{k:'fluxo',l:'Fluxo de Caixa'},{k:'projecao',l:'Projeção'},{k:'despesas',l:'Despesas'},{k:'repasse',l:'Repasse Professores'},{k:'contas',l:'💳 Contas a Receber'},{k:'mensalidades',l:'📅 Mensalidades'},{k:'resumo',l:'📋 Resumo por Aluno'},{k:'comissao',l:'🏷️ Comissão Gerente'},{k:'rel-alunos',l:'👥 Alunos'}].map(t=>
+      {visibleTabs.map(t=>
         <button key={t.k} onClick={()=>setTab(t.k)} className={`px-4 py-2.5 text-sm font-medium border-b-2 ${tab===t.k?'border-emerald-600 text-emerald-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>{t.l}</button>)}
     </nav></div>
 
