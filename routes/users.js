@@ -70,7 +70,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const resolvedEstId  = ['simples','professor','recepcao'].includes(role) ? (est_id || null) : null;
     const resolvedEstIds = role === 'manager' ? (est_ids || []) : [];
-    const resolvedProfId = role === 'professor' ? (professor_id || null) : null;
+    const resolvedProfId = professor_id ? Number(professor_id) : null; // qualquer role pode ter professor_id
 
     const { rows } = await pool.query(
       `INSERT INTO crm_users (name, email, password_hash, role, est_id, est_ids)
@@ -78,7 +78,7 @@ router.post('/', auth, adminOrManager, async (req, res) => {
       [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds]
     );
     const created = rows[0];
-    // link professor_id if provided (column may not exist on old DBs — silently skip)
+    // link professor_id se fornecido
     if (resolvedProfId) {
       await pool.query(
         `UPDATE crm_users SET professor_id=$1 WHERE id=$2`,
@@ -102,20 +102,20 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
   try {
     const resolvedEstId  = ['simples','professor','recepcao'].includes(role) ? (est_id || null) : null;
     const resolvedEstIds = role === 'manager' ? (est_ids || []) : [];
-    const resolvedProfId = role === 'professor' ? (professor_id || null) : null;
+    const resolvedProfId = professor_id ? Number(professor_id) : null; // qualquer role pode ter professor_id
 
     let query, params;
     if (password) {
       if (password.length < 6)
         return res.status(400).json({ error: 'Senha minima: 6 caracteres' });
       const hash = await bcrypt.hash(password, 10);
-      query  = `UPDATE crm_users SET name=$1, email=$2, password_hash=$3, role=$4, est_id=$5, est_ids=$6
-                WHERE id=$7 RETURNING id, name, email, role, est_id, est_ids`;
-      params = [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds, req.params.id];
+      query  = `UPDATE crm_users SET name=$1, email=$2, password_hash=$3, role=$4, est_id=$5, est_ids=$6, professor_id=$7
+                WHERE id=$8 RETURNING id, name, email, role, est_id, est_ids, professor_id`;
+      params = [name, email.toLowerCase(), hash, role, resolvedEstId, resolvedEstIds, resolvedProfId, req.params.id];
     } else {
-      query  = `UPDATE crm_users SET name=$1, email=$2, role=$3, est_id=$4, est_ids=$5
-                WHERE id=$6 RETURNING id, name, email, role, est_id, est_ids`;
-      params = [name, email.toLowerCase(), role, resolvedEstId, resolvedEstIds, req.params.id];
+      query  = `UPDATE crm_users SET name=$1, email=$2, role=$3, est_id=$4, est_ids=$5, professor_id=$6
+                WHERE id=$7 RETURNING id, name, email, role, est_id, est_ids, professor_id`;
+      params = [name, email.toLowerCase(), role, resolvedEstId, resolvedEstIds, resolvedProfId, req.params.id];
     }
     const { rows } = await pool.query(query, params);
     if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado' });

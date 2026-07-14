@@ -916,6 +916,7 @@ const ROLE_NAME={admin:'Administrador',manager:'Gerente',simples:'Simples',profe
 function CRMUsers({crmUser,showToast}){
   const [users,setUsers]=useState([]);
   const [ests,setEsts]=useState([]);
+  const [profsLista,setProfsLista]=useState([]);
   const [loading,setLoading]=useState(true);
   const [estSearch,setEstSearch]=useState('');
   const [showForm,setShowForm]=useState(false);
@@ -932,7 +933,12 @@ function CRMUsers({crmUser,showToast}){
   const needsEstSingle=['simples','professor','recepcao'].includes(f.role);
 
   const load=()=>{
-    Promise.all([userApi.list(),estApi.list()]).then(([u,e])=>{setUsers(u);setEsts(e);}).catch(()=>{}).finally(()=>setLoading(false));
+    const tok=localStorage.getItem('token');
+    Promise.all([
+      userApi.list(),
+      estApi.list(),
+      fetch('/api/professores',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
+    ]).then(([u,e,p])=>{setUsers(u);setEsts(e);setProfsLista(Array.isArray(p)?p:[]);}).catch(()=>{}).finally(()=>setLoading(false));
   };
   useEffect(()=>{load();},[]);
 
@@ -953,7 +959,7 @@ function CRMUsers({crmUser,showToast}){
   const save=async()=>{
     if(!validate())return;
     try{
-      const payload={name:f.name,email:f.email,role:f.role,est_id:needsEstSingle?f.est_id:null,est_ids:needsEstMulti?f.est_ids:[],professor_id:f.role==='professor'?(f.professor_id||null):null,...(f.password?{password:f.password}:{})};
+      const payload={name:f.name,email:f.email,role:f.role,est_id:needsEstSingle?f.est_id:null,est_ids:needsEstMulti?f.est_ids:[],professor_id:f.professor_id?Number(f.professor_id):null,...(f.password?{password:f.password}:{})};
       if(editU){await userApi.update(editU.id,payload);}else{await userApi.create({...payload,password:f.password});}
       showToast('Usuário salvo!','success');setShowForm(false);load();
     }catch(e){showToast(e.message,'error');}
@@ -994,6 +1000,7 @@ function CRMUsers({crmUser,showToast}){
     <Field label="Perfil"><Sel value={f.role} onChange={e=>{const r=e.target.value;setF(p=>({...p,role:r,est_id:['simples','professor','recepcao'].includes(r)?p.est_id:'',est_ids:r==='manager'?p.est_ids:[],professor_id:''}));}} options={ROLE_OPTS}/></Field>
     {needsEstMulti&&<Field label="Estabelecimentos (opcional)"><div className="border border-gray-200 rounded-xl p-3 space-y-2 max-h-48 overflow-y-auto">{ests.length===0?<p className="text-sm text-gray-400 italic">Nenhum estabelecimento ainda — o gerente pode criar o próprio após o login e será vinculado automaticamente.</p>:ests.map(est=><label key={est.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded p-1"><input type="checkbox" checked={f.est_ids.map(Number).includes(Number(est.id))} onChange={ev=>{const id=Number(est.id);upd('est_ids',ev.target.checked?[...f.est_ids,id]:f.est_ids.filter(x=>Number(x)!==id));}} className="w-4 h-4 accent-emerald-600"/><span className="text-sm text-gray-700">{est.name}</span></label>)}</div><p className="text-xs text-gray-400 mt-1">Ao criar um estabelecimento, o gerente é vinculado automaticamente.</p></Field>}
     {needsEstSingle&&<Field label="Estabelecimento" required><Sel value={f.est_id} onChange={e=>upd('est_id',e.target.value)} options={ests.map(e=>({value:e.id,label:e.name}))} placeholder="Selecione..."/>{err.est_id&&<p className="text-xs text-red-500">{err.est_id}</p>}</Field>}
+    {profsLista.length>0&&<Field label="Vínculo com Professor (opcional)"><Sel value={f.professor_id||''} onChange={e=>upd('professor_id',e.target.value)} options={profsLista.map(p=>({value:p.id,label:p.nome}))} placeholder="Nenhum"/><p className="text-xs text-gray-400 mt-1">Vincule para dar acesso ao Repasse e Grade de Aulas</p></Field>}
     <Field label={editU?'Nova senha (vazio = manter)':'Senha'} required={!editU}><Inp type="password" value={f.password} onChange={e=>upd('password',e.target.value)}/>{err.password&&<p className="text-xs text-red-500">{err.password}</p>}</Field>
     {f.password&&<Field label="Confirmar senha" required><Inp type="password" value={f.pw2} onChange={e=>upd('pw2',e.target.value)}/>{err.pw2&&<p className="text-xs text-red-500">{err.pw2}</p>}</Field>}
     <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn><Btn className="flex-1" onClick={save}>Salvar</Btn></div>

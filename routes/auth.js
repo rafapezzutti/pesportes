@@ -205,7 +205,8 @@ router.post('/impersonate', authMw, adminOnly, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, email, role, est_id,
-              COALESCE(est_ids, '{}') AS est_ids, profissional_id
+              COALESCE(est_ids, '{}') AS est_ids, profissional_id,
+              professor_id, permissions
        FROM crm_users WHERE id = $1`, [userId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -215,12 +216,15 @@ router.post('/impersonate', authMw, adminOnly, async (req, res) => {
       est_id: u.est_id || null,
       est_ids: u.est_ids || [],
       profissional_id: u.profissional_id || null,
+      professor_id: u.professor_id || null,
       impersonated_by: req.user.id,
     });
     res.json({
       token,
       user: { id: u.id, name: u.name, email: u.email, role: u.role,
-              est_id: u.est_id || null, est_ids: u.est_ids || [] },
+              est_id: u.est_id || null, est_ids: u.est_ids || [],
+              professor_id: u.professor_id || null,
+              permissions: u.permissions || null },
     });
   } catch (err) {
     console.error('[impersonate]', err);
