@@ -5125,7 +5125,7 @@ const ROLE_DFLT={
   admin:      {reservas:true,horarios_livres:true,alunos:true,financeiro:true,funcionarios:true,bar:true,unimidia:true,whatsapp:true},
   manager:    {reservas:true,horarios_livres:true,alunos:true,financeiro:true,funcionarios:true,bar:true,unimidia:true,whatsapp:true},
   simples:    {reservas:true,horarios_livres:true,alunos:true,financeiro:false,funcionarios:false,bar:false,unimidia:false,whatsapp:false},
-  professor:  {reservas:true,horarios_livres:true,alunos:true,financeiro:false,funcionarios:false,bar:false,unimidia:false,whatsapp:false},
+  professor:  {reservas:true,horarios_livres:true,alunos:true,financeiro:true,funcionarios:false,bar:false,unimidia:false,whatsapp:false},
   recepcao:   {reservas:true,horarios_livres:true,alunos:false,financeiro:false,funcionarios:false,bar:false,unimidia:false,whatsapp:false},
   profissional:{reservas:false,horarios_livres:false,alunos:false,financeiro:false,funcionarios:false,bar:false,unimidia:false,whatsapp:false},
 };

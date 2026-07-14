@@ -348,6 +348,9 @@ async function runMigrations() {
       UNIQUE(grade_aula_id, aluno_id)
     )`,
     `CREATE INDEX IF NOT EXISTS idx_grade_aulas_prof_hora ON grade_aulas(professor_id, hora)`,
+    // garante que professores existentes tenham financeiro habilitado
+    `UPDATE crm_users SET permissions = jsonb_set(COALESCE(permissions,'{}'), '{financeiro}', 'true')
+     WHERE role = 'professor' AND (permissions IS NULL OR (permissions->>'financeiro')::boolean IS NOT TRUE)`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
