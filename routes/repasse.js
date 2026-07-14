@@ -69,7 +69,7 @@ router.get('/', auth, async (req, res) => {
               COALESCE(SUM(src.valor),0)                              AS total_planos,
               COALESCE(SUM(src.valor * p.percentual_repasse/100),0)   AS repasse_devido,
               COALESCE(SUM(src.valor) FILTER (WHERE src.repasse_pago),0)      AS total_pago,
-              COALESCE(SUM(src.valor) FILTER (WHERE NOT src.repasse_pago),0)  AS total_pendente
+              COALESCE(SUM(src.valor * p.percentual_repasse/100) FILTER (WHERE NOT src.repasse_pago),0)  AS total_pendente
        FROM professores p
        JOIN ${SRC_UNION} ON src.professor_id = p.id
        ${whereSql}
