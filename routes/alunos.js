@@ -134,7 +134,10 @@ router.post('/', auth, async (req, res) => {
   if (req.user.role === 'manager' && !est_id) {
     est_id = req.user.est_id || (req.user.est_ids && req.user.est_ids[0]) || null;
   }
-  const professor_id = req.user.role === 'professor' ? (req.user.professor_id || null) : null;
+  // professor usa o próprio professor_id; admin/manager/simples usam o do body
+  const professor_id = req.user.role === 'professor'
+    ? (req.user.professor_id || null)
+    : (req.body.professor_id ? Number(req.body.professor_id) : null);
   if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
 
   try {
