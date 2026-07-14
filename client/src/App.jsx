@@ -3900,7 +3900,7 @@ function CRMFinanceiro({crmUser,showToast}){
   const [cfLoading,setCfLoading]=useState(false);
   const loadFluxo=useCallback(()=>{setCfLoading(true);setCf(null);financeApi.cashflow({from,to}).then(d=>{setCf(d);setCfLoading(false);}).catch(()=>{setCf(CF_EMPTY);setCfLoading(false);});},[from,to]);
   const loadExps =useCallback(()=>{expenseApi.list({from,to}).then(setExps).catch(()=>{});},[from,to]);
-  const loadRep  =useCallback(()=>{repasseApi.list({from,to}).then(setRep).catch(()=>{});},[from,to]);
+  const loadRep  =useCallback(()=>{repasseApi.list({from,to}).then(setRep).catch(e=>showToast&&showToast('Repasse: '+(e.message||'Erro'),'error'));},[from,to]);
   const loadProj =useCallback(()=>{financeApi.projecao({saldoInicial:parseFloat(saldoIni)||0}).then(setProj).catch(()=>{});},[saldoIni]);
   const loadComissao=useCallback(()=>{comissaoGerenteApi.list({from,to}).then(setComissao).catch(()=>{});},[from,to]);
   const loadContas=useCallback((clienteOverride)=>{

@@ -36,14 +36,15 @@ function scope(req, params) {
 
 // Subquery que une planos_aula + reservations por professor
 const SRC_UNION = `(
-  SELECT id, professor_id, est_id, valor, data_inicio AS data, repasse_pago, 'plano' AS origem
-  FROM planos_aula
-  WHERE professor_id IS NOT NULL
+  SELECT pa.id, pa.professor_id, pa.est_id, pa.valor, pa.data_inicio AS data,
+         COALESCE(pa.repasse_pago, FALSE) AS repasse_pago, 'plano' AS origem
+  FROM planos_aula pa
+  WHERE pa.professor_id IS NOT NULL
   UNION ALL
-  SELECT id, professor_id, est_id, total AS valor, date AS data,
-         COALESCE(repasse_pago, FALSE) AS repasse_pago, 'reserva' AS origem
-  FROM reservations
-  WHERE professor_id IS NOT NULL AND total > 0
+  SELECT r.id, r.professor_id, r.est_id, r.total AS valor, r.date AS data,
+         COALESCE(r.repasse_pago, FALSE) AS repasse_pago, 'reserva' AS origem
+  FROM reservations r
+  WHERE r.professor_id IS NOT NULL AND r.total > 0
 ) src`;
 
 // GET /api/repasse?from=&to=&estId=&status=
@@ -79,7 +80,7 @@ router.get('/', auth, async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error('[GET /repasse]', err);
-    res.status(500).json({ error: 'Erro ao calcular repasse' });
+    res.status(500).json({ error: 'Erro ao calcular repasse: ' + err.message });
   }
 });
 
