@@ -4038,7 +4038,7 @@ function CRMFinanceiro({crmUser,showToast}){
     </div>}
 
     {tab==='repasse'&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
-      <thead><tr className="border-b border-gray-100 bg-gray-50">{['Professor','%','Planos','Total Planos','Repasse Devido','Pendente',''].map((h,i)=><th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
+      <thead><tr className="border-b border-gray-100 bg-gray-50">{['Professor','%','Itens','Receita Total','Repasse Devido','Pendente',''].map((h,i)=><th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
       <tbody className="divide-y divide-gray-50">
         {rep.length===0&&<tr><td colSpan={7} className="text-center py-10 text-gray-400">Nenhum repasse no período</td></tr>}
         {rep.map(r=><tr key={r.professor_id} className="hover:bg-gray-50">

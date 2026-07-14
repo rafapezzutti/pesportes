@@ -351,6 +351,9 @@ async function runMigrations() {
     // garante que professores existentes tenham financeiro habilitado
     `UPDATE crm_users SET permissions = jsonb_set(COALESCE(permissions,'{}'), '{financeiro}', 'true')
      WHERE role = 'professor' AND (permissions IS NULL OR (permissions->>'financeiro')::boolean IS NOT TRUE)`,
+    // repasse nas reservas (além dos planos de aula)
+    `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS repasse_pago    BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS repasse_pago_em TIMESTAMPTZ`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
