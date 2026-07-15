@@ -4224,7 +4224,50 @@ function CRMFinanceiro({crmUser,showToast}){
               })}</tbody>
             </table>
           </div>;
-        })}</div>;
+        })}
+        {(()=>{
+          const allAl=groups.flatMap(g=>g.alunos);
+          const totalGeral=allAl.reduce((s,a)=>s+Number(a.mensalidade_valor||0),0);
+          const statusDefs=[
+            {label:'🟢 Em dia',key:'em_dia'},
+            {label:'🟡 Vence em breve',key:'vence_breve'},
+            {label:'🔴 Vencida',key:'vencida'},
+            {label:'⚪ Sem data',key:'sem'},
+          ];
+          const byStatus=statusDefs.map(s=>({
+            ...s,
+            qtd:allAl.filter(a=>(vsStatus(a)||'sem')===s.key).length,
+            total:allAl.filter(a=>(vsStatus(a)||'sem')===s.key).reduce((acc,a)=>acc+Number(a.mensalidade_valor||0),0),
+          })).filter(s=>s.qtd>0);
+          return<div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
+            <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide">📊 Subtotais</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase mb-3">Por Professor</p>
+                <div className="space-y-0">{groups.map(g=>{
+                  const profNome=g.prof?.nome||'Sem professor';
+                  const subtotal=g.alunos.reduce((s,a)=>s+Number(a.mensalidade_valor||0),0);
+                  return<div key={g.prof?.id||'sem'} className="flex justify-between items-center py-2 border-b border-gray-50 text-sm last:border-0">
+                    <span className="text-gray-700">🎓 {profNome} <span className="text-gray-400 text-xs">({g.alunos.length} aluno{g.alunos.length!==1?'s':''})</span></span>
+                    <span className="font-semibold text-gray-800">{fmt$(subtotal)}</span>
+                  </div>;
+                })}</div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase mb-3">Por Status</p>
+                <div className="space-y-0">{byStatus.map(s=><div key={s.key} className="flex justify-between items-center py-2 border-b border-gray-50 text-sm last:border-0">
+                  <span className="text-gray-700">{s.label} <span className="text-gray-400 text-xs">({s.qtd})</span></span>
+                  <span className="font-semibold text-gray-800">{fmt$(s.total)}</span>
+                </div>)}</div>
+              </div>
+            </div>
+            <div className="flex justify-between items-center pt-3 border-t-2 border-gray-200">
+              <span className="font-bold text-gray-700 text-base">Total Geral de Mensalidades</span>
+              <span className="text-xl font-black text-emerald-600">{fmt$(totalGeral)}</span>
+            </div>
+          </div>;
+        })()}
+      </div>;
       })()}
     </div>}
 
