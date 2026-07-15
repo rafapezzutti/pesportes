@@ -3860,6 +3860,7 @@ function CRMFinanceiro({crmUser,showToast}){
   const [expForm,setExpForm]=useState(null);
   // repasse
   const [rep,setRep]=useState([]);
+  const [repExp,setRepExp]=useState({});   // { [professorId]: {loading,data} }
   // projeção
   const [proj,setProj]=useState(null);
   const [saldoIni,setSaldoIni]=useState('0');
@@ -4038,18 +4039,60 @@ function CRMFinanceiro({crmUser,showToast}){
     </div>}
 
     {tab==='repasse'&&<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm">
-      <thead><tr className="border-b border-gray-100 bg-gray-50">{['Professor','%','Itens','Receita Total','Repasse Devido','Pendente',''].map((h,i)=><th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
+      <thead><tr className="border-b border-gray-100 bg-gray-50">{['','Professor','%','Itens','Receita Total','Repasse Devido','Pendente',''].map((h,i)=><th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
       <tbody className="divide-y divide-gray-50">
-        {rep.length===0&&<tr><td colSpan={7} className="text-center py-10 text-gray-400">Nenhum repasse no período</td></tr>}
-        {rep.map(r=><tr key={r.professor_id} className="hover:bg-gray-50">
-          <td className="px-3 py-2.5 font-medium text-gray-800">{r.nome}</td>
-          <td className="px-3 py-2.5 text-gray-600">{Number(r.percentual_repasse)}%</td>
-          <td className="px-3 py-2.5 text-gray-600">{r.qtd_planos}</td>
-          <td className="px-3 py-2.5 text-gray-600">{fmt$(r.total_planos)}</td>
-          <td className="px-3 py-2.5 font-semibold text-emerald-700">{fmt$(r.repasse_devido)}</td>
-          <td className="px-3 py-2.5 text-amber-700">{fmt$(r.total_pendente)}</td>
-          <td className="px-3 py-2.5 text-right">{Number(r.total_pendente)>0&&<Btn size="sm" variant="secondary" onClick={()=>pagarRep(r.professor_id)}>Marcar pago</Btn>}</td>
-        </tr>)}
+        {rep.length===0&&<tr><td colSpan={8} className="text-center py-10 text-gray-400">Nenhum repasse no período</td></tr>}
+        {rep.map(r=>{
+          const exp=repExp[r.professor_id];
+          const isOpen=!!exp;
+          const toggleDet=async()=>{
+            if(isOpen){setRepExp(p=>{const n={...p};delete n[r.professor_id];return n;});return;}
+            setRepExp(p=>({...p,[r.professor_id]:{loading:true,data:null}}));
+            try{
+              const tok=localStorage.getItem('token');
+              const res=await fetch(`/api/repasse/${r.professor_id}/detalhe?from=${from}&to=${to}`,{headers:{Authorization:`Bearer ${tok}`}});
+              const data=await res.json();
+              setRepExp(p=>({...p,[r.professor_id]:{loading:false,data}}));
+            }catch(e){setRepExp(p=>{const n={...p};delete n[r.professor_id];return n;});}
+          };
+          return<React.Fragment key={r.professor_id}>
+            <tr className={`hover:bg-gray-50 cursor-pointer ${isOpen?'bg-emerald-50/40':''}`} onClick={toggleDet}>
+              <td className="px-3 py-2.5 text-gray-400 text-center w-8">{isOpen?'▾':'▸'}</td>
+              <td className="px-3 py-2.5 font-medium text-gray-800">{r.nome}</td>
+              <td className="px-3 py-2.5 text-gray-600">{Number(r.percentual_repasse)}%</td>
+              <td className="px-3 py-2.5 text-gray-600">{r.qtd_planos}</td>
+              <td className="px-3 py-2.5 text-gray-600">{fmt$(r.total_planos)}</td>
+              <td className="px-3 py-2.5 font-semibold text-emerald-700">{fmt$(r.repasse_devido)}</td>
+              <td className="px-3 py-2.5 text-amber-700">{fmt$(r.total_pendente)}</td>
+              <td className="px-3 py-2.5 text-right" onClick={e=>e.stopPropagation()}>{Number(r.total_pendente)>0&&<Btn size="sm" variant="secondary" onClick={()=>pagarRep(r.professor_id)}>Marcar pago</Btn>}</td>
+            </tr>
+            {isOpen&&<tr><td colSpan={8} className="p-0">
+              <div className="bg-gray-50 border-t border-gray-100 px-6 py-4">
+                {exp.loading?<div className="text-center py-4 text-gray-400"><Spinner/></div>:exp.data&&(()=>{
+                  const {planos=[],reservas=[]}=exp.data;
+                  const todos=[...planos,...reservas].sort((a,b)=>new Date(b.data)-new Date(a.data));
+                  if(todos.length===0)return<p className="text-sm text-gray-400 py-2">Nenhum item encontrado no período.</p>;
+                  return<table className="w-full text-xs">
+                    <thead><tr className="border-b border-gray-200">{['Tipo','Descrição','Data','Valor','Repasse','Status',''].map((h,i)=><th key={i} className={`pb-2 text-left font-semibold text-gray-400 uppercase pr-4 ${i===6?'text-right':''}`}>{h}</th>)}</tr></thead>
+                    <tbody className="divide-y divide-gray-100">{todos.map(item=>{
+                      const isPago=item.repasse_pago;
+                      const dataFmt=item.data?new Date(item.data+'T12:00:00').toLocaleDateString('pt-BR'):'—';
+                      return<tr key={item.origem+item.id} className={isPago?'opacity-50':''}>
+                        <td className="py-1.5 pr-4"><span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-semibold ${item.origem==='plano'?'bg-blue-100 text-blue-700':'bg-purple-100 text-purple-700'}`}>{item.origem==='plano'?'Plano':'Reserva'}</span></td>
+                        <td className="py-1.5 pr-4 text-gray-700 max-w-xs truncate">{item.descricao||'—'}</td>
+                        <td className="py-1.5 pr-4 text-gray-500">{dataFmt}</td>
+                        <td className="py-1.5 pr-4 font-medium text-gray-700">{fmt$(item.valor)}</td>
+                        <td className="py-1.5 pr-4 font-semibold text-emerald-700">{fmt$(item.repasse)}</td>
+                        <td className="py-1.5 pr-4">{isPago?<span className="text-green-600 font-semibold">✓ Pago</span>:<span className="text-amber-600">Pendente</span>}</td>
+                        <td className="py-1.5 text-right"></td>
+                      </tr>;
+                    })}</tbody>
+                  </table>;
+                })()}
+              </div>
+            </td></tr>}
+          </React.Fragment>;
+        })}
       </tbody>
     </table></div></div>}
 
