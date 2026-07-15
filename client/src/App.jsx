@@ -1855,6 +1855,164 @@ function CRMGradeAulas({crmUser, showToast}) {
 }
 
 // ================================================================
+// CRM AULAS AVULSAS (aba dentro de Reservas)
+// ================================================================
+function CRMAulasAvulsas({showToast}){
+  const today=new Date().toISOString().split('T')[0];
+  const [aulas,setAulas]=useState([]);
+  const [profs,setProfs]=useState([]);
+  const [pontos,setPontos]=useState([]);
+  const [ests,setEsts]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [from,setFrom]=useState(today.slice(0,7)+'-01');
+  const [to,setTo]=useState(today);
+  const [profFilt,setProfFilt]=useState('');
+  const BLANK={est_id:'',professor_id:'',ponto_id:'',aluno_nome:'',data:today,hora:'',valor:'',obs:''};
+  const [form,setForm]=useState(null);
+  const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  const load=()=>{
+    setLoading(true);
+    const tok=localStorage.getItem('token');
+    const q=new URLSearchParams({from,to,...(profFilt?{professorId:profFilt}:{})}).toString();
+    Promise.all([
+      fetch(`/api/aulas-avulsas?${q}`,{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
+      fetch('/api/professores',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
+      fetch('/api/points',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
+      fetch('/api/establishments',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
+    ]).then(([a,p,pts,e])=>{
+      setAulas(Array.isArray(a)?a:[]);
+      setProfs(Array.isArray(p)?p:[]);
+      setPontos(Array.isArray(pts)?pts:[]);
+      setEsts(Array.isArray(e)?e:[]);
+    }).finally(()=>setLoading(false));
+  };
+  useEffect(()=>{load();},[from,to,profFilt]);
+
+  const save=async()=>{
+    if(!form.aluno_nome||!form.data||!form.valor)
+      return showToast&&showToast('Preencha aluno, data e valor','error');
+    setSaving(true);
+    try{
+      const tok=localStorage.getItem('token');
+      const body={
+        est_id:form.est_id?Number(form.est_id):null,
+        professor_id:form.professor_id?Number(form.professor_id):null,
+        ponto_id:form.ponto_id?Number(form.ponto_id):null,
+        aluno_nome:form.aluno_nome,
+        data:form.data,
+        hora:form.hora||null,
+        valor:parseFloat(form.valor)||0,
+        obs:form.obs||null,
+      };
+      const method=form.id?'PUT':'POST';
+      const url=form.id?`/api/aulas-avulsas/${form.id}`:'/api/aulas-avulsas';
+      const r=await fetch(url,{method,headers:{Authorization:`Bearer ${tok}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(!r.ok){const e=await r.json();throw new Error(e.error||'Erro');}
+      setForm(null);load();showToast&&showToast('Aula avulsa salva!','success');
+    }catch(e){showToast&&showToast(e.message||'Erro','error');}
+    finally{setSaving(false);}
+  };
+
+  const del=async(id)=>{
+    if(!confirm('Excluir esta aula avulsa?'))return;
+    const tok=localStorage.getItem('token');
+    await fetch(`/api/aulas-avulsas/${id}`,{method:'DELETE',headers:{Authorization:`Bearer ${tok}`}});
+    load();showToast&&showToast('Excluída','success');
+  };
+
+  const totalValor=aulas.reduce((s,a)=>s+Number(a.valor||0),0);
+  const totalRepasse=aulas.reduce((s,a)=>s+Number(a.valor||0)*Number(a.percentual_repasse||0)/100,0);
+
+  return<div>
+    {/* Filtros */}
+    <div className="flex flex-wrap gap-3 items-end mb-4">
+      <div><p className="text-xs text-gray-400 mb-1">De</p><Inp type="date" value={from} onChange={e=>setFrom(e.target.value)}/></div>
+      <div><p className="text-xs text-gray-400 mb-1">Até</p><Inp type="date" value={to} onChange={e=>setTo(e.target.value)}/></div>
+      {profs.length>0&&<select value={profFilt} onChange={e=>setProfFilt(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+        <option value="">Todos os professores</option>
+        {profs.map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
+      </select>}
+      <Btn onClick={()=>setForm({...BLANK})} className="ml-auto">+ Nova Aula Avulsa</Btn>
+    </div>
+
+    {/* Totais */}
+    {aulas.length>0&&<div className="grid grid-cols-3 gap-3 mb-4">
+      {[['Aulas',aulas.length,'#374151'],['Receita Total',fmt$(totalValor),'#0284c7'],['Repasse Total',fmt$(totalRepasse),'#16a34a']].map(([l,v,c])=>
+        <div key={l} className="bg-white rounded-2xl border border-gray-100 p-3 shadow-sm">
+          <p className="text-xs text-gray-400 mb-0.5">{l}</p>
+          <p className="text-lg font-black" style={{color:c}}>{v}</p>
+        </div>)}
+    </div>}
+
+    {/* Tabela */}
+    {loading?<Spinner/>:aulas.length===0
+      ?<div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🎾</p><p>Nenhuma aula avulsa no período</p></div>
+      :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead><tr className="border-b border-gray-100 bg-gray-50">
+            {['Data','Hora','Aluno','Professor','Quadra','Valor','Repasse','Ações'].map((h,i)=>
+              <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase ${i===7?'text-right':''}`}>{h}</th>)}
+          </tr></thead>
+          <tbody className="divide-y divide-gray-50">{aulas.map(a=><tr key={a.id} className="hover:bg-gray-50">
+            <td className="px-3 py-2.5 text-gray-700">{a.data?new Date(a.data).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'—'}</td>
+            <td className="px-3 py-2.5 text-gray-500">{a.hora?a.hora.slice(0,5):'—'}</td>
+            <td className="px-3 py-2.5 font-medium text-gray-800">{a.aluno_nome}</td>
+            <td className="px-3 py-2.5 text-gray-600">{a.professor_nome||'—'}</td>
+            <td className="px-3 py-2.5 text-gray-500">{a.ponto_nome||'—'}</td>
+            <td className="px-3 py-2.5 font-semibold text-gray-700">{fmt$(a.valor)}</td>
+            <td className="px-3 py-2.5 font-semibold text-emerald-700">{a.percentual_repasse?fmt$(Number(a.valor)*Number(a.percentual_repasse)/100):'—'}</td>
+            <td className="px-3 py-2.5 text-right">
+              <div className="flex gap-2 justify-end">
+                <button onClick={()=>setForm({...a,est_id:a.est_id||'',professor_id:a.professor_id||'',ponto_id:a.ponto_id||'',hora:a.hora?a.hora.slice(0,5):'',valor:String(a.valor)})} className="text-xs px-2 py-1 rounded-lg border border-gray-200 hover:border-emerald-400 text-gray-600">✏️</button>
+                <button onClick={()=>del(a.id)} className="text-xs px-2 py-1 rounded-lg border border-red-100 hover:border-red-400 text-red-500">🗑️</button>
+              </div>
+            </td>
+          </tr>)}</tbody>
+        </table>
+      </div>}
+
+    {/* Modal form */}
+    {form&&<div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4">
+        <h2 className="text-lg font-bold text-gray-800">{form.id?'Editar':'Nova'} Aula Avulsa</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Data *"><Inp type="date" value={form.data} onChange={e=>upd('data',e.target.value)}/></Field>
+          <Field label="Horário"><Inp type="time" value={form.hora} onChange={e=>upd('hora',e.target.value)}/></Field>
+        </div>
+        <Field label="Aluno *"><Inp value={form.aluno_nome} onChange={e=>upd('aluno_nome',e.target.value)} placeholder="Nome do aluno"/></Field>
+        <Field label="Professor">
+          <Sel value={form.professor_id||''} onChange={e=>upd('professor_id',e.target.value)}
+            options={profs.map(p=>({value:p.id,label:`${p.nome} (${p.percentual_repasse||0}%)`}))}
+            placeholder="Selecione..."/>
+        </Field>
+        <Field label="Quadra / Espaço">
+          <Sel value={form.ponto_id||''} onChange={e=>upd('ponto_id',e.target.value)}
+            options={pontos.map(p=>({value:p.id,label:p.name}))}
+            placeholder="Selecione..."/>
+        </Field>
+        {ests.length>1&&<Field label="Estabelecimento">
+          <Sel value={form.est_id||''} onChange={e=>upd('est_id',e.target.value)}
+            options={ests.map(e=>({value:e.id,label:e.name}))}
+            placeholder="Selecione..."/>
+        </Field>}
+        <Field label="Valor (R$) *"><Inp type="number" step="0.01" value={form.valor} onChange={e=>upd('valor',e.target.value)} placeholder="0,00"/></Field>
+        <Field label="Observações"><Inp value={form.obs||''} onChange={e=>upd('obs',e.target.value)} placeholder="Opcional"/></Field>
+        {form.professor_id&&profs.find(p=>String(p.id)===String(form.professor_id))&&<div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm text-emerald-700">
+          Repasse: <strong>{fmt$(parseFloat(form.valor||0)*Number(profs.find(p=>String(p.id)===String(form.professor_id))?.percentual_repasse||0)/100)}</strong>
+          {' '}({profs.find(p=>String(p.id)===String(form.professor_id))?.percentual_repasse||0}%)
+        </div>}
+        <div className="flex gap-3 pt-2">
+          <Btn onClick={save} disabled={saving}>{saving?'Salvando...':'Salvar'}</Btn>
+          <Btn variant="secondary" onClick={()=>setForm(null)}>Cancelar</Btn>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+// ================================================================
 // CRM PLANOS DE AULA (aba dentro de Reservas)
 // ================================================================
 function CRMPlanosAula({showToast}){
@@ -2579,8 +2737,9 @@ function CRMReservations({showToast,crmUser}){
         <Btn onClick={()=>{setShowManual(true);setMb(MBL);setMbNameInput('');setMbVisitante(false);}}>+ Nova Reserva</Btn>
       </div>}
     </div>
-    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'recorrentes',label:'🔄 Recorrentes'},{key:'aulas',label:'📚 Planos de Aula'},{key:'grade',label:'🗓️ Grade de Aulas'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'},{key:'ranking',label:'🏆 Ranking'}]} active={resTab} onChange={setResTab}/>
+    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'recorrentes',label:'🔄 Recorrentes'},{key:'aulas',label:'📚 Planos de Aula'},{key:'avulsas',label:'🎾 Aulas Avulsas'},{key:'grade',label:'🗓️ Grade de Aulas'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'},{key:'ranking',label:'🏆 Ranking'}]} active={resTab} onChange={setResTab}/>
     {resTab==='aulas'&&<CRMPlanosAula showToast={showToast}/>}
+    {resTab==='avulsas'&&<CRMAulasAvulsas showToast={showToast}/>}
     {resTab==='grade'&&<CRMGradeAulas showToast={showToast} crmUser={crmUser}/>}
     {resTab==='recorrentes'&&<CRMRecorrentes showToast={showToast} crmUser={crmUser}/>}
     {resTab==='bar'&&<CRMBar showToast={showToast} crmUser={crmUser}/>}
@@ -4069,8 +4228,8 @@ function CRMFinanceiro({crmUser,showToast}){
             {isOpen&&<tr><td colSpan={8} className="p-0">
               <div className="bg-gray-50 border-t border-gray-100 px-6 py-4">
                 {exp.loading?<div className="text-center py-4 text-gray-400"><Spinner/></div>:exp.data&&(()=>{
-                  const {planos=[],reservas=[]}=exp.data;
-                  const todos=[...planos,...reservas].sort((a,b)=>new Date(b.data)-new Date(a.data));
+                  const {planos=[],reservas=[],avulsas=[]}=exp.data;
+                  const todos=[...planos,...reservas,...avulsas].sort((a,b)=>new Date(b.data)-new Date(a.data));
                   if(todos.length===0)return<p className="text-sm text-gray-400 py-2">Nenhum item encontrado no período.</p>;
                   return<table className="w-full text-xs">
                     <thead><tr className="border-b border-gray-200">{['Tipo','Descrição','Data','Valor','Repasse','Status',''].map((h,i)=><th key={i} className={`pb-2 text-left font-semibold text-gray-400 uppercase pr-4 ${i===6?'text-right':''}`}>{h}</th>)}</tr></thead>
@@ -4078,7 +4237,7 @@ function CRMFinanceiro({crmUser,showToast}){
                       const isPago=item.repasse_pago;
                       const dataFmt=item.data?new Date(item.data).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'—';
                       return<tr key={item.origem+item.id} className={isPago?'opacity-50':''}>
-                        <td className="py-1.5 pr-4"><span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-semibold ${item.origem==='plano'?'bg-blue-100 text-blue-700':'bg-purple-100 text-purple-700'}`}>{item.origem==='plano'?'Plano':'Reserva'}</span></td>
+                        <td className="py-1.5 pr-4"><span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-semibold ${item.origem==='plano'?'bg-blue-100 text-blue-700':item.origem==='avulsa'?'bg-orange-100 text-orange-700':'bg-purple-100 text-purple-700'}`}>{item.origem==='plano'?'Plano':item.origem==='avulsa'?'Avulsa':'Reserva'}</span></td>
                         <td className="py-1.5 pr-4 text-gray-700 max-w-xs truncate">{item.descricao||'—'}</td>
                         <td className="py-1.5 pr-4 text-gray-500">{dataFmt}</td>
                         <td className="py-1.5 pr-4 font-medium text-gray-700">{fmt$(item.valor)}</td>

@@ -45,6 +45,11 @@ const SRC_UNION = `(
          COALESCE(r.repasse_pago, FALSE) AS repasse_pago, 'reserva' AS origem
   FROM reservations r
   WHERE r.professor_id IS NOT NULL AND r.total > 0
+  UNION ALL
+  SELECT av.id, av.professor_id, av.est_id, av.valor, av.data,
+         COALESCE(av.repasse_pago, FALSE) AS repasse_pago, 'avulsa' AS origem
+  FROM aulas_avulsas av
+  WHERE av.professor_id IS NOT NULL
 ) src`;
 
 // GET /api/repasse?from=&to=&estId=&status=
@@ -122,7 +127,21 @@ router.get('/:professorId/detalhe', auth, async (req, res) => {
       params2.push(req.user.est_id); w2.push(`r.est_id = $${params2.length}`);
     }
 
-    const [planos, reservas, prof] = await Promise.all([
+    const params3 = [req.params.professorId];
+    const w3 = ['av.professor_id = $1'];
+    if (from) { params3.push(from); w3.push(`av.data >= $${params3.length}`); }
+    if (to)   { params3.push(to);   w3.push(`av.data <= $${params3.length}`); }
+    if (req.user.role === 'manager') {
+      const ids = Array.from(new Set([...(req.user.est_ids||[]),...(req.user.est_id?[req.user.est_id]:[])]))
+        .map(Number).filter(Boolean);
+      if (ids.length) { params3.push(ids); w3.push(`av.est_id = ANY($${params3.length})`); }
+    } else if (req.user.role === 'simples' && req.user.est_id) {
+      params3.push(req.user.est_id); w3.push(`av.est_id = $${params3.length}`);
+    } else if (req.user.role === 'professor' && req.user.est_id) {
+      params3.push(req.user.est_id); w3.push(`av.est_id = $${params3.length}`);
+    }
+
+    const [planos, reservas, avulsas, prof] = await Promise.all([
       pool.query(
         `SELECT pa.id, pa.nome_aluno AS descricao, pa.data_inicio AS data, pa.valor,
                 pa.repasse_pago, pa.repasse_pago_em, p.percentual_repasse,
@@ -140,6 +159,15 @@ router.get('/:professorId/detalhe', auth, async (req, res) => {
          WHERE ${w2.join(' AND ')} ORDER BY r.date DESC`,
         params2
       ),
+      pool.query(
+        `SELECT av.id, av.aluno_nome AS descricao, av.data, av.valor,
+                COALESCE(av.repasse_pago,FALSE) AS repasse_pago, av.repasse_pago_em,
+                p.percentual_repasse,
+                (av.valor * p.percentual_repasse/100) AS repasse, 'avulsa' AS origem
+         FROM aulas_avulsas av JOIN professores p ON p.id = av.professor_id
+         WHERE ${w3.join(' AND ')} ORDER BY av.data DESC`,
+        params3
+      ),
       pool.query(`SELECT nome, percentual_repasse FROM professores WHERE id=$1`, [req.params.professorId]),
     ]);
 
@@ -147,6 +175,7 @@ router.get('/:professorId/detalhe', auth, async (req, res) => {
       professor: prof.rows[0] || null,
       planos:    planos.rows,
       reservas:  reservas.rows,
+      avulsas:   avulsas.rows,
     });
   } catch (err) {
     console.error('[GET /repasse/:id/detalhe]', err);

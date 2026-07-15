@@ -82,6 +82,7 @@ app.use('/api/alunos',                require('./routes/alunos'));
 app.use('/api/recurring-reservations', require('./routes/recurring-reservations'));
 app.use('/api/whatsapp',              require('./routes/whatsapp'));
 app.use('/api/grade-aulas',           require('./routes/grade-aulas'));
+app.use('/api/aulas-avulsas',         require('./routes/aulas-avulsas'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));
@@ -356,6 +357,21 @@ async function runMigrations() {
     `ALTER TABLE planos_aula  ADD COLUMN IF NOT EXISTS repasse_pago_em TIMESTAMPTZ`,
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS repasse_pago    BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS repasse_pago_em TIMESTAMPTZ`,
+    // aulas avulsas
+    `CREATE TABLE IF NOT EXISTS aulas_avulsas (
+      id            SERIAL PRIMARY KEY,
+      est_id        INTEGER REFERENCES establishments(id) ON DELETE CASCADE,
+      professor_id  INTEGER REFERENCES professores(id)   ON DELETE SET NULL,
+      ponto_id      INTEGER REFERENCES points(id)        ON DELETE SET NULL,
+      aluno_nome    TEXT    NOT NULL,
+      data          DATE    NOT NULL,
+      hora          TIME,
+      valor         NUMERIC(10,2) NOT NULL DEFAULT 0,
+      obs           TEXT,
+      repasse_pago    BOOLEAN   DEFAULT FALSE,
+      repasse_pago_em TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    )`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
