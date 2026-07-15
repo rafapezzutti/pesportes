@@ -4076,7 +4076,7 @@ function CRMFinanceiro({crmUser,showToast}){
                     <thead><tr className="border-b border-gray-200">{['Tipo','Descrição','Data','Valor','Repasse','Status',''].map((h,i)=><th key={i} className={`pb-2 text-left font-semibold text-gray-400 uppercase pr-4 ${i===6?'text-right':''}`}>{h}</th>)}</tr></thead>
                     <tbody className="divide-y divide-gray-100">{todos.map(item=>{
                       const isPago=item.repasse_pago;
-                      const dataFmt=item.data?new Date(item.data+'T12:00:00').toLocaleDateString('pt-BR'):'—';
+                      const dataFmt=item.data?new Date(item.data).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'—';
                       return<tr key={item.origem+item.id} className={isPago?'opacity-50':''}>
                         <td className="py-1.5 pr-4"><span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-semibold ${item.origem==='plano'?'bg-blue-100 text-blue-700':'bg-purple-100 text-purple-700'}`}>{item.origem==='plano'?'Plano':'Reserva'}</span></td>
                         <td className="py-1.5 pr-4 text-gray-700 max-w-xs truncate">{item.descricao||'—'}</td>
