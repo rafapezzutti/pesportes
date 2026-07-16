@@ -39,7 +39,7 @@ const SRC_UNION = `(
   SELECT pa.id, pa.professor_id, pa.est_id, pa.valor, pa.data_inicio AS data,
          COALESCE(pa.repasse_pago, FALSE) AS repasse_pago, 'plano' AS origem
   FROM planos_aula pa
-  WHERE pa.professor_id IS NOT NULL
+  WHERE pa.professor_id IS NOT NULL AND COALESCE(pa.status,'ativo') != 'cancelado'
   UNION ALL
   SELECT r.id, r.professor_id, r.est_id, r.total AS valor, r.date AS data,
          COALESCE(r.repasse_pago, FALSE) AS repasse_pago, 'reserva' AS origem
@@ -147,7 +147,8 @@ router.get('/:professorId/detalhe', auth, async (req, res) => {
                 pa.repasse_pago, pa.repasse_pago_em, p.percentual_repasse,
                 (pa.valor * p.percentual_repasse/100) AS repasse, 'plano' AS origem
          FROM planos_aula pa JOIN professores p ON p.id = pa.professor_id
-         WHERE ${w1.join(' AND ')} ORDER BY pa.data_inicio DESC`,
+         WHERE ${w1.join(' AND ')} AND COALESCE(pa.status,'ativo') != 'cancelado'
+         ORDER BY pa.data_inicio DESC`,
         params1
       ),
       pool.query(
