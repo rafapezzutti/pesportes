@@ -2372,7 +2372,12 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
 
   useEffect(()=>{
     if(!pointId||!date){setSlots([]);setSelSlots([]);return;}
-    pointApi.slots(pointId,date,true).then(data=>{setSlotRInterval(data.interval||60);setSlots((data.slots||data).filter(x=>x.available).map(x=>x.time));}).catch(()=>setSlots([]));
+    pointApi.slots(pointId,date,true).then(data=>{
+      setSlotRInterval(data.interval||60);
+      // guarda todos os slots (disponíveis e ocupados)
+      const all=data.slots||data;
+      setSlots(Array.isArray(all)?all.map(x=>typeof x==='string'?{time:x,available:true}:x):[]);
+    }).catch(()=>setSlots([]));
     setSelSlots([]);
   },[pointId,date]);
 
@@ -2426,12 +2431,24 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
     </div>
 
     {pointId&&slots.length>0&&<div>
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Horário {selSlots.length>0&&<span className="text-emerald-600 normal-case font-medium">— {selSlots[0]} a {addMins(selSlots[selSlots.length-1],slotRInterval)} ({durLabel(selSlots.length)})</span>}</p>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        Horário {selSlots.length>0&&<span className="text-emerald-600 normal-case font-medium">— {selSlots[0]} a {addMins(selSlots[selSlots.length-1],slotRInterval)} ({durLabel(selSlots.length)})</span>}
+      </p>
       <div className="flex flex-wrap gap-1.5">
-        {slots.map(s=><button key={s} type="button" onClick={()=>toggleSlotR(s)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${selSlots.includes(s)?'bg-emerald-600 text-white border-emerald-600':'border-gray-200 text-gray-600 hover:border-emerald-400'}`}>{s}</button>)}
+        {slots.map(sl=>{
+          const s=sl.time||sl;
+          const avail=sl.available!==false;
+          const sel=selSlots.includes(s);
+          if(!avail)return<button key={s} type="button" disabled title="Horário ocupado"
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg border bg-red-100 border-red-300 text-red-500 cursor-not-allowed line-through opacity-80">{s}</button>;
+          return<button key={s} type="button" onClick={()=>toggleSlotR(s)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${sel?'bg-emerald-600 text-white border-emerald-600':'border-gray-200 text-gray-600 hover:border-emerald-400'}`}>{s}</button>;
+        })}
       </div>
+      <p className="text-xs text-gray-400 mt-2">🔴 Ocupado &nbsp; 🟢 Disponível</p>
     </div>}
-    {pointId&&date&&slots.length===0&&<p className="text-sm text-amber-500 text-center py-2 bg-amber-50 rounded-lg">Nenhum horário livre neste dia</p>}
+    {pointId&&date&&slots.length===0&&<p className="text-sm text-amber-500 text-center py-2 bg-amber-50 rounded-lg">Nenhum horário configurado neste dia</p>}
+    {pointId&&date&&slots.length>0&&slots.every(sl=>sl.available===false)&&<p className="text-sm text-red-500 text-center py-1">Todos os horários estão ocupados</p>}
 
     <div>
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cliente</p>
