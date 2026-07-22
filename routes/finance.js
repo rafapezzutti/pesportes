@@ -439,6 +439,18 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       ' ORDER BY rk.data_inicio',
       buildParams(aBase));
 
+    // Mensalidade do aluno cadastrado
+    const { rows: mensRows } = await pool.query(
+      `SELECT a.id, a.nome, a.mensalidade_valor, a.mensalidade_vencimento,
+              pr.nome AS professor_nome
+       FROM alunos a
+       LEFT JOIN professores pr ON pr.id = a.professor_id
+       WHERE TRIM(a.nome) ILIKE $1 AND a.ativo IS NOT FALSE
+       ORDER BY a.nome LIMIT 5`,
+      [aluno_nome]
+    );
+    const mensalidade = mensRows[0] || null;
+
     const totalAulas    = aulas.reduce((s, r) => s + Number(r.total), 0);
     const totalReservas = reservas.reduce((s, r) => s + Number(r.total), 0);
     const totalBar      = bar.reduce((s, r) => s + Number(r.total), 0);
@@ -447,7 +459,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
 
     res.json({
       aluno_nome, mes: mes || null, modo: hasMes ? 'mes' : 'pendencias_gerais',
-      aulas, reservas, bar, manutencao, rankings,
+      aulas, reservas, bar, manutencao, rankings, mensalidade,
       totais: { aulas: totalAulas, reservas: totalReservas, bar: totalBar, manutencao: totalManut,
                 ranking: totalRanking,
                 geral: totalAulas + totalReservas + totalBar + totalManut + totalRanking },

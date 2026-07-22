@@ -4628,6 +4628,28 @@ function CRMFinanceiro({crmUser,showToast}){
             </div>
           </div>
 
+          {/* mensalidade do aluno */}
+          {resumo.mensalidade&&(()=>{
+            const m=resumo.mensalidade;
+            const TODAY_S=new Date().toISOString().split('T')[0];
+            const vd=m.mensalidade_vencimento?.split('T')[0];
+            const vs=!vd?null:vd<TODAY_S?'vencida':new Date(vd)<=new Date(new Date().setDate(new Date().getDate()+7))?'vence_breve':'em_dia';
+            if(!m.mensalidade_valor&&!vd)return null;
+            const badgeClass=vs==='vencida'?'bg-red-100 border-red-300 text-red-700':vs==='vence_breve'?'bg-amber-100 border-amber-300 text-amber-700':'bg-green-100 border-green-300 text-green-700';
+            const badgeLabel=vs==='vencida'?'🔴 Vencida':vs==='vence_breve'?'🟡 Vence em breve':'🟢 Em dia';
+            return<div className={`rounded-2xl border p-4 mb-4 flex items-center justify-between gap-4 ${vs==='vencida'?'bg-red-50 border-red-200':vs==='vence_breve'?'bg-amber-50 border-amber-200':'bg-green-50 border-green-200'}`}>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">📅 Mensalidade</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {m.mensalidade_valor&&<span className="text-xl font-black text-gray-800">{fmt$(m.mensalidade_valor)}</span>}
+                  {vd&&<span className="text-sm text-gray-600">Vence em {new Date(vd+'T12:00:00').toLocaleDateString('pt-BR')}</span>}
+                  {m.professor_nome&&<span className="text-xs text-gray-400">Prof. {m.professor_nome}</span>}
+                </div>
+              </div>
+              {vs&&<span className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border ${badgeClass}`}>{badgeLabel}</span>}
+            </div>;
+          })()}
+
           {/* totais */}
           {resumo.modo==='pendencias_gerais'&&Number(resumo.totais.geral)>0&&<div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4 flex items-center gap-4">
             <span className="text-3xl">🔴</span>
@@ -5708,7 +5730,16 @@ function CRMEntitlements({showToast}){
 }
 
 export default function App(){
-  const [view,setView]=useState('marketplace');
+  const [authChecked,setAuthChecked]=useState(false);
+  const [view,setView]=useState(()=>{
+    try{
+      const tok=localStorage.getItem('token');
+      const usr=localStorage.getItem('user');
+      const typ=localStorage.getItem('userType');
+      if(tok&&usr&&typ==='crm')return'crm';
+    }catch{}
+    return'marketplace';
+  });
   const [page,setPage]=useState('mkt-home');
   const [pageArg,setPageArg]=useState(null);
   const [crmUser,setCrmUser]=useState(null);
