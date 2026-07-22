@@ -4072,6 +4072,10 @@ function CRMFinanceiro({crmUser,showToast}){
   const [resumoLoading,setResumoLoading]=useState(false);
   const [emailSending,setEmailSending]=useState(false);
   const [waSending,setWaSending]=useState(false);
+  const [resumoProfFilt,setResumoProfFilt]=useState('');
+  const [resumoProfs,setResumoProfs]=useState([]);
+  const [resumoSearch,setResumoSearch]=useState('');
+  const [resumoShowSugg,setResumoShowSugg]=useState(false);
 
   const CF_EMPTY={receitas:{reservas:{total:0,count:0},bar:{total:0,count:0},manutencao:{total:0,count:0},planos:{total:0,count:0},total:0},despesas:{total:0,count:0},saldo:0};
   const [cfLoading,setCfLoading]=useState(false);
@@ -4096,7 +4100,7 @@ function CRMFinanceiro({crmUser,showToast}){
     if(tab==='projecao')loadProj();
     if(tab==='comissao')loadComissao();
     if(tab==='contas')loadContas();
-    if(tab==='resumo')contasApi.clientesFinanceiros().then(nomes=>setAlunos(nomes.map(n=>({nome:n})))).catch(()=>{});
+    if(tab==='resumo')Promise.all([alunoApi.list(),professorApi.list()]).then(([a,p])=>{setAlunos(a);setResumoProfs(p);}).catch(()=>{});
     if(tab==='rel-alunos'){setRelAlunosLoading(true);alunoApi.list().then(setRelAlunos).catch(()=>setRelAlunos([])).finally(()=>setRelAlunosLoading(false));}
     if(tab==='mensalidades'){
       setMensLoading(true);
@@ -4494,13 +4498,38 @@ function CRMFinanceiro({crmUser,showToast}){
     {tab==='resumo'&&<div>
       <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-5 space-y-3">
         <div className="flex flex-wrap gap-3 items-end">
-          <div className="w-64">
-            <p className="text-xs text-gray-400 mb-1 font-medium">Aluno / Professor</p>
-            <select value={selAluno} onChange={e=>setSelAluno(e.target.value)}
+          {resumoProfs.length>0&&<div className="w-52">
+            <p className="text-xs text-gray-400 mb-1 font-medium">Professor</p>
+            <select value={resumoProfFilt} onChange={e=>{setResumoProfFilt(e.target.value);setSelAluno('');setResumoSearch('');setResumo(null);}}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
-              <option value="">Selecione...</option>
-              {alunos.map((a,i)=><option key={i} value={a.nome}>{a.nome}</option>)}
+              <option value="">👤 Todos</option>
+              {resumoProfs.map(p=><option key={p.id} value={String(p.id)}>{p.nome}</option>)}
             </select>
+          </div>}
+          <div className="w-64">
+            <p className="text-xs text-gray-400 mb-1 font-medium">Aluno</p>
+            <div className="relative">
+              <input value={resumoSearch}
+                onChange={e=>{setResumoSearch(e.target.value);setSelAluno('');setResumo(null);setResumoShowSugg(true);}}
+                onFocus={()=>{if(resumoSearch)setResumoShowSugg(true);}}
+                onBlur={()=>setTimeout(()=>setResumoShowSugg(false),150)}
+                placeholder="🔍 Buscar aluno..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+              {resumoShowSugg&&(()=>{
+                const sugg=alunos.filter(a=>{
+                  if(resumoProfFilt&&String(a.professor_id)!==resumoProfFilt)return false;
+                  return resumoSearch.length>0&&a.nome.toLowerCase().includes(resumoSearch.toLowerCase());
+                }).slice(0,8);
+                return sugg.length>0?<div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden max-h-52 overflow-y-auto">
+                  {sugg.map(a=><button key={a.id} type="button" onMouseDown={()=>{setSelAluno(a.nome);setResumoSearch(a.nome);setResumoShowSugg(false);setResumo(null);}}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 text-gray-700 flex items-center justify-between">
+                    <span>{a.nome}</span>
+                    {a.professor_id&&resumoProfs.find(p=>String(p.id)===String(a.professor_id))&&
+                      <span className="text-xs text-gray-400">{resumoProfs.find(p=>String(p.id)===String(a.professor_id))?.nome}</span>}
+                  </button>)}
+                </div>:null;
+              })()}
+            </div>
           </div>
           <div className="w-40">
             <p className="text-xs text-gray-400 mb-1 font-medium">Mês <span className="text-gray-300">(opcional)</span></p>
@@ -4538,7 +4567,7 @@ function CRMFinanceiro({crmUser,showToast}){
           </button>
           {selMes&&<button onClick={()=>setSelMes('')} className="text-xs text-gray-400 border border-gray-200 rounded-lg px-3 py-1.5 hover:text-gray-600">✕ Limpar mês</button>}
         </div>
-        {!selAluno&&<p className="text-xs text-gray-400">Selecione um aluno para ver o histórico financeiro.</p>}
+        {!selAluno&&<p className="text-xs text-gray-400">Digite o nome do aluno para buscar e ver o histórico financeiro.</p>}
       </div>
 
       {resumoLoading&&<Spinner text="Gerando resumo..."/>}
