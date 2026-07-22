@@ -4411,41 +4411,75 @@ function CRMFinanceiro({crmUser,showToast}){
               {emDia>0&&<span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🟢 {emDia} em dia</span>}
               {semData>0&&<span className="text-xs font-semibold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">⚪ {semData} sem data</span>}
             </div>
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-gray-50">
-                {['Aluno','Telefone','Mensalidade','Vencimento','Status','Ação'].map(h=><th key={h} className={`px-4 py-2 text-left text-xs font-semibold text-gray-400 uppercase ${h==='Ação'?'text-right':''}`}>{h}</th>)}
-              </tr></thead>
-              <tbody className="divide-y divide-gray-50">{g.alunos.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(a=>{
-                const vs=vsStatus(a);
-                const vd=a.mensalidade_vencimento?.split('T')[0];
-                const marcarPago=async()=>{
-                  if(!window.confirm(`Marcar mensalidade de ${a.nome} como paga e avançar vencimento para o próximo mês?`))return;
-                  setMensSaving(a.id);
-                  try{
-                    // Avança vencimento para o mesmo dia do mês seguinte
-                    const dataBase=vd?new Date(vd+'T12:00:00'):new Date();
-                    const proxMes=new Date(dataBase);
-                    proxMes.setMonth(proxMes.getMonth()+1);
-                    const novaData=proxMes.toISOString().split('T')[0];
-                    await alunoApi.update(a.id,{mensalidade_vencimento:novaData});
-                    setMensAlunos(prev=>prev.map(al=>al.id===a.id?{...al,mensalidade_vencimento:novaData}:al));
-                    showToast(`Mensalidade de ${a.nome} marcada como paga!`,'success');
-                  }catch(e){showToast(e.message||'Erro','error');}
-                  finally{setMensSaving(null);}
-                };
-                return<tr key={a.id} className={`hover:bg-gray-50 ${vs==='vencida'?'bg-red-50/30':''}`}>
-                  <td className="px-4 py-2.5 font-medium text-gray-800">{a.nome}</td>
-                  <td className="px-4 py-2.5 text-gray-500">{a.telefone||'—'}</td>
-                  <td className="px-4 py-2.5 font-semibold text-gray-700">{a.mensalidade_valor?fmt$(a.mensalidade_valor):'—'}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
-                  <td className="px-4 py-2.5">{!vs?<span className="text-gray-300 text-xs">—</span>:vs==='vencida'?<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">🔴 Vencida</span>:vs==='vence_breve'?<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">🟡 Vence em breve</span>:<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">🟢 Em dia</span>}</td>
-                  <td className="px-4 py-2.5 text-right"><div className="flex gap-2 justify-end">
-                    {vs==='vencida'&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
-                    {a.telefone&&<button onClick={async()=>{try{const r=await alunoApi.notificarVencidos([a.id],vs!=='vencida');showToast(`WhatsApp enviado para ${a.nome}`,'success');}catch(e){showToast(e.message||'Erro','error');}}} className="text-xs font-semibold px-2 py-1 rounded-lg text-white hover:opacity-90" style={{background:'#25D366'}}>📲</button>}
-                  </div></td>
-                </tr>;
-              })}</tbody>
-            </table>
+            {/* Desktop: tabela */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-gray-50">
+                  {['Aluno','Telefone','Mensalidade','Vencimento','Status','Ação'].map(h=><th key={h} className={`px-4 py-2 text-left text-xs font-semibold text-gray-400 uppercase ${h==='Ação'?'text-right':''}`}>{h}</th>)}
+                </tr></thead>
+                <tbody className="divide-y divide-gray-50">{g.alunos.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(a=>{
+                  const vs=vsStatus(a);
+                  const vd=a.mensalidade_vencimento?.split('T')[0];
+                  const marcarPago=async()=>{
+                    if(!window.confirm(`Marcar mensalidade de ${a.nome} como paga e avançar vencimento para o próximo mês?`))return;
+                    setMensSaving(a.id);
+                    try{
+                      const dataBase=vd?new Date(vd+'T12:00:00'):new Date();
+                      const proxMes=new Date(dataBase);proxMes.setMonth(proxMes.getMonth()+1);
+                      const novaData=proxMes.toISOString().split('T')[0];
+                      await alunoApi.update(a.id,{mensalidade_vencimento:novaData});
+                      setMensAlunos(prev=>prev.map(al=>al.id===a.id?{...al,mensalidade_vencimento:novaData}:al));
+                      showToast(`Mensalidade de ${a.nome} marcada como paga!`,'success');
+                    }catch(e){showToast(e.message||'Erro','error');}
+                    finally{setMensSaving(null);}
+                  };
+                  return<tr key={a.id} className={`hover:bg-gray-50 ${vs==='vencida'?'bg-red-50/30':''}`}>
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{a.nome}</td>
+                    <td className="px-4 py-2.5 text-gray-500">{a.telefone||'—'}</td>
+                    <td className="px-4 py-2.5 font-semibold text-gray-700">{a.mensalidade_valor?fmt$(a.mensalidade_valor):'—'}</td>
+                    <td className="px-4 py-2.5 text-gray-600">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
+                    <td className="px-4 py-2.5">{!vs?<span className="text-gray-300 text-xs">—</span>:vs==='vencida'?<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">🔴 Vencida</span>:vs==='vence_breve'?<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">🟡 Vence em breve</span>:<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">🟢 Em dia</span>}</td>
+                    <td className="px-4 py-2.5 text-right"><div className="flex gap-2 justify-end">
+                      {vs==='vencida'&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
+                      {a.telefone&&<button onClick={async()=>{try{await alunoApi.notificarVencidos([a.id],vs!=='vencida');showToast(`WhatsApp enviado para ${a.nome}`,'success');}catch(e){showToast(e.message||'Erro','error');}}} className="text-xs font-semibold px-2 py-1 rounded-lg text-white hover:opacity-90" style={{background:'#25D366'}}>📲</button>}
+                    </div></td>
+                  </tr>;
+                })}</tbody>
+              </table>
+            </div>
+            {/* Mobile: cards */}
+            <div className="md:hidden divide-y divide-gray-50">{g.alunos.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(a=>{
+              const vs=vsStatus(a);
+              const vd=a.mensalidade_vencimento?.split('T')[0];
+              const marcarPago=async()=>{
+                if(!window.confirm(`Marcar mensalidade de ${a.nome} como paga?`))return;
+                setMensSaving(a.id);
+                try{
+                  const dataBase=vd?new Date(vd+'T12:00:00'):new Date();
+                  const proxMes=new Date(dataBase);proxMes.setMonth(proxMes.getMonth()+1);
+                  const novaData=proxMes.toISOString().split('T')[0];
+                  await alunoApi.update(a.id,{mensalidade_vencimento:novaData});
+                  setMensAlunos(prev=>prev.map(al=>al.id===a.id?{...al,mensalidade_vencimento:novaData}:al));
+                  showToast(`Mensalidade de ${a.nome} marcada como paga!`,'success');
+                }catch(e){showToast(e.message||'Erro','error');}
+                finally{setMensSaving(null);}
+              };
+              return<div key={a.id} className={`px-4 py-3 ${vs==='vencida'?'bg-red-50/40':''}`}>
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <span className="font-semibold text-gray-800 text-sm">{a.nome}</span>
+                  {!vs?null:vs==='vencida'?<span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">🔴 Vencida</span>:vs==='vence_breve'?<span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">🟡 Vence em breve</span>:<span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">🟢 Em dia</span>}
+                </div>
+                <div className="flex gap-4 text-xs text-gray-500 mb-2">
+                  {a.mensalidade_valor&&<span className="font-semibold text-gray-700">{fmt$(a.mensalidade_valor)}</span>}
+                  {vd&&<span>Vence {new Date(vd+'T12:00:00').toLocaleDateString('pt-BR')}</span>}
+                  {a.telefone&&<span>{a.telefone}</span>}
+                </div>
+                <div className="flex gap-2">
+                  {vs==='vencida'&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
+                  {a.telefone&&<button onClick={async()=>{try{await alunoApi.notificarVencidos([a.id],vs!=='vencida');showToast(`WhatsApp enviado para ${a.nome}`,'success');}catch(e){showToast(e.message||'Erro','error');}}} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{background:'#25D366'}}>📲 WhatsApp</button>}
+                </div>
+              </div>;
+            })}</div>
           </div>;
         })}
         {(()=>{
