@@ -3250,7 +3250,7 @@ function CRMAlunos({crmUser,showToast}){
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th className="px-3 py-3 w-8"><input type="checkbox" className="w-4 h-4 accent-emerald-600 rounded" checked={paged.length>0&&paged.every(a=>selected.has(a.id))} onChange={e=>{const next=new Set(selected);paged.forEach(a=>e.target.checked?next.add(a.id):next.delete(a.id));setSelected(next);}}/></th>
-                  {['Nome','Telefone','Estabelecimento','Professor','Mensalidade','Status','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}
+                  {['Nome','Telefone','Mensalidade','Professor','Estabelecimento','Status','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -3258,9 +3258,9 @@ function CRMAlunos({crmUser,showToast}){
                   <td className="px-3 py-3"><input type="checkbox" className="w-4 h-4 accent-emerald-600 rounded" checked={selected.has(a.id)} onChange={e=>{const next=new Set(selected);e.target.checked?next.add(a.id):next.delete(a.id);setSelected(next);}}/></td>
                   <td className="px-4 py-3"><p className="font-semibold text-gray-800">{a.nome}</p>{a.email&&<p className="text-xs text-gray-400">{a.email}</p>}</td>
                   <td className="px-4 py-3 text-gray-500 text-sm">{a.telefone||'—'}</td>
-                  <td className="px-4 py-3 text-gray-500 text-sm">{a.est_name||'—'}</td>
-                  <td className="px-4 py-3 text-gray-500 text-sm">{a.professor_id?(profs.find(p=>p.id===a.professor_id)?.nome||'—'):'—'}</td>
                   <td className="px-4 py-3">{(()=>{const vd=a.mensalidade_vencimento?.split('T')[0];const val=a.mensalidade_valor?` ${fmt$(a.mensalidade_valor)}`:'';if(!vs)return<span className="text-gray-300 text-xs">—</span>;if(vs==='vencida')return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">🔴 Vencida{val}</span><p className="text-xs text-gray-400 mt-0.5">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;if(vs==='vence_breve')return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">🟡 Vence em breve{val}</span><p className="text-xs text-gray-400 mt-0.5">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;return<div><span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">🟢 Em dia{val}</span><p className="text-xs text-gray-400 mt-0.5">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):''}</p></div>;})()}</td>
+                  <td className="px-4 py-3 text-gray-500 text-sm">{a.professor_id?(profs.find(p=>p.id===a.professor_id)?.nome||'—'):'—'}</td>
+                  <td className="px-4 py-3 text-gray-500 text-sm">{a.est_name||'—'}</td>
                   <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${a.ativo!==false?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}`}>{a.ativo!==false?'Ativo':'Inativo'}</span></td>
                   <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
                     <Btn variant="secondary" size="sm" onClick={()=>openEdit(a)}>Editar</Btn>
