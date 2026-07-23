@@ -139,13 +139,14 @@ router.post('/', auth, async (req, res) => {
     ? (req.user.professor_id || null)
     : (req.body.professor_id ? Number(req.body.professor_id) : null);
   if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+  if (!est_id) return res.status(400).json({ error: 'Estabelecimento é obrigatório' });
 
   try {
     const { rows } = await pool.query(
       `INSERT INTO alunos (nome, cpf, email, telefone, data_nascimento, est_id, professor_id, mensalidade_valor, mensalidade_vencimento)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [nome, cpf || null, email || null, telefone || null, data_nascimento || null, est_id || null, professor_id,
+      [nome, cpf || null, email || null, telefone || null, data_nascimento || null, est_id, professor_id,
        mensalidade_valor ? parseFloat(mensalidade_valor) : null, mensalidade_vencimento || null]
     );
     res.status(201).json(rows[0]);

@@ -1857,7 +1857,7 @@ function CRMGradeAulas({crmUser, showToast}) {
 // ================================================================
 // CRM AULAS AVULSAS (aba dentro de Reservas)
 // ================================================================
-function CRMAulasAvulsas({showToast}){
+function CRMAulasAvulsas({showToast,crmUser}){
   const today=new Date().toISOString().split('T')[0];
   const [aulas,setAulas]=useState([]);
   const [profs,setProfs]=useState([]);
@@ -1893,6 +1893,8 @@ function CRMAulasAvulsas({showToast}){
   const save=async()=>{
     if(!form.aluno_nome||!form.data||!form.valor)
       return showToast&&showToast('Preencha aluno, data e valor','error');
+    if(!form.est_id)
+      return showToast&&showToast('Selecione um estabelecimento','error');
     setSaving(true);
     try{
       const tok=localStorage.getItem('token');
@@ -1934,7 +1936,7 @@ function CRMAulasAvulsas({showToast}){
         <option value="">Todos os professores</option>
         {profs.map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
       </select>}
-      <Btn onClick={()=>setForm({...BLANK})} className="ml-auto">+ Nova Aula Avulsa</Btn>
+      <Btn onClick={()=>{const defEst=crmUser?.est_id||(crmUser?.est_ids&&crmUser.est_ids[0])||'';setForm({...BLANK,est_id:String(defEst||'')});}} className="ml-auto">+ Nova Aula Avulsa</Btn>
     </div>
 
     {/* Totais */}
@@ -2015,7 +2017,7 @@ function CRMAulasAvulsas({showToast}){
 // ================================================================
 // CRM PLANOS DE AULA (aba dentro de Reservas)
 // ================================================================
-function CRMPlanosAula({showToast}){
+function CRMPlanosAula({showToast,crmUser}){
   const [planos,setPlanos]=useState([]);
   const [profs,setProfs]=useState([]);
   const [ests,setEsts]=useState([]);
@@ -2040,7 +2042,10 @@ function CRMPlanosAula({showToast}){
   };
   useEffect(()=>{load();},[]);
 
-  const openNew=()=>{setF(BLANK_PL);setEditPl(null);setShowForm(true);};
+  const openNew=()=>{
+  const defEst=crmUser?.est_id||(crmUser?.est_ids&&crmUser.est_ids[0])||'';
+  setF({...BLANK_PL,est_id:defEst});setEditPl(null);setShowForm(true);
+};
   const openEdit=(pl)=>{
     setF({est_id:pl.est_id||'',professor_id:pl.professor_id||'',nome_aluno:pl.nome_aluno||'',telefone_aluno:pl.telefone_aluno||'',email_aluno:pl.email_aluno||'',tipo_plano:pl.tipo_plano||'avulso',valor:pl.valor||'',recorrencia:pl.recorrencia||'nenhuma',dias_semana:pl.dias_semana||[],horario_inicio:pl.horario_inicio||'',horario_fim:pl.horario_fim||'',data_inicio:pl.data_inicio?pl.data_inicio.split('T')[0]:TODAY,data_fim:pl.data_fim?pl.data_fim.split('T')[0]:'',observacoes:pl.observacoes||''});
     setEditPl(pl);setShowForm(true);
@@ -2051,6 +2056,7 @@ function CRMPlanosAula({showToast}){
   const save=async()=>{
     if(!f.nome_aluno){showToast('Nome do aluno é obrigatório','error');return;}
     if(!f.tipo_plano){showToast('Tipo de plano é obrigatório','error');return;}
+    if(!f.est_id){showToast('Selecione um estabelecimento','error');return;}
     try{
       const payload={...f,professor_id:f.professor_id||null,est_id:f.est_id||null,valor:parseFloat(f.valor)||0,data_fim:f.data_fim||null};
       if(editPl){await planoApi.update(editPl.id,payload);}else{await planoApi.create(payload);}
@@ -2755,8 +2761,8 @@ function CRMReservations({showToast,crmUser}){
       </div>}
     </div>
     <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'recorrentes',label:'🔄 Recorrentes'},{key:'aulas',label:'📚 Planos de Aula'},{key:'avulsas',label:'🎾 Aulas Avulsas'},{key:'grade',label:'🗓️ Grade de Aulas'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'},{key:'ranking',label:'🏆 Ranking'}]} active={resTab} onChange={setResTab}/>
-    {resTab==='aulas'&&<CRMPlanosAula showToast={showToast}/>}
-    {resTab==='avulsas'&&<CRMAulasAvulsas showToast={showToast}/>}
+    {resTab==='aulas'&&<CRMPlanosAula showToast={showToast} crmUser={crmUser}/>}
+    {resTab==='avulsas'&&<CRMAulasAvulsas showToast={showToast} crmUser={crmUser}/>}
     {resTab==='grade'&&<CRMGradeAulas showToast={showToast} crmUser={crmUser}/>}
     {resTab==='recorrentes'&&<CRMRecorrentes showToast={showToast} crmUser={crmUser}/>}
     {resTab==='bar'&&<CRMBar showToast={showToast} crmUser={crmUser}/>}
@@ -3171,6 +3177,7 @@ function CRMAlunos({crmUser,showToast}){
 
   const save=async()=>{
     if(!f.nome){showToast('Nome é obrigatório','error');return;}
+    if(!f.est_id){showToast('Selecione um estabelecimento','error');return;}
     try{
       const payload={...f,est_id:f.est_id||null,data_nascimento:f.data_nascimento||null,professor_id:f.professor_id||null};
       if(editA){
@@ -5934,7 +5941,7 @@ export default function App(){
     'crm-entitlements': <CRMEntitlements showToast={showToast}/>,
     'crm-user-profiles': <CRMUserProfiles crmUser={crmUser} showToast={showToast}/>,
     'prof-perfil':      <CRMProfissionalHome crmUser={crmUser} showToast={showToast}/>,
-    'prof-alunos':      <CRMPlanosAula showToast={showToast}/>,
+    'prof-alunos':      <CRMPlanosAula showToast={showToast} crmUser={crmUser}/>,
   };
 
   if(view==='reset-password')return<ResetPassword token={resetToken} type={resetType} navigate={navigate} showToast={showToast}/>;

@@ -70,11 +70,17 @@ router.post('/', auth, adminManagerOrSimples, async (req, res) => {
     horario_inicio, horario_fim, data_inicio, data_fim, observacoes,
   } = req.body;
 
-  // Professores (simples) só podem criar planos na própria unidade
-  const est_id = req.user.role === 'simples' ? req.user.est_id : req.body.est_id;
+  // Resolve est_id: roles restritos usam sempre o próprio est_id do JWT
+  let est_id = req.body.est_id;
+  if (['simples', 'professor'].includes(req.user.role)) {
+    est_id = req.user.est_id;
+  } else if (req.user.role === 'manager') {
+    est_id = req.body.est_id || req.user.est_id || req.user.est_ids?.[0] || null;
+  }
 
   if (!nome_aluno) return res.status(400).json({ error: 'Nome do aluno é obrigatório' });
   if (!tipo_plano) return res.status(400).json({ error: 'Tipo do plano é obrigatório' });
+  if (!est_id) return res.status(400).json({ error: 'Estabelecimento é obrigatório' });
 
   try {
     const { rows } = await pool.query(

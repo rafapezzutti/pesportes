@@ -61,14 +61,25 @@ router.get('/', auth, async (req, res) => {
 // POST /api/aulas-avulsas
 router.post('/', auth, async (req, res) => {
   if (!canView(req.user)) return res.status(403).json({ error: 'Sem permissão' });
-  const { est_id, professor_id, ponto_id, aluno_nome, data, hora, valor, obs } = req.body;
+  const { professor_id, ponto_id, aluno_nome, data, hora, valor, obs } = req.body;
+
+  // Resolve est_id por role
+  let est_id = req.body.est_id;
+  if (['simples', 'professor'].includes(req.user.role)) {
+    est_id = req.user.est_id;
+  } else if (req.user.role === 'manager') {
+    est_id = req.body.est_id || req.user.est_id || req.user.est_ids?.[0] || null;
+  }
+
   if (!data || !aluno_nome || valor == null)
     return res.status(400).json({ error: 'data, aluno_nome e valor são obrigatórios' });
+  if (!est_id)
+    return res.status(400).json({ error: 'Estabelecimento é obrigatório' });
   try {
     const { rows } = await pool.query(
       `INSERT INTO aulas_avulsas (est_id, professor_id, ponto_id, aluno_nome, data, hora, valor, obs)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [est_id || req.user.est_id, professor_id || null, ponto_id || null,
+      [est_id, professor_id || null, ponto_id || null,
        aluno_nome, data, hora || null, Number(valor), obs || null]
     );
     res.status(201).json(rows[0]);
