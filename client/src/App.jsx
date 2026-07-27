@@ -1411,6 +1411,14 @@ function CRMGradeAulas({crmUser, showToast}) {
   const [editForm,setEditForm]   = useState(null);   // {max_alunos,valor_por_aluno} para editar slot aberto
   const [addingAluno,setAddingAluno] = useState('');
   const [removingId,setRemovingId]   = useState(null);
+  const [horaInicio,setHoraInicio]   = useState(()=>{
+    const now=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+    const mins=now.getHours()*60+now.getMinutes()-30;
+    const fl=Math.max(360,Math.floor(mins/30)*30);
+    return String(Math.floor(fl/60)).padStart(2,'0')+':'+String(fl%60).padStart(2,'0');
+  });
+  const [diaMobileSel,setDiaMobileSel] = useState(()=>{const d=new Date().getDay();return DIAS_UTEIS.includes(d)?d:DIAS_UTEIS[0];});
+  const [showPast,setShowPast] = useState(false);
 
   const profIdx = useMemo(()=>{
     const m={};
@@ -1557,6 +1565,8 @@ function CRMGradeAulas({crmUser, showToast}) {
       )
     : todosAlunos;
 
+  const horasFiltradas = React.useMemo(()=>HORAS_GRADE.filter(h=>h>=horaInicio),[horaInicio]);
+
   // ── Render ────────────────────────────────────────────────────────────────
   return(
     <div className="p-4 md:p-6 space-y-6">
@@ -1584,6 +1594,7 @@ function CRMGradeAulas({crmUser, showToast}) {
             <option value="">Todos os professores</option>
             {profs.map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
           </select>
+
           <button onClick={()=>setShowNew(true)}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
             + Novo Slot
@@ -1591,60 +1602,135 @@ function CRMGradeAulas({crmUser, showToast}) {
         </div>
       </div>
 
+      {/* Mobile: day chips (semanal mode only) */}
+      {modo==='semanal'&&(
+        <div className="flex gap-2 overflow-x-auto md:hidden pb-1">
+          {DIAS_UTEIS.map(d=>(
+            <button key={d} onClick={()=>setDiaMobileSel(d)}
+              className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${diaMobileSel===d?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {DIAS_SEMANA[d]}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Grid */}
       {loading?(
         <div className="text-center py-16 text-gray-400">Carregando grade...</div>
       ):(
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr>
-                <th className="w-16 text-left py-2 pr-3 text-gray-400 font-medium sticky left-0 bg-gray-50">Hora</th>
-                {modo==='semanal'
-                  ? DIAS_UTEIS.map(d=>(
-                      <th key={d} className="py-2 px-1 text-center text-gray-600 font-semibold min-w-[110px]">{DIAS_SEMANA[d]}</th>
-                    ))
-                  : <th className="py-2 px-1 text-center text-gray-600 font-semibold min-w-[160px]">
-                      {DIAS_SEMANA[new Date(dataSel+'T12:00:00').getDay()]} — {new Date(dataSel+'T12:00:00').toLocaleDateString('pt-BR')}
-                    </th>
-                }
-              </tr>
-            </thead>
-            <tbody>
-              {HORAS_GRADE.map(hora=>(
-                <tr key={hora} className="border-t border-gray-100">
-                  <td className="py-2 pr-3 text-gray-400 font-mono text-xs sticky left-0 bg-white">{hora}</td>
-                  {(modo==='semanal'?DIAS_UTEIS:[new Date(dataSel+'T12:00:00').getDay()]).map(d=>{
-                    const cellSlots=(grid[hora]&&grid[hora][d])||[];
-                    return(
-                      <td key={d} className="py-1 px-1 align-top">
-                        <div className="space-y-1 min-h-[36px]">
-                          {cellSlots.map(slot=>{
-                            const [bg,fg]=color(slot.professor_id);
-                            const cnt=(slot.alunos||[]).length;
-                            const cheio=cnt>=slot.max_alunos;
-                            return(
-                              <button key={slot.id}
-                                onClick={()=>{setModal(slot);setEditForm(null);setAddingAluno('');}}
-                                style={{background:bg,color:fg}}
-                                className="w-full rounded-lg px-2 py-1.5 text-left transition-opacity hover:opacity-80">
-                                <div className="font-semibold text-xs leading-tight truncate">{slot.professor_nome||'—'}</div>
-                                <div className="text-xs mt-0.5">
-                                  <span className={`font-bold ${cheio?'text-red-600':''}`}>{cnt}</span>
-                                  <span className="opacity-70">/{slot.max_alunos} • {fmt$(slot.valor_por_aluno)}/al</span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </td>
-                    );
-                  })}
+        <>
+          {/* Mobile view: single day, vertical list — no horizontal scroll */}
+          <div className="md:hidden">
+            {(()=>{
+              const diaAtivo=modo==='semanal'?diaMobileSel:new Date(dataSel+'T12:00:00').getDay();
+              const renderSlotCard=(slot)=>{
+                const[bg,fg]=color(slot.professor_id);
+                const cnt=(slot.alunos||[]).length;
+                const cheio=cnt>=slot.max_alunos;
+                return(
+                  <button key={slot.id} onClick={()=>{setModal(slot);setEditForm(null);setAddingAluno('');}}
+                    style={{background:bg,color:fg}}
+                    className="w-full rounded-xl px-3 py-2.5 text-left active:opacity-70">
+                    <div className="font-semibold text-sm leading-tight">{slot.professor_nome||'—'}</div>
+                    <div className="text-xs mt-0.5 opacity-80">
+                      <span className={`font-bold ${cheio?'text-red-600':''}`}>{cnt}</span>/{slot.max_alunos} alunos • {fmt$(slot.valor_por_aluno)}/al
+                    </div>
+                  </button>
+                );
+              };
+              const pastRows=HORAS_GRADE.filter(h=>h<horaInicio).map(hora=>{
+                const cellSlots=(grid[hora]&&grid[hora][diaAtivo])||[];
+                if(!cellSlots.length) return null;
+                return(
+                  <div key={hora} className="flex gap-3 items-start py-1 border-t border-gray-100 first:border-0">
+                    <span className="text-xs text-gray-400 font-mono w-12 pt-2.5 shrink-0">{hora}</span>
+                    <div className="flex-1 space-y-1.5">{cellSlots.map(renderSlotCard)}</div>
+                  </div>
+                );
+              }).filter(Boolean);
+              const futureRows=horasFiltradas.map(hora=>{
+                const cellSlots=(grid[hora]&&grid[hora][diaAtivo])||[];
+                if(!cellSlots.length) return null;
+                return(
+                  <div key={hora} className="flex gap-3 items-start py-1 border-t border-gray-100 first:border-0">
+                    <span className="text-xs text-gray-400 font-mono w-12 pt-2.5 shrink-0">{hora}</span>
+                    <div className="flex-1 space-y-1.5">{cellSlots.map(renderSlotCard)}</div>
+                  </div>
+                );
+              }).filter(Boolean);
+              return(
+                <div className="space-y-1">
+                  {pastRows.length>0&&(
+                    <div className="mb-2">
+                      <button onClick={()=>setShowPast(p=>!p)}
+                        className="w-full text-left text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1.5 py-2">
+                        <span>{showPast?'▾':'▸'}</span>
+                        <span>{showPast?'Ocultar horários anteriores':`${pastRows.length} horário${pastRows.length>1?'s':''} anterior${pastRows.length>1?'es':''} (antes das ${horaInicio})`}</span>
+                      </button>
+                      {showPast&&<div className="space-y-1 opacity-60">{pastRows}</div>}
+                    </div>
+                  )}
+                  {futureRows.length>0
+                    ? <div className="space-y-1">{futureRows}</div>
+                    : <div className="text-center py-10 text-gray-400"><p className="text-3xl mb-2">📭</p><p>Nenhuma aula agendada a partir das {horaInicio}</p></div>
+                  }
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Desktop view: full table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th className="w-16 text-left py-2 pr-3 text-gray-400 font-medium sticky left-0 bg-gray-50">Hora</th>
+                  {modo==='semanal'
+                    ? DIAS_UTEIS.map(d=>(
+                        <th key={d} className="py-2 px-1 text-center text-gray-600 font-semibold min-w-[110px]">{DIAS_SEMANA[d]}</th>
+                      ))
+                    : <th className="py-2 px-1 text-center text-gray-600 font-semibold min-w-[160px]">
+                        {DIAS_SEMANA[new Date(dataSel+'T12:00:00').getDay()]} — {new Date(dataSel+'T12:00:00').toLocaleDateString('pt-BR')}
+                      </th>
+                  }
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {HORAS_GRADE.map(hora=>(
+                  <tr key={hora} className="border-t border-gray-100">
+                    <td className="py-2 pr-3 text-gray-400 font-mono text-xs sticky left-0 bg-white">{hora}</td>
+                    {(modo==='semanal'?DIAS_UTEIS:[new Date(dataSel+'T12:00:00').getDay()]).map(d=>{
+                      const cellSlots=(grid[hora]&&grid[hora][d])||[];
+                      return(
+                        <td key={d} className="py-1 px-1 align-top">
+                          <div className="space-y-1 min-h-[36px]">
+                            {cellSlots.map(slot=>{
+                              const [bg,fg]=color(slot.professor_id);
+                              const cnt=(slot.alunos||[]).length;
+                              const cheio=cnt>=slot.max_alunos;
+                              return(
+                                <button key={slot.id}
+                                  onClick={()=>{setModal(slot);setEditForm(null);setAddingAluno('');}}
+                                  style={{background:bg,color:fg}}
+                                  className="w-full rounded-lg px-2 py-1.5 text-left transition-opacity hover:opacity-80">
+                                  <div className="font-semibold text-xs leading-tight truncate">{slot.professor_nome||'—'}</div>
+                                  <div className="text-xs mt-0.5">
+                                    <span className={`font-bold ${cheio?'text-red-600':''}`}>{cnt}</span>
+                                    <span className="opacity-70">/{slot.max_alunos} • {fmt$(slot.valor_por_aluno)}/al</span>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Resumo por professor */}
