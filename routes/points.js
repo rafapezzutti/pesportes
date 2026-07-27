@@ -81,7 +81,7 @@ router.get('/:id/slots', async (req, res) => {
       for (let m = 0; m < 60; m += slotInterval) {
         const t = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
         if (date === todayStr && h * 60 + m < nowMins && !req.query.crm) continue;
-        const taken = resList.some(r => r.start_time <= t && t < r.end_time);
+        const taken = resList.some(r => r.start_time.slice(0,5) <= t && t < r.end_time.slice(0,5));
         slots.push({ time: t, available: !taken });
       }
     }

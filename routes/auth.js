@@ -32,8 +32,9 @@ router.post('/crm/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password_hash)))
       return res.status(401).json({ error: 'Email ou senha invalidos' });
 
-    // Fetch establishment features for non-admin users
+    // Fetch establishment features + name for non-admin users
     let estFeatures = null;
+    let estName = null;
     if (user.role !== 'admin') {
       const estIds = Array.from(new Set([
         ...(user.est_ids || []),
@@ -41,7 +42,7 @@ router.post('/crm/login', async (req, res) => {
       ])).map(Number).filter(Boolean);
       if (estIds.length) {
         const estRes = await pool.query(
-          `SELECT COALESCE(features, '{}') AS features FROM establishments WHERE id = ANY($1)`,
+          `SELECT id, name, COALESCE(features, '{}') AS features FROM establishments WHERE id = ANY($1)`,
           [estIds]
         );
         if (estRes.rows.length) {
@@ -53,6 +54,11 @@ router.post('/crm/login', async (req, res) => {
             if (allFeatures.every(f => f[k] === false)) merged[k] = false;
           });
           estFeatures = merged;
+          // est_name: primary establishment name
+          if (!estName) {
+            const primary = estRes.rows.find(r => r.id === user.est_id) || estRes.rows[0];
+            estName = primary?.name || null;
+          }
         }
       }
     }
@@ -71,6 +77,7 @@ router.post('/crm/login', async (req, res) => {
         id: user.id, name: user.name, email: user.email, role: user.role,
         est_id: user.est_id || null,
         est_ids: user.est_ids || [],
+        est_name: estName || null,
         profissional_id: user.profissional_id || null,
         professor_id: user.professor_id || null,
         estFeatures,
@@ -204,10 +211,13 @@ router.post('/impersonate', authMw, adminOnly, async (req, res) => {
   if (!userId) return res.status(400).json({ error: 'userId obrigatorio' });
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, email, role, est_id,
-              COALESCE(est_ids, '{}') AS est_ids, profissional_id,
-              professor_id, permissions
-       FROM crm_users WHERE id = $1`, [userId]
+      `SELECT cu.id, cu.name, cu.email, cu.role, cu.est_id,
+              COALESCE(cu.est_ids, '{}') AS est_ids, cu.profissional_id,
+              cu.professor_id, cu.permissions,
+              e.name AS est_name
+       FROM crm_users cu
+       LEFT JOIN establishments e ON e.id = cu.est_id
+       WHERE cu.id = $1`, [userId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
     const u = rows[0];
@@ -223,6 +233,7 @@ router.post('/impersonate', authMw, adminOnly, async (req, res) => {
       token,
       user: { id: u.id, name: u.name, email: u.email, role: u.role,
               est_id: u.est_id || null, est_ids: u.est_ids || [],
+              est_name: u.est_name || null,
               professor_id: u.professor_id || null,
               permissions: u.permissions || null },
     });
