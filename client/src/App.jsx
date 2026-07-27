@@ -2851,14 +2851,14 @@ function GradeQuadras({data, date, reservations}){
                 <span>{showPast?'Ocultar horários anteriores':`${pastSlots.length} horário${pastSlots.length>1?'s':''} anterior${pastSlots.length>1?'es':''}`}</span>
               </button>
             )}
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs border-separate border-spacing-0">
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full border-separate border-spacing-0">
                 <thead>
                   <tr>
-                    <th className="sticky left-0 bg-gray-50 px-2 py-2 text-left text-gray-400 font-medium border-b border-r border-gray-200 w-12"></th>
+                    <th className="sticky left-0 bg-gray-50 pr-1 pl-1 py-1.5 text-left text-gray-400 border-b border-r border-gray-200" style={{width:'40px',fontSize:'10px'}}>Hora</th>
                     {points.map(pt=>(
-                      <th key={pt.id} className="px-1 py-2 text-center text-gray-600 font-semibold border-b border-r border-gray-200 bg-gray-50" style={{minWidth:'70px',maxWidth:'90px'}}>
-                        <p className="truncate leading-tight">{pt.name}</p>
+                      <th key={pt.id} className="py-1.5 px-0.5 text-center text-gray-600 font-semibold border-b border-r border-gray-200 bg-gray-50" style={{width:`${Math.floor(100/points.length)}%`,fontSize:'10px'}}>
+                        <p className="truncate">{pt.name.replace(/beach\s*/i,'B').replace(/quadra\s*/i,'Q').replace(/court\s*/i,'C')}</p>
                       </th>
                     ))}
                   </tr>
@@ -2867,29 +2867,22 @@ function GradeQuadras({data, date, reservations}){
                   {(showPast?daySlots:futureSlots).map((time,i)=>{
                     const isPast=time<horaCorte;
                     return(
-                      <tr key={time} className={`${isPast?'opacity-50':''} ${i%2===0?'bg-white':'bg-gray-50/40'}`}>
-                        <td className="sticky left-0 bg-inherit px-2 py-1.5 font-mono text-gray-400 border-r border-gray-100 whitespace-nowrap">{time}</td>
+                      <tr key={time} className={isPast?'opacity-40':''}>
+                        <td className="sticky left-0 bg-white pr-1 pl-1 font-mono text-gray-400 border-r border-gray-100 whitespace-nowrap" style={{fontSize:'9px',paddingTop:'3px',paddingBottom:'3px'}}>{time}</td>
                         {points.map(pt=>{
                           const res=resMap[pt.id]?.[time];
                           const isFree=slots[pt.id]?.[date]?.[time];
                           if(res){
                             const isFirst=toMin(time)===toMin(res.start_time);
                             return(
-                              <td key={pt.id} className="px-0.5 py-0.5 border-r border-gray-100">
-                                <div className="bg-red-100 border border-red-200 rounded text-center py-1 px-0.5" style={{minHeight:'28px'}}>
-                                  {isFirst
-                                    ? <p className="font-semibold text-red-700 truncate leading-tight" style={{fontSize:'10px'}}>{(res.client_name||'—').split(' ')[0]}</p>
-                                    : <p className="text-red-300" style={{fontSize:'10px'}}>▓</p>
-                                  }
-                                </div>
+                              <td key={pt.id} className="border-r border-gray-100 px-0.5 py-0.5">
+                                <div className={`rounded ${isFirst?'bg-red-400':'bg-red-300'}`} style={{height:'18px',width:'100%'}}/>
                               </td>
                             );
                           }
                           return(
-                            <td key={pt.id} className="px-0.5 py-0.5 border-r border-gray-100">
-                              <div className={`rounded text-center py-1 ${isFree?'bg-emerald-50 border border-emerald-200 text-emerald-600':'bg-gray-100 text-gray-300'}`} style={{minHeight:'28px',fontSize:'10px'}}>
-                                {isFree?'✓':''}
-                              </div>
+                            <td key={pt.id} className="border-r border-gray-100 px-0.5 py-0.5">
+                              <div className={`rounded ${isFree?'bg-emerald-200':'bg-gray-100'}`} style={{height:'18px',width:'100%'}}/>
                             </td>
                           );
                         })}
