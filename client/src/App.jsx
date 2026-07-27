@@ -2643,7 +2643,7 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
           if(!avail)return<button key={s} type="button" disabled title="Horário ocupado"
             className="px-3 py-1.5 text-xs font-semibold rounded-lg border bg-red-100 border-red-300 text-red-500 cursor-not-allowed line-through opacity-80">{s}</button>;
           return<button key={s} type="button" onClick={()=>toggleSlotR(s)}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${sel?'bg-emerald-600 text-white border-emerald-600':'border-gray-200 text-gray-600 hover:border-emerald-400'}`}>{s}</button>;
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${sel?'bg-emerald-600 text-white border-emerald-600':'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'}`}>{s}</button>;
         })}
       </div>
       <p className="text-xs text-gray-400 mt-2">🔴 Ocupado &nbsp; 🟢 Disponível</p>
