@@ -2853,9 +2853,9 @@ function GradeQuadras({data, date, reservations}){
             )}
             <div className="overflow-x-auto -mx-1">
               <table className="w-full border-separate border-spacing-0">
-                <thead>
+                <thead className="sticky top-0 z-20">
                   <tr>
-                    <th className="sticky left-0 bg-gray-50 pr-1 pl-1 py-1.5 text-left text-gray-400 border-b border-r border-gray-200" style={{width:'40px',fontSize:'10px'}}>Hora</th>
+                    <th className="sticky left-0 z-30 bg-gray-50 pr-1 pl-1 py-1.5 text-left text-gray-400 border-b border-r border-gray-200" style={{width:'40px',fontSize:'10px'}}>Hora</th>
                     {points.map(pt=>(
                       <th key={pt.id} className="py-1.5 px-0.5 text-center text-gray-600 font-semibold border-b border-r border-gray-200 bg-gray-50" style={{width:`${Math.floor(100/points.length)}%`,fontSize:'10px'}}>
                         <p className="truncate">{pt.name.replace(/beach\s*/i,'B').replace(/quadra\s*/i,'Q').replace(/court\s*/i,'C')}</p>
@@ -2868,7 +2868,7 @@ function GradeQuadras({data, date, reservations}){
                     const isPast=time<horaCorte;
                     return(
                       <tr key={time} className={isPast?'opacity-40':''}>
-                        <td className="sticky left-0 bg-white pr-1 pl-1 font-mono text-gray-400 border-r border-gray-100 whitespace-nowrap" style={{fontSize:'9px',paddingTop:'3px',paddingBottom:'3px'}}>{time}</td>
+                        <td className="sticky left-0 z-10 bg-white pr-1 pl-1 font-mono text-gray-400 border-r border-gray-100 whitespace-nowrap" style={{fontSize:'9px',paddingTop:'3px',paddingBottom:'3px'}}>{time}</td>
                         {points.map(pt=>{
                           const res=resMap[pt.id]?.[time];
                           const isFree=slots[pt.id]?.[date]?.[time];
