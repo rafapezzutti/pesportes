@@ -61,7 +61,7 @@ router.get('/', auth, async (req, res) => {
 // POST /api/aulas-avulsas
 router.post('/', auth, async (req, res) => {
   if (!canView(req.user)) return res.status(403).json({ error: 'Sem permissão' });
-  const { professor_id, ponto_id, aluno_nome, data, hora, valor, obs } = req.body;
+  const { professor_id, ponto_id, aluno_nome, data, hora, valor, obs, pacote_id } = req.body;
 
   // Resolve est_id por role
   let est_id = req.body.est_id;
@@ -77,10 +77,10 @@ router.post('/', auth, async (req, res) => {
     return res.status(400).json({ error: 'Estabelecimento é obrigatório' });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO aulas_avulsas (est_id, professor_id, ponto_id, aluno_nome, data, hora, valor, obs)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      `INSERT INTO aulas_avulsas (est_id, professor_id, ponto_id, aluno_nome, data, hora, valor, obs, pacote_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [est_id, professor_id || null, ponto_id || null,
-       aluno_nome, data, hora || null, Number(valor), obs || null]
+       aluno_nome, data, hora || null, Number(valor), obs || null, pacote_id || null]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -92,14 +92,14 @@ router.post('/', auth, async (req, res) => {
 // PUT /api/aulas-avulsas/:id
 router.put('/:id', auth, async (req, res) => {
   if (!canView(req.user)) return res.status(403).json({ error: 'Sem permissão' });
-  const { professor_id, ponto_id, aluno_nome, data, hora, valor, obs } = req.body;
+  const { professor_id, ponto_id, aluno_nome, data, hora, valor, obs, pacote_id } = req.body;
   try {
     const { rows } = await pool.query(
       `UPDATE aulas_avulsas
-       SET professor_id=$1, ponto_id=$2, aluno_nome=$3, data=$4, hora=$5, valor=$6, obs=$7
-       WHERE id=$8 RETURNING *`,
+       SET professor_id=$1, ponto_id=$2, aluno_nome=$3, data=$4, hora=$5, valor=$6, obs=$7, pacote_id=$8
+       WHERE id=$9 RETURNING *`,
       [professor_id || null, ponto_id || null, aluno_nome, data, hora || null,
-       Number(valor), obs || null, req.params.id]
+       Number(valor), obs || null, pacote_id || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
     res.json(rows[0]);

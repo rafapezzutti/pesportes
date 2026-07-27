@@ -1868,8 +1868,9 @@ function CRMAulasAvulsas({showToast,crmUser}){
   const [from,setFrom]=useState(today.slice(0,7)+'-01');
   const [to,setTo]=useState(today);
   const [profFilt,setProfFilt]=useState('');
-  const BLANK={est_id:'',professor_id:'',ponto_id:'',aluno_nome:'',data:today,hora:'',valor:'',obs:''};
+  const BLANK={est_id:'',professor_id:'',ponto_id:'',aluno_nome:'',data:today,hora:'',valor:'',obs:'',pacote_id:''};
   const [form,setForm]=useState(null);
+  const [pacotes,setPacotes]=useState([]);
   const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const load=()=>{
@@ -1881,11 +1882,13 @@ function CRMAulasAvulsas({showToast,crmUser}){
       fetch('/api/professores',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
       fetch('/api/points',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
       fetch('/api/establishments',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
-    ]).then(([a,p,pts,e])=>{
+      fetch('/api/pacotes?ativo=true',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
+    ]).then(([a,p,pts,e,pks])=>{
       setAulas(Array.isArray(a)?a:[]);
       setProfs(Array.isArray(p)?p:[]);
       setPontos(Array.isArray(pts)?pts:[]);
       setEsts(Array.isArray(e)?e:[]);
+      setPacotes(Array.isArray(pks)?pks:[]);
     }).finally(()=>setLoading(false));
   };
   useEffect(()=>{load();},[from,to,profFilt]);
@@ -1907,6 +1910,7 @@ function CRMAulasAvulsas({showToast,crmUser}){
         hora:form.hora||null,
         valor:parseFloat(form.valor)||0,
         obs:form.obs||null,
+        pacote_id:form.pacote_id?Number(form.pacote_id):null,
       };
       const method=form.id?'PUT':'POST';
       const url=form.id?`/api/aulas-avulsas/${form.id}`:'/api/aulas-avulsas';
@@ -1954,7 +1958,7 @@ function CRMAulasAvulsas({showToast,crmUser}){
       :<div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="border-b border-gray-100 bg-gray-50">
-            {['Data','Hora','Aluno','Professor','Quadra','Valor','Repasse','Ações'].map((h,i)=>
+            {['Data','Hora','Aluno','Professor','Quadra','Valor','Repasse','Pacote','Ações'].map((h,i)=>
               <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase ${i===7?'text-right':''}`}>{h}</th>)}
           </tr></thead>
           <tbody className="divide-y divide-gray-50">{aulas.map(a=><tr key={a.id} className="hover:bg-gray-50">
@@ -1965,9 +1969,10 @@ function CRMAulasAvulsas({showToast,crmUser}){
             <td className="px-3 py-2.5 text-gray-500">{a.ponto_nome||'—'}</td>
             <td className="px-3 py-2.5 font-semibold text-gray-700">{fmt$(a.valor)}</td>
             <td className="px-3 py-2.5 font-semibold text-emerald-700">{a.percentual_repasse?fmt$(Number(a.valor)*Number(a.percentual_repasse)/100):'—'}</td>
+            <td className="px-3 py-2.5">{a.pacote_id?<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">📦 {pacotes.find(pk=>pk.id===a.pacote_id)?.nome||'Pacote'}</span>:<span className="text-gray-300 text-xs">—</span>}</td>
             <td className="px-3 py-2.5 text-right">
               <div className="flex gap-2 justify-end">
-                <button onClick={()=>setForm({...a,est_id:a.est_id||'',professor_id:a.professor_id||'',ponto_id:a.ponto_id||'',hora:a.hora?a.hora.slice(0,5):'',valor:String(a.valor)})} className="text-xs px-2 py-1 rounded-lg border border-gray-200 hover:border-emerald-400 text-gray-600">✏️</button>
+                <button onClick={()=>setForm({...a,est_id:a.est_id||'',professor_id:a.professor_id||'',ponto_id:a.ponto_id||'',hora:a.hora?a.hora.slice(0,5):'',valor:String(a.valor),pacote_id:a.pacote_id||''})} className="text-xs px-2 py-1 rounded-lg border border-gray-200 hover:border-emerald-400 text-gray-600">✏️</button>
                 <button onClick={()=>del(a.id)} className="text-xs px-2 py-1 rounded-lg border border-red-100 hover:border-red-400 text-red-500">🗑️</button>
               </div>
             </td>
@@ -2001,12 +2006,202 @@ function CRMAulasAvulsas({showToast,crmUser}){
         </Field>}
         <Field label="Valor (R$) *"><Inp type="number" step="0.01" value={form.valor} onChange={e=>upd('valor',e.target.value)} placeholder="0,00"/></Field>
         <Field label="Observações"><Inp value={form.obs||''} onChange={e=>upd('obs',e.target.value)} placeholder="Opcional"/></Field>
+        {pacotes.length>0&&<div className="border border-blue-100 rounded-xl p-3 bg-blue-50 space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="w-4 h-4 accent-blue-600 rounded"
+              checked={!!form.pacote_id}
+              onChange={e=>upd('pacote_id',e.target.checked?(pacotes[0]?.id||''):'') }/>
+            <span className="text-sm font-medium text-blue-800">📦 Consumir de um Pacote</span>
+          </label>
+          {!!form.pacote_id&&<select value={form.pacote_id||''} onChange={e=>upd('pacote_id',e.target.value)}
+            className="w-full border border-blue-200 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="">— Selecione o pacote —</option>
+            {pacotes.map(pk=>{const rest=Math.max(0,Number(pk.quantidade)-Number(pk.consumido||0));return<option key={pk.id} value={pk.id}>{pk.aluno_nome} — {pk.nome} ({rest} restante{rest!==1?'s':''})</option>;})}
+          </select>}
+        </div>}
         {form.professor_id&&profs.find(p=>String(p.id)===String(form.professor_id))&&<div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm text-emerald-700">
           Repasse: <strong>{fmt$(parseFloat(form.valor||0)*Number(profs.find(p=>String(p.id)===String(form.professor_id))?.percentual_repasse||0)/100)}</strong>
           {' '}({profs.find(p=>String(p.id)===String(form.professor_id))?.percentual_repasse||0}%)
         </div>}
         <div className="flex gap-3 pt-2">
           <Btn onClick={save} disabled={saving}>{saving?'Salvando...':'Salvar'}</Btn>
+          <Btn variant="secondary" onClick={()=>setForm(null)}>Cancelar</Btn>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+// ================================================================
+// CRM PACOTES
+// ================================================================
+function CRMPacotes({showToast,crmUser}){
+  const today=new Date().toISOString().split('T')[0];
+  const [pacotes,setPacotes]=useState([]);
+  const [alunos,setAlunos]=useState([]);
+  const [ests,setEsts]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [notifId,setNotifId]=useState(null);
+  const [form,setForm]=useState(null);
+  const [filtroAtivo,setFiltroAtivo]=useState('true');
+  const BLANK={est_id:'',aluno_id:'',nome:'',tipo:'aulas',quantidade:'',valor:'',data_compra:today,data_validade:'',obs:''};
+  const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  const tok=()=>localStorage.getItem('token');
+  const api=(path,opts={})=>fetch(path,{...opts,headers:{Authorization:`Bearer ${tok()}`,'Content-Type':'application/json',...(opts.headers||{})}}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'Erro');return d;});
+
+  const load=()=>{
+    setLoading(true);
+    Promise.all([
+      api(`/api/pacotes${filtroAtivo!==''?`?ativo=${filtroAtivo}`:''}`),
+      api('/api/alunos'),
+      api('/api/establishments'),
+    ]).then(([pks,al,es])=>{setPacotes(Array.isArray(pks)?pks:[]);setAlunos(Array.isArray(al)?al:[]);setEsts(Array.isArray(es)?es:[]);})
+    .catch(()=>{})
+    .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{load();},[filtroAtivo]);
+
+  const openNew=()=>{
+    const defEst=String(crmUser?.est_id||(crmUser?.est_ids&&crmUser.est_ids[0])||'');
+    setForm({...BLANK,est_id:defEst});
+  };
+
+  const save=async()=>{
+    if(!form.aluno_id){showToast('Selecione um aluno','error');return;}
+    if(!form.nome){showToast('Nome do pacote é obrigatório','error');return;}
+    if(!form.quantidade||Number(form.quantidade)<=0){showToast('Quantidade inválida','error');return;}
+    if(!form.est_id){showToast('Selecione um estabelecimento','error');return;}
+    try{
+      const body={...form,quantidade:Number(form.quantidade),valor:parseFloat(form.valor)||0,
+        aluno_id:Number(form.aluno_id),est_id:Number(form.est_id),
+        data_validade:form.data_validade||null};
+      if(form.id){await api(`/api/pacotes/${form.id}`,{method:'PUT',body:JSON.stringify(body)});}
+      else{await api('/api/pacotes',{method:'POST',body:JSON.stringify(body)});}
+      showToast('Pacote salvo!','success');setForm(null);load();
+    }catch(e){showToast(e.message,'error');}
+  };
+
+  const toggle=async(pk)=>{
+    try{await api(`/api/pacotes/${pk.id}`,{method:'PUT',body:JSON.stringify({...pk,aluno_id:pk.aluno_id,ativo:!pk.ativo})});load();}
+    catch(e){showToast(e.message,'error');}
+  };
+
+  const notificar=async(id)=>{
+    setNotifId(id);
+    try{
+      const r=await api(`/api/pacotes/${id}/notificar`,{method:'POST'});
+      showToast(`✅ WhatsApp enviado para ${r.aluno}`,'success');
+    }catch(e){showToast(e.message,'error');}
+    finally{setNotifId(null);}
+  };
+
+  const pctColor=(pct)=>pct>=100?'bg-red-500':pct>=75?'bg-amber-500':pct>=50?'bg-yellow-400':'bg-emerald-500';
+
+  if(loading)return<Spinner/>;
+
+  return<div>
+    {/* Header */}
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-medium">
+        {[['true','✅ Ativos'],['false','❌ Inativos'],['','Todos']].map(([v,l])=>
+          <button key={v} onClick={()=>setFiltroAtivo(v)} className={`px-3 py-2 ${filtroAtivo===v?'bg-emerald-600 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>)}
+      </div>
+      <Btn onClick={openNew}>+ Novo Pacote</Btn>
+    </div>
+
+    {pacotes.length===0
+      ?<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">📦</p><p className="text-lg">Nenhum pacote encontrado</p></div>
+      :<div className="space-y-3">
+        {pacotes.map(pk=>{
+          const consumido=Number(pk.consumido||0);
+          const total=Number(pk.quantidade);
+          const restante=Math.max(0,total-consumido);
+          const pct=total>0?Math.round((consumido/total)*100):0;
+          const unidade=pk.tipo==='horas'?'hora':'aula';
+          const unidades=pk.tipo==='horas'?'horas':'aulas';
+          const ultima=pk.ultima_data?new Date(pk.ultima_data).toLocaleDateString('pt-BR',{timeZone:'UTC'}):null;
+          const venc=pk.data_validade?pk.data_validade.split('T')[0]:null;
+          const vencida=venc&&venc<today;
+          return<div key={pk.id} className={`bg-white rounded-2xl border shadow-sm p-4 ${!pk.ativo?'opacity-60 border-gray-100':'border-gray-100'}`}>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <h3 className="font-bold text-gray-800">{pk.nome}</h3>
+                  {!pk.ativo&&<span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inativo</span>}
+                  {pct>=100&&<span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">Esgotado</span>}
+                  {vencida&&<span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Vencido</span>}
+                </div>
+                <p className="text-sm text-gray-500">👤 {pk.aluno_nome||'—'}{pk.est_nome?<span className="ml-2 text-gray-400">• {pk.est_nome}</span>:''}</p>
+                {pk.valor>0&&<p className="text-xs text-gray-400 mt-0.5">💰 Valor: {fmt$(pk.valor)}</p>}
+              </div>
+              <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+                {pk.aluno_id&&<button onClick={()=>notificar(pk.id)} disabled={notifId===pk.id}
+                  title="Enviar status via WhatsApp"
+                  style={{background:'#25D366',color:'white',border:'none'}}
+                  className="text-xs px-3 py-1.5 rounded-xl font-medium disabled:opacity-50">
+                  {notifId===pk.id?'Enviando...':'📲 WhatsApp'}
+                </button>}
+                <Btn variant="secondary" size="sm" onClick={()=>setForm({...pk,quantidade:String(pk.quantidade),valor:String(pk.valor||''),data_compra:pk.data_compra?pk.data_compra.split('T')[0]:today,data_validade:pk.data_validade?pk.data_validade.split('T')[0]:'',aluno_id:String(pk.aluno_id||''),est_id:String(pk.est_id||'')})}>Editar</Btn>
+                <Btn variant="secondary" size="sm" onClick={()=>toggle(pk)}>{pk.ativo?'Desativar':'Reativar'}</Btn>
+              </div>
+            </div>
+            {/* Barra de progresso */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>{consumido} de {total} {consumido===1?unidade:unidades} utilizad{consumido===1?'a':'as'}</span>
+                <span className={`font-semibold ${pct>=100?'text-red-600':pct>=75?'text-amber-600':'text-emerald-600'}`}>{pct}%</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2.5">
+                <div className={`h-2.5 rounded-full transition-all ${pctColor(pct)}`} style={{width:`${Math.min(100,pct)}%`}}/>
+              </div>
+              <div className="flex justify-between text-xs text-gray-400">
+                <span>{restante} {restante===1?unidade:unidades} restante{restante!==1?'s':''}</span>
+                <span>{ultima?`Última: ${ultima}`:'Nenhuma aula ainda'}{venc?` • Válido até: ${new Date(venc+'T12:00:00').toLocaleDateString('pt-BR')}`:''}
+                </span>
+              </div>
+            </div>
+          </div>;
+        })}
+      </div>}
+
+    {/* Modal form */}
+    {form&&<div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-bold text-gray-800">{form.id?'Editar Pacote':'Novo Pacote'}</h2>
+        <Field label="Aluno *">
+          <select value={form.aluno_id||''} onChange={e=>upd('aluno_id',e.target.value)}
+            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="">— Selecione o aluno —</option>
+            {alunos.filter(a=>a.ativo!==false).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(a=><option key={a.id} value={a.id}>{a.nome}</option>)}
+          </select>
+        </Field>
+        <Field label="Nome do Pacote *"><Inp value={form.nome} onChange={e=>upd('nome',e.target.value)} placeholder="Ex: 10 Aulas de Tênis"/></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Tipo">
+            <select value={form.tipo} onChange={e=>upd('tipo',e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="aulas">Aulas</option>
+              <option value="horas">Horas</option>
+            </select>
+          </Field>
+          <Field label={`Quantidade (${form.tipo==='horas'?'horas':'aulas'}) *`}><Inp type="number" min="1" step="1" value={form.quantidade} onChange={e=>upd('quantidade',e.target.value)}/></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Valor pago (R$)"><Inp type="number" step="0.01" value={form.valor} onChange={e=>upd('valor',e.target.value)} placeholder="0,00"/></Field>
+          <Field label="Data de Compra"><Inp type="date" value={form.data_compra} onChange={e=>upd('data_compra',e.target.value)}/></Field>
+        </div>
+        <Field label="Validade (opcional)"><Inp type="date" value={form.data_validade||''} onChange={e=>upd('data_validade',e.target.value)}/></Field>
+        {ests.length>1&&<Field label="Estabelecimento">
+          <select value={form.est_id||''} onChange={e=>upd('est_id',e.target.value)}
+            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="">— Selecione —</option>
+            {ests.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        </Field>}
+        <Field label="Observações"><Inp value={form.obs||''} onChange={e=>upd('obs',e.target.value)} placeholder="Opcional"/></Field>
+        <div className="flex gap-3 pt-2">
+          <Btn onClick={save}>Salvar</Btn>
           <Btn variant="secondary" onClick={()=>setForm(null)}>Cancelar</Btn>
         </div>
       </div>
@@ -2760,9 +2955,10 @@ function CRMReservations({showToast,crmUser}){
         <Btn onClick={()=>{setShowManual(true);setMb(MBL);setMbNameInput('');setMbVisitante(false);}}>+ Nova Reserva</Btn>
       </div>}
     </div>
-    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'recorrentes',label:'🔄 Recorrentes'},{key:'aulas',label:'📚 Planos de Aula'},{key:'avulsas',label:'🎾 Aulas Avulsas'},{key:'grade',label:'🗓️ Grade de Aulas'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'},{key:'ranking',label:'🏆 Ranking'}]} active={resTab} onChange={setResTab}/>
+    <Tabs tabs={[{key:'reservas',label:'📅 Reservas de Espaço'},{key:'recorrentes',label:'🔄 Recorrentes'},{key:'aulas',label:'📚 Planos de Aula'},{key:'avulsas',label:'🎾 Aulas Avulsas'},{key:'pacotes',label:'📦 Pacotes'},{key:'grade',label:'🗓️ Grade de Aulas'},{key:'bar',label:'🍺 Bar'},{key:'manutencao',label:'🛒 Loja & Equipamentos'},{key:'ranking',label:'🏆 Ranking'}]} active={resTab} onChange={setResTab}/>
     {resTab==='aulas'&&<CRMPlanosAula showToast={showToast} crmUser={crmUser}/>}
     {resTab==='avulsas'&&<CRMAulasAvulsas showToast={showToast} crmUser={crmUser}/>}
+    {resTab==='pacotes'&&<CRMPacotes showToast={showToast} crmUser={crmUser}/>}
     {resTab==='grade'&&<CRMGradeAulas showToast={showToast} crmUser={crmUser}/>}
     {resTab==='recorrentes'&&<CRMRecorrentes showToast={showToast} crmUser={crmUser}/>}
     {resTab==='bar'&&<CRMBar showToast={showToast} crmUser={crmUser}/>}

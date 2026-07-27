@@ -83,6 +83,7 @@ app.use('/api/recurring-reservations', require('./routes/recurring-reservations'
 app.use('/api/whatsapp',              require('./routes/whatsapp'));
 app.use('/api/grade-aulas',           require('./routes/grade-aulas'));
 app.use('/api/aulas-avulsas',         require('./routes/aulas-avulsas'));
+app.use('/api/pacotes',               require('./routes/pacotes'));
 
 // ── Healthcheck ─────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: new Date() }));
@@ -372,6 +373,21 @@ async function runMigrations() {
       repasse_pago_em TIMESTAMPTZ,
       created_at    TIMESTAMPTZ DEFAULT NOW()
     )`,
+    `CREATE TABLE IF NOT EXISTS pacotes (
+      id             SERIAL PRIMARY KEY,
+      est_id         INTEGER NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+      aluno_id       INTEGER REFERENCES alunos(id) ON DELETE SET NULL,
+      nome           TEXT NOT NULL,
+      tipo           TEXT NOT NULL DEFAULT 'aulas',
+      quantidade     NUMERIC(10,2) NOT NULL,
+      valor          NUMERIC(10,2) DEFAULT 0,
+      data_compra    DATE NOT NULL DEFAULT CURRENT_DATE,
+      data_validade  DATE,
+      obs            TEXT,
+      ativo          BOOLEAN DEFAULT TRUE,
+      created_at     TIMESTAMPTZ DEFAULT NOW()
+    )`,
+    `ALTER TABLE aulas_avulsas ADD COLUMN IF NOT EXISTS pacote_id INTEGER REFERENCES pacotes(id) ON DELETE SET NULL`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
