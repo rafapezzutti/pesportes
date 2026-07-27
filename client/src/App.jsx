@@ -2769,6 +2769,9 @@ function CRMReservaRapida({crmUser,showToast,onClose}){
 // GRADE QUADRAS — resumo visual por quadra/data
 // ================================================================
 function GradeQuadras({data, date, reservations}){
+  const [selPt,setSelPt] = useState(null);
+  const [showPast,setShowPast] = useState(false);
+
   if(!data||!data.points?.length) return(
     <div className="text-center py-16 text-gray-400"><p className="text-4xl mb-2">🏟️</p><p>Nenhuma quadra encontrada</p></div>
   );
@@ -2776,13 +2779,22 @@ function GradeQuadras({data, date, reservations}){
   const {points, slots} = data;
   const daySlots = data.days?.[0] ? Object.keys(slots[points[0]?.id]?.[date]||{}).sort() : [];
 
-  // Build occupation map from reservations for this date
-  // resMap[pointId][time] = {client_name, start_time, end_time, status, id}
+  // Quadra selecionada no mobile (default = primeira)
+  const activePt = points.find(p=>p.id===selPt) || points[0];
+
+  // Hora corte: agora - 30min, arredondado para o slot
+  const horaCorte = (()=>{
+    const now=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+    const mins=now.getHours()*60+now.getMinutes()-30;
+    const fl=Math.max(0,Math.floor(mins/30)*30);
+    return String(Math.floor(fl/60)).padStart(2,'0')+':'+String(fl%60).padStart(2,'0');
+  })();
+
+  // Build occupation map
   const resMap = {};
   for(const r of reservations){
     if(!r.point_id) continue;
     if(!resMap[r.point_id]) resMap[r.point_id]={};
-    // mark all slots this reservation covers
     const toMin=t=>{const[h,m=0]=t.split(':').map(Number);return h*60+m;};
     const sMin=toMin(r.start_time), eMin=toMin(r.end_time);
     for(const t of daySlots){
@@ -2791,59 +2803,131 @@ function GradeQuadras({data, date, reservations}){
     }
   }
 
+  const toMin=t=>{const[h,m=0]=t.split(':').map(Number);return h*60+m;};
+
+  // Mobile slot row renderer
+  const renderMobileSlot=(time)=>{
+    const res=resMap[activePt.id]?.[time];
+    const isFree=slots[activePt.id]?.[date]?.[time];
+    if(res){
+      const isFirst=toMin(time)===toMin(res.start_time);
+      if(!isFirst) return null; // skip continuation rows — shown in the first row block
+      return(
+        <div key={time} className="flex items-center gap-3 py-2 border-t border-gray-100">
+          <span className="text-xs font-mono text-gray-400 w-12 shrink-0">{time}</span>
+          <div className="flex-1 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+            <p className="font-semibold text-red-700 text-sm">{res.client_name||'—'}</p>
+            <p className="text-xs text-red-400">{res.start_time}–{res.end_time}</p>
+          </div>
+        </div>
+      );
+    }
+    return(
+      <div key={time} className="flex items-center gap-3 py-2 border-t border-gray-100">
+        <span className="text-xs font-mono text-gray-400 w-12 shrink-0">{time}</span>
+        <div className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium ${isFree?'bg-emerald-50 text-emerald-700 border border-emerald-200':'bg-gray-100 text-gray-400'}`}>
+          {isFree?'✓ Livre':'—'}
+        </div>
+      </div>
+    );
+  };
+
+  const pastSlots=daySlots.filter(t=>t<horaCorte);
+  const futureSlots=daySlots.filter(t=>t>=horaCorte);
+
   return(
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-xs border-separate border-spacing-0">
-        <thead>
-          <tr>
-            <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2.5 text-left font-semibold text-gray-500 border-b border-r border-gray-200 w-16">Hora</th>
+    <div>
+      {/* ── Mobile view ── */}
+      <div className="md:hidden">
+        {/* Court chips */}
+        {points.length>1&&(
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
             {points.map(pt=>(
-              <th key={pt.id} className="px-2 py-2.5 text-center font-semibold text-gray-700 border-b border-r border-gray-200 min-w-[110px] bg-gray-50">
-                <p>{pt.name}</p>
-                <p className="text-gray-400 font-normal text-xs">{pt.type}</p>
-              </th>
+              <button key={pt.id} onClick={()=>setSelPt(pt.id)}
+                className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activePt.id===pt.id?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                {pt.name}
+              </button>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {daySlots.map((time,i)=>(
-            <tr key={time} className={i%2===0?'bg-white':'bg-gray-50/50'}>
-              <td className="sticky left-0 z-10 bg-inherit px-3 py-1.5 font-mono text-gray-400 border-r border-gray-100 whitespace-nowrap">{time}</td>
-              {points.map(pt=>{
-                const res=resMap[pt.id]?.[time];
-                const isFree=slots[pt.id]?.[date]?.[time];
-                if(res){
-                  // Only show label on first slot of reservation
-                  const toMin=t=>{const[h,m=0]=t.split(':').map(Number);return h*60+m;};
-                  const isFirst=toMin(time)===toMin(res.start_time);
+          </div>
+        )}
+        {daySlots.length===0?(
+          <div className="text-center py-12 text-gray-400">Selecione uma data para ver a grade</div>
+        ):(
+          <div>
+            {/* Past slots — collapsible */}
+            {pastSlots.length>0&&(
+              <div className="mb-1">
+                <button onClick={()=>setShowPast(p=>!p)}
+                  className="w-full text-left text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1.5 py-2">
+                  <span>{showPast?'▾':'▸'}</span>
+                  <span>{showPast?'Ocultar horários anteriores':`${pastSlots.length} horário${pastSlots.length>1?'s':''} anterior${pastSlots.length>1?'es':''} (antes das ${horaCorte})`}</span>
+                </button>
+                {showPast&&<div className="opacity-60">{pastSlots.map(renderMobileSlot).filter(Boolean)}</div>}
+              </div>
+            )}
+            {/* Future slots */}
+            <div>{futureSlots.map(renderMobileSlot).filter(Boolean)}</div>
+          </div>
+        )}
+        {/* Legend */}
+        <div className="flex gap-4 pt-3 mt-2 border-t border-gray-100 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200 inline-block"/>livre</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-100 border border-red-200 inline-block"/>reservado</span>
+        </div>
+      </div>
+
+      {/* ── Desktop view: original table ── */}
+      <div className="hidden md:block overflow-x-auto">
+        <table className="min-w-full text-xs border-separate border-spacing-0">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2.5 text-left font-semibold text-gray-500 border-b border-r border-gray-200 w-16">Hora</th>
+              {points.map(pt=>(
+                <th key={pt.id} className="px-2 py-2.5 text-center font-semibold text-gray-700 border-b border-r border-gray-200 min-w-[110px] bg-gray-50">
+                  <p>{pt.name}</p>
+                  <p className="text-gray-400 font-normal text-xs">{pt.type}</p>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {daySlots.map((time,i)=>(
+              <tr key={time} className={i%2===0?'bg-white':'bg-gray-50/50'}>
+                <td className="sticky left-0 z-10 bg-inherit px-3 py-1.5 font-mono text-gray-400 border-r border-gray-100 whitespace-nowrap">{time}</td>
+                {points.map(pt=>{
+                  const res=resMap[pt.id]?.[time];
+                  const isFree=slots[pt.id]?.[date]?.[time];
+                  if(res){
+                    const isFirst=toMin(time)===toMin(res.start_time);
+                    return(
+                      <td key={pt.id} className="px-1 py-1 border-r border-gray-100">
+                        <div className="bg-red-100 border border-red-200 rounded px-1.5 py-1 text-center">
+                          {isFirst&&<><p className="font-semibold text-red-700 truncate max-w-[90px]">{res.client_name||'—'}</p>
+                          <p className="text-red-400">{res.start_time}–{res.end_time}</p></>}
+                          {!isFirst&&<p className="text-red-300">▓</p>}
+                        </div>
+                      </td>
+                    );
+                  }
                   return(
                     <td key={pt.id} className="px-1 py-1 border-r border-gray-100">
-                      <div className="bg-red-100 border border-red-200 rounded px-1.5 py-1 text-center">
-                        {isFirst&&<><p className="font-semibold text-red-700 truncate max-w-[90px]">{res.client_name||'—'}</p>
-                        <p className="text-red-400">{res.start_time}–{res.end_time}</p></>}
-                        {!isFirst&&<p className="text-red-300">▓</p>}
+                      <div className={`rounded px-1.5 py-1 text-center ${isFree?'bg-emerald-50 text-emerald-600':'bg-gray-100 text-gray-400'}`}>
+                        {isFree?'livre':'—'}
                       </div>
                     </td>
                   );
-                }
-                return(
-                  <td key={pt.id} className="px-1 py-1 border-r border-gray-100">
-                    <div className={`rounded px-1.5 py-1 text-center ${isFree?'bg-emerald-50 text-emerald-600':'bg-gray-100 text-gray-400'}`}>
-                      {isFree?'livre':'—'}
-                    </div>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-          {daySlots.length===0&&(
-            <tr><td colSpan={points.length+1} className="text-center py-12 text-gray-400">Selecione uma data para ver a grade</td></tr>
-          )}
-        </tbody>
-      </table>
-      <div className="flex gap-4 px-3 py-3 text-xs text-gray-500 border-t border-gray-100 mt-1">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200 inline-block"/>livre</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-100 border border-red-200 inline-block"/>reservado</span>
+                })}
+              </tr>
+            ))}
+            {daySlots.length===0&&(
+              <tr><td colSpan={points.length+1} className="text-center py-12 text-gray-400">Selecione uma data para ver a grade</td></tr>
+            )}
+          </tbody>
+        </table>
+        <div className="flex gap-4 px-3 py-3 text-xs text-gray-500 border-t border-gray-100 mt-1">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200 inline-block"/>livre</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-100 border border-red-200 inline-block"/>reservado</span>
+        </div>
       </div>
     </div>
   );
