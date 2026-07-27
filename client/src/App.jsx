@@ -2837,43 +2837,75 @@ function GradeQuadras({data, date, reservations}){
 
   return(
     <div>
-      {/* ── Mobile view ── */}
+      {/* ── Mobile view: compact all-courts table ── */}
       <div className="md:hidden">
-        {/* Court chips */}
-        {points.length>1&&(
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
-            {points.map(pt=>(
-              <button key={pt.id} onClick={()=>setSelPt(pt.id)}
-                className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activePt.id===pt.id?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                {pt.name}
-              </button>
-            ))}
-          </div>
-        )}
         {daySlots.length===0?(
           <div className="text-center py-12 text-gray-400">Selecione uma data para ver a grade</div>
         ):(
-          <div>
-            {/* Past slots — collapsible */}
+          <>
+            {/* Past toggle */}
             {pastSlots.length>0&&(
-              <div className="mb-1">
-                <button onClick={()=>setShowPast(p=>!p)}
-                  className="w-full text-left text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1.5 py-2">
-                  <span>{showPast?'▾':'▸'}</span>
-                  <span>{showPast?'Ocultar horários anteriores':`${pastSlots.length} horário${pastSlots.length>1?'s':''} anterior${pastSlots.length>1?'es':''} (antes das ${horaCorte})`}</span>
-                </button>
-                {showPast&&<div className="opacity-60">{pastSlots.map(renderMobileSlot).filter(Boolean)}</div>}
-              </div>
+              <button onClick={()=>setShowPast(p=>!p)}
+                className="w-full text-left text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1.5 py-2 mb-1">
+                <span>{showPast?'▾':'▸'}</span>
+                <span>{showPast?'Ocultar horários anteriores':`${pastSlots.length} horário${pastSlots.length>1?'s':''} anterior${pastSlots.length>1?'es':''}`}</span>
+              </button>
             )}
-            {/* Future slots */}
-            <div>{futureSlots.map(renderMobileSlot).filter(Boolean)}</div>
-          </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-separate border-spacing-0">
+                <thead>
+                  <tr>
+                    <th className="sticky left-0 bg-gray-50 px-2 py-2 text-left text-gray-400 font-medium border-b border-r border-gray-200 w-12"></th>
+                    {points.map(pt=>(
+                      <th key={pt.id} className="px-1 py-2 text-center text-gray-600 font-semibold border-b border-r border-gray-200 bg-gray-50" style={{minWidth:'70px',maxWidth:'90px'}}>
+                        <p className="truncate leading-tight">{pt.name}</p>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(showPast?daySlots:futureSlots).map((time,i)=>{
+                    const isPast=time<horaCorte;
+                    return(
+                      <tr key={time} className={`${isPast?'opacity-50':''} ${i%2===0?'bg-white':'bg-gray-50/40'}`}>
+                        <td className="sticky left-0 bg-inherit px-2 py-1.5 font-mono text-gray-400 border-r border-gray-100 whitespace-nowrap">{time}</td>
+                        {points.map(pt=>{
+                          const res=resMap[pt.id]?.[time];
+                          const isFree=slots[pt.id]?.[date]?.[time];
+                          if(res){
+                            const isFirst=toMin(time)===toMin(res.start_time);
+                            return(
+                              <td key={pt.id} className="px-0.5 py-0.5 border-r border-gray-100">
+                                <div className="bg-red-100 border border-red-200 rounded text-center py-1 px-0.5" style={{minHeight:'28px'}}>
+                                  {isFirst
+                                    ? <p className="font-semibold text-red-700 truncate leading-tight" style={{fontSize:'10px'}}>{(res.client_name||'—').split(' ')[0]}</p>
+                                    : <p className="text-red-300" style={{fontSize:'10px'}}>▓</p>
+                                  }
+                                </div>
+                              </td>
+                            );
+                          }
+                          return(
+                            <td key={pt.id} className="px-0.5 py-0.5 border-r border-gray-100">
+                              <div className={`rounded text-center py-1 ${isFree?'bg-emerald-50 border border-emerald-200 text-emerald-600':'bg-gray-100 text-gray-300'}`} style={{minHeight:'28px',fontSize:'10px'}}>
+                                {isFree?'✓':''}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {/* Legend */}
+            <div className="flex gap-4 pt-2 mt-1 border-t border-gray-100 text-xs text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200 inline-block"/>livre</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 border border-red-200 inline-block"/>reservado</span>
+            </div>
+          </>
         )}
-        {/* Legend */}
-        <div className="flex gap-4 pt-3 mt-2 border-t border-gray-100 text-xs text-gray-500">
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200 inline-block"/>livre</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-100 border border-red-200 inline-block"/>reservado</span>
-        </div>
       </div>
 
       {/* ── Desktop view: original table ── */}
