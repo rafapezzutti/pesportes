@@ -1957,6 +1957,8 @@ function CRMAulasAvulsas({showToast,crmUser}){
   const BLANK={est_id:'',professor_id:'',ponto_id:'',aluno_nome:'',data:today,hora:'',valor:'',obs:'',pacote_id:''};
   const [form,setForm]=useState(null);
   const [pacotes,setPacotes]=useState([]);
+  const [alunos,setAlunos]=useState([]);
+  const [showAlunoSugg,setShowAlunoSugg]=useState(false);
   const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const load=()=>{
@@ -1969,12 +1971,14 @@ function CRMAulasAvulsas({showToast,crmUser}){
       fetch('/api/points',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
       fetch('/api/establishments',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
       fetch('/api/pacotes?ativo=true',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
-    ]).then(([a,p,pts,e,pks])=>{
+      fetch('/api/alunos',{headers:{Authorization:`Bearer ${tok}`}}).then(r=>r.json()).catch(()=>[]),
+    ]).then(([a,p,pts,e,pks,als])=>{
       setAulas(Array.isArray(a)?a:[]);
       setProfs(Array.isArray(p)?p:[]);
       setPontos(Array.isArray(pts)?pts:[]);
       setEsts(Array.isArray(e)?e:[]);
       setPacotes(Array.isArray(pks)?pks:[]);
+      setAlunos(Array.isArray(als)?als:[]);
     }).finally(()=>setLoading(false));
   };
   useEffect(()=>{load();},[from,to,profFilt]);
@@ -2074,10 +2078,25 @@ function CRMAulasAvulsas({showToast,crmUser}){
           <Field label="Data *"><Inp type="date" value={form.data} onChange={e=>upd('data',e.target.value)}/></Field>
           <Field label="Horário"><Inp type="time" value={form.hora} onChange={e=>upd('hora',e.target.value)}/></Field>
         </div>
-        <Field label="Aluno *"><Inp value={form.aluno_nome} onChange={e=>upd('aluno_nome',e.target.value)} placeholder="Nome do aluno"/></Field>
+        <Field label="Aluno *">
+          <div className="relative">
+            <Inp value={form.aluno_nome}
+              onChange={e=>{upd('aluno_nome',e.target.value);setShowAlunoSugg(true);}}
+              onFocus={()=>setShowAlunoSugg(true)}
+              onBlur={()=>setTimeout(()=>setShowAlunoSugg(false),150)}
+              placeholder="Digite o nome do aluno"/>
+            {showAlunoSugg&&form.aluno_nome.length>0&&(()=>{
+              const sugg=alunos.filter(a=>a.nome.toLowerCase().includes(form.aluno_nome.toLowerCase())).slice(0,8);
+              if(!sugg.length) return null;
+              return<ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                {sugg.map(a=><li key={a.id} onMouseDown={()=>{upd('aluno_nome',a.nome);setShowAlunoSugg(false);}} className="px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 hover:text-emerald-700">{a.nome}</li>)}
+              </ul>;
+            })()}
+          </div>
+        </Field>
         <Field label="Professor">
           <Sel value={form.professor_id||''} onChange={e=>upd('professor_id',e.target.value)}
-            options={profs.map(p=>({value:p.id,label:`${p.nome} (${p.percentual_repasse||0}%)`}))}
+            options={profs.map(p=>({value:p.id,label:p.nome}))}
             placeholder="Selecione..."/>
         </Field>
         <Field label="Quadra / Espaço">
