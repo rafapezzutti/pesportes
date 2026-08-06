@@ -772,7 +772,16 @@ function CRMEstablishment({showToast}){
   const loadList=()=>{setLoading(true);estApi.list().then(setEsts).catch(()=>{}).finally(()=>setLoading(false));};
   useEffect(()=>{loadList();},[]);
 
-  const upd=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const upd=(k,v)=>setForm(f=>{
+    const next={...f,[k]:v};
+    // Auto-fill repasse when professor is selected
+    if(k==='professor_id'&&v){
+      const prof=profs.find(p=>String(p.id)===String(v));
+      if(prof&&next.percentual_repasse==='') next.percentual_repasse=String(prof.percentual_repasse||0);
+    }
+    if(k==='professor_id'&&!v) next.percentual_repasse='';
+    return next;
+  });
 
   const openNew=()=>{setEditId(null);setForm(BLANK);setTab('cadastro');};
   const openEdit=async(e)=>{
@@ -1954,7 +1963,7 @@ function CRMAulasAvulsas({showToast,crmUser}){
   const [from,setFrom]=useState(today.slice(0,7)+'-01');
   const [to,setTo]=useState(today);
   const [profFilt,setProfFilt]=useState('');
-  const BLANK={est_id:'',professor_id:'',ponto_id:'',aluno_nome:'',data:today,hora:'',valor:'',obs:'',pacote_id:''};
+  const BLANK={est_id:'',professor_id:'',ponto_id:'',aluno_nome:'',data:today,hora:'',valor:'',obs:'',pacote_id:'',percentual_repasse:''};
   const [form,setForm]=useState(null);
   const [pacotes,setPacotes]=useState([]);
   const [alunos,setAlunos]=useState([]);
@@ -1996,6 +2005,7 @@ function CRMAulasAvulsas({showToast,crmUser}){
         professor_id:form.professor_id?Number(form.professor_id):null,
         ponto_id:form.ponto_id?Number(form.ponto_id):null,
         aluno_nome:form.aluno_nome,
+        percentual_repasse:form.percentual_repasse!==''?Number(form.percentual_repasse):null,
         data:form.data,
         hora:form.hora||null,
         valor:parseFloat(form.valor)||0,
@@ -2062,7 +2072,7 @@ function CRMAulasAvulsas({showToast,crmUser}){
             <td className="px-3 py-2.5">{a.pacote_id?<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">📦 {pacotes.find(pk=>pk.id===a.pacote_id)?.nome||'Pacote'}</span>:<span className="text-gray-300 text-xs">—</span>}</td>
             <td className="px-3 py-2.5 text-right">
               <div className="flex gap-2 justify-end">
-                <button onClick={()=>setForm({...a,est_id:a.est_id||'',professor_id:a.professor_id||'',ponto_id:a.ponto_id||'',hora:a.hora?a.hora.slice(0,5):'',valor:String(a.valor),pacote_id:a.pacote_id||''})} className="text-xs px-2 py-1 rounded-lg border border-gray-200 hover:border-emerald-400 text-gray-600">✏️</button>
+                <button onClick={()=>setForm({...a,est_id:a.est_id||'',professor_id:a.professor_id||'',ponto_id:a.ponto_id||'',hora:a.hora?a.hora.slice(0,5):'',valor:String(a.valor),pacote_id:a.pacote_id||'',percentual_repasse:a.percentual_repasse!=null?String(a.percentual_repasse):''})} className="text-xs px-2 py-1 rounded-lg border border-gray-200 hover:border-emerald-400 text-gray-600">✏️</button>
                 <button onClick={()=>del(a.id)} className="text-xs px-2 py-1 rounded-lg border border-red-100 hover:border-red-400 text-red-500">🗑️</button>
               </div>
             </td>
@@ -2124,9 +2134,16 @@ function CRMAulasAvulsas({showToast,crmUser}){
             {pacotes.map(pk=>{const rest=Math.max(0,Number(pk.quantidade)-Number(pk.consumido||0));return<option key={pk.id} value={pk.id}>{pk.aluno_nome} — {pk.nome} ({rest} restante{rest!==1?'s':''})</option>;})}
           </select>}
         </div>}
-        {form.professor_id&&profs.find(p=>String(p.id)===String(form.professor_id))&&<div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm text-emerald-700">
-          Repasse: <strong>{fmt$(parseFloat(form.valor||0)*Number(profs.find(p=>String(p.id)===String(form.professor_id))?.percentual_repasse||0)/100)}</strong>
-          {' '}({profs.find(p=>String(p.id)===String(form.professor_id))?.percentual_repasse||0}%)
+        {form.professor_id&&<div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 space-y-2">
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-emerald-700 font-medium whitespace-nowrap">% Repasse:</label>
+            <input type="number" min="0" max="100" step="1"
+              value={form.percentual_repasse}
+              onChange={e=>upd('percentual_repasse',e.target.value)}
+              className="w-20 border border-emerald-200 rounded-lg px-2 py-1 text-sm bg-white text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-300"/>
+            <span className="text-sm text-emerald-700">= <strong>{fmt$(parseFloat(form.valor||0)*Number(form.percentual_repasse||0)/100)}</strong></span>
+          </div>
+          <p className="text-xs text-emerald-500">Edite o % para sobrescrever o padrão do professor nesta aula</p>
         </div>}
         <div className="flex gap-3 pt-2">
           <Btn onClick={save} disabled={saving}>{saving?'Salvando...':'Salvar'}</Btn>

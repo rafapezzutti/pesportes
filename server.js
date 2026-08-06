@@ -388,6 +388,7 @@ async function runMigrations() {
       created_at     TIMESTAMPTZ DEFAULT NOW()
     )`,
     `ALTER TABLE aulas_avulsas ADD COLUMN IF NOT EXISTS pacote_id INTEGER REFERENCES pacotes(id) ON DELETE SET NULL`,
+    \`ALTER TABLE aulas_avulsas ADD COLUMN IF NOT EXISTS percentual_repasse NUMERIC(5,2)\`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
