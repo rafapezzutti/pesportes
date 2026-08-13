@@ -4471,6 +4471,7 @@ function CRMFinanceiro({crmUser,showToast}){
   // repasse
   const [rep,setRep]=useState([]);
   const [repExp,setRepExp]=useState({});   // { [professorId]: {loading,data} }
+  const [showRepassePagos,setShowRepassePagos]=useState(false);
   // projeção
   const [proj,setProj]=useState(null);
   const [saldoIni,setSaldoIni]=useState('0');
@@ -4685,23 +4686,31 @@ function CRMFinanceiro({crmUser,showToast}){
                 {exp.loading?<div className="text-center py-4 text-gray-400"><Spinner/></div>:exp.data&&(()=>{
                   const {planos=[],reservas=[],avulsas=[]}=exp.data;
                   const todos=[...planos,...reservas,...avulsas].sort((a,b)=>new Date(b.data)-new Date(a.data));
+                  const visiveis=showRepassePagos?todos:todos.filter(i=>!i.repasse_pago);
+                  const qtdPagos=todos.filter(i=>i.repasse_pago).length;
                   if(todos.length===0)return<p className="text-sm text-gray-400 py-2">Nenhum item encontrado no período.</p>;
-                  return<table className="w-full text-xs">
-                    <thead><tr className="border-b border-gray-200">{['Tipo','Descrição','Data','Valor','Repasse','Status',''].map((h,i)=><th key={i} className={`pb-2 text-left font-semibold text-gray-400 uppercase pr-4 ${i===6?'text-right':''}`}>{h}</th>)}</tr></thead>
-                    <tbody className="divide-y divide-gray-100">{todos.map(item=>{
+                  return<>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs text-gray-400">{visiveis.length} item{visiveis.length!==1?'s':''} {showRepassePagos?'':'pendente'}{!showRepassePagos&&qtdPagos>0?` • ${qtdPagos} pago${qtdPagos!==1?'s':''} oculto${qtdPagos!==1?'s':''}`:''}</span>
+                      {qtdPagos>0&&<button onClick={()=>setShowRepassePagos(p=>!p)} className="text-xs text-gray-500 hover:text-emerald-700 underline">{showRepassePagos?'Ocultar pagos':'Mostrar pagos'}</button>}
+                    </div>
+                    {visiveis.length===0?<p className="text-sm text-gray-400 py-2">Nenhum item pendente. <button onClick={()=>setShowRepassePagos(true)} className="underline">Ver todos</button></p>:
+                    <table className="w-full text-xs">
+                    <thead><tr className="border-b border-gray-200">{['Tipo','Descrição','Data','Valor','Repasse','Status'].map((h,i)=><th key={i} className="pb-2 text-left font-semibold text-gray-400 uppercase pr-4">{h}</th>)}</tr></thead>
+                    <tbody className="divide-y divide-gray-100">{visiveis.map(item=>{
                       const isPago=item.repasse_pago;
                       const dataFmt=item.data?new Date(item.data).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'—';
-                      return<tr key={item.origem+item.id} className={isPago?'opacity-50':''}>
+                      return<tr key={item.origem+item.id}>
                         <td className="py-1.5 pr-4"><span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-semibold ${item.origem==='plano'?'bg-blue-100 text-blue-700':item.origem==='avulsa'?'bg-orange-100 text-orange-700':'bg-purple-100 text-purple-700'}`}>{item.origem==='plano'?'Plano':item.origem==='avulsa'?'Avulsa':'Reserva'}</span></td>
                         <td className="py-1.5 pr-4 text-gray-700 max-w-xs truncate">{item.descricao||'—'}</td>
                         <td className="py-1.5 pr-4 text-gray-500">{dataFmt}</td>
                         <td className="py-1.5 pr-4 font-medium text-gray-700">{fmt$(item.valor)}</td>
                         <td className="py-1.5 pr-4 font-semibold text-emerald-700">{fmt$(item.repasse)}</td>
                         <td className="py-1.5 pr-4">{isPago?<span className="text-green-600 font-semibold">✓ Pago</span>:<span className="text-amber-600">Pendente</span>}</td>
-                        <td className="py-1.5 text-right"></td>
                       </tr>;
                     })}</tbody>
-                  </table>;
+                  </table>}
+                  </>;
                 })()}
               </div>
             </td></tr>}
