@@ -389,6 +389,17 @@ async function runMigrations() {
     )`,
     `ALTER TABLE aulas_avulsas ADD COLUMN IF NOT EXISTS pacote_id INTEGER REFERENCES pacotes(id) ON DELETE SET NULL`,
     `ALTER TABLE aulas_avulsas ADD COLUMN IF NOT EXISTS percentual_repasse NUMERIC(5,2)`,
+    `CREATE TABLE IF NOT EXISTS bar_produtos (
+      id          SERIAL PRIMARY KEY,
+      est_id      INTEGER REFERENCES establishments(id) ON DELETE CASCADE,
+      nome        TEXT    NOT NULL,
+      preco       NUMERIC(10,2) NOT NULL DEFAULT 0,
+      estoque     INTEGER NOT NULL DEFAULT 0,
+      estoque_min INTEGER NOT NULL DEFAULT 0,
+      ativo       BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>

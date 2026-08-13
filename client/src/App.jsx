@@ -4861,7 +4861,7 @@ function CRMFinanceiro({crmUser,showToast}){
                       const dataBase=vd?new Date(vd+'T12:00:00'):new Date();
                       const proxMes=new Date(dataBase);proxMes.setMonth(proxMes.getMonth()+1);
                       const novaData=proxMes.toISOString().split('T')[0];
-                      await alunoApi.update(a.id,{mensalidade_vencimento:novaData});
+                      await alunoApi.update(a.id,{...a,data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:null,mensalidade_vencimento:novaData});
                       setMensAlunos(prev=>prev.map(al=>al.id===a.id?{...al,mensalidade_vencimento:novaData}:al));
                       showToast(`Mensalidade de ${a.nome} marcada como paga!`,'success');
                     }catch(e){showToast(e.message||'Erro','error');}
@@ -4892,7 +4892,7 @@ function CRMFinanceiro({crmUser,showToast}){
                   const dataBase=vd?new Date(vd+'T12:00:00'):new Date();
                   const proxMes=new Date(dataBase);proxMes.setMonth(proxMes.getMonth()+1);
                   const novaData=proxMes.toISOString().split('T')[0];
-                  await alunoApi.update(a.id,{mensalidade_vencimento:novaData});
+                  await alunoApi.update(a.id,{...a,data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:null,mensalidade_vencimento:novaData});
                   setMensAlunos(prev=>prev.map(al=>al.id===a.id?{...al,mensalidade_vencimento:novaData}:al));
                   showToast(`Mensalidade de ${a.nome} marcada como paga!`,'success');
                 }catch(e){showToast(e.message||'Erro','error');}
