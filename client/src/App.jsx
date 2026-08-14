@@ -3402,7 +3402,7 @@ function CRMReservations({showToast,crmUser}){
 // ================================================================
 // CRM BAR
 // ================================================================
-function VendasForm({titulo,labelItem,onSave,alunos=[],loading,showFoto=false}){
+function VendasForm({titulo,labelItem,onSave,alunos=[],loading,showFoto=false,produtos=[]}){
   // Modo avulso (cliente não cadastrado) ou busca de aluno
   const [avulso,setAvulso]=useState(false);
   const [avulsoNome,setAvulsoNome]=useState('');
@@ -3416,8 +3416,10 @@ function VendasForm({titulo,labelItem,onSave,alunos=[],loading,showFoto=false}){
   const [dataVenda,setDataVenda]=useState(TODAY);
   const [foto,setFoto]=useState(null);
   const [saving,setSaving]=useState(false);
+  const [itemSuggIdx,setItemSuggIdx]=useState(null);
 
   const sugg=alunos.filter(a=>alunoInput.length>0&&a.nome.toLowerCase().includes(alunoInput.toLowerCase())).slice(0,10);
+  const prodSugg=(text)=>text.length===0?[]:produtos.filter(p=>p.nome.toLowerCase().includes(text.toLowerCase())).slice(0,8);
 
   const selAluno=(a)=>{setAlunoSel(a);setAlunoInput(a.nome);setShowSugg(false);};
   const clearAluno=()=>{setAlunoSel(null);setAlunoInput('');};
@@ -3501,7 +3503,21 @@ function VendasForm({titulo,labelItem,onSave,alunos=[],loading,showFoto=false}){
       </div>
       <div className="space-y-2">
         {itens.map((it,i)=><div key={i} className="flex gap-2 items-center">
-          <input value={it.nome} onChange={e=>updItem(i,'nome',e.target.value)} placeholder="Nome do item" className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+          <div className="relative flex-1">
+            <input value={it.nome}
+              onChange={e=>{updItem(i,'nome',e.target.value);setItemSuggIdx(i);}}
+              onFocus={()=>setItemSuggIdx(i)}
+              onBlur={()=>setTimeout(()=>setItemSuggIdx(p=>p===i?null:p),150)}
+              placeholder="Nome do item" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
+            {itemSuggIdx===i&&prodSugg(it.nome).length>0&&
+              <div className="absolute z-30 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-48 overflow-y-auto">
+                {prodSugg(it.nome).map(p=><div key={p.id} onMouseDown={()=>{updItem(i,'nome',p.nome);updItem(i,'valor_unitario',String(p.preco));setItemSuggIdx(null);}}
+                  className="px-3 py-2 text-sm hover:bg-emerald-50 cursor-pointer flex justify-between items-center">
+                  <span className="font-medium text-gray-800">{p.nome}</span>
+                  <span className="text-xs text-emerald-700 font-semibold ml-2">{fmt$(p.preco)}</span>
+                </div>)}
+              </div>}
+          </div>
           <input type="number" value={it.quantidade} onChange={e=>updItem(i,'quantidade',e.target.value)} min="1" placeholder="Qtd" className="w-16 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center"/>
           <input type="number" value={it.valor_unitario} onChange={e=>updItem(i,'valor_unitario',e.target.value)} min="0" step="0.01" placeholder="R$/un" className="w-24 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
           <span className="text-xs font-semibold text-gray-700 w-20 text-right">{fmt$((Number(it.quantidade)||0)*(Number(it.valor_unitario)||0))}</span>
@@ -3769,18 +3785,21 @@ function CRMBar({showToast,crmUser}){
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('novo');
 
+  const [produtos,setProdutos]=useState([]);
   const load=()=>{
     Promise.all([
       barApi.list(estId?{estId}:{}),
       estApi.list(),
       alunoApi.list(),
       professorApi.list(),
+      barProdutoApi.list(estId||undefined),
     ])
-      .then(([v,e,a,p])=>{
+      .then(([v,e,a,p,pr])=>{
         const filtered=userEstIds.length?e.filter(x=>userEstIds.includes(Number(x.id))):e;
         const profs=(p||[]).filter(x=>x.ativo!==false).map(x=>({...x,id:null,_tipo:'professor'}));
         setVendas(v);setEsts(filtered);
         setAlunos([...a.filter(x=>x.ativo!==false),...profs]);
+        setProdutos((pr||[]).filter(x=>x.ativo!==false));
       })
       .catch(()=>{})
       .finally(()=>setLoading(false));
@@ -3807,7 +3826,7 @@ function CRMBar({showToast,crmUser}){
         {ests.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
       </select>
     </div>
-    {tab==='novo'&&<VendasForm titulo="Registrar Consumo de Bar" labelItem="Bebidas / Itens" onSave={save} alunos={alunos} loading={loading} showFoto={true}/>}
+    {tab==='novo'&&<VendasForm titulo="Registrar Consumo de Bar" labelItem="Bebidas / Itens" onSave={save} alunos={alunos} loading={loading} showFoto={true} produtos={produtos}/>}
     {tab==='historico'&&(loading?<Spinner/>:<VendasList rows={vendas} onDelete={del} tipo="bar"/>)}
   </div>;
 }
