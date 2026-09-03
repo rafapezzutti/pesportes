@@ -115,6 +115,31 @@ async function disconnect(instance) {
 }
 
 /**
+ * Força reconexão: logout → delete → create → QR.
+ * Usado quando a instância existe mas está com sessão corrompida.
+ */
+async function forceReconnect(instance) {
+  instance = instance || INSTANCE_PREFIX;
+  // 1. logout silencioso
+  try { await evoFetch('DELETE', `/instance/logout/${instance}`); } catch {}
+  await new Promise(r => setTimeout(r, 1000));
+  // 2. delete silencioso
+  try { await evoFetch('DELETE', `/instance/delete/${instance}`); } catch {}
+  await new Promise(r => setTimeout(r, 2000));
+  // 3. recriar
+  await evoFetch('POST', '/instance/create', {
+    instanceName: instance,
+    qrcode: true,
+    integration: 'WHATSAPP-BAILEYS',
+  });
+  await new Promise(r => setTimeout(r, 1000));
+  // 4. conectar e retornar QR
+  const data = await evoFetch('GET', `/instance/connect/${instance}`);
+  const qrcode = data?.base64 || data?.qrcode?.base64 || null;
+  return { connected: false, qrcode, instance };
+}
+
+/**
  * Formata um número de telefone brasileiro para o formato aceito pela Evolution API.
  */
 function formatPhone(raw) {
@@ -145,4 +170,4 @@ async function sendText(phone, text, instance) {
   return { success: true, messageId: data?.key?.id || data?.id, number };
 }
 
-module.exports = { getStatus, getQRCode, disconnect, sendText, formatPhone, instanceForEst, INSTANCE_PREFIX };
+module.exports = { getStatus, getQRCode, forceReconnect, disconnect, sendText, formatPhone, instanceForEst, INSTANCE_PREFIX };

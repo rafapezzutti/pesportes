@@ -266,7 +266,8 @@ export const contasApi = {
 export const whatsappApi = {
   status:       ()           => get('/whatsapp/status'),
   qrcode:       ()           => get('/whatsapp/qrcode'),
-  disconnect:   ()           => post('/whatsapp/disconnect', {}),
+  disconnect:       ()       => post('/whatsapp/disconnect', {}),
+  forceReconnect:   ()       => post('/whatsapp/force-reconnect', {}),
   // Automations
   automations:  (estId)      => get('/whatsapp/automations' + (estId ? `?est_id=${estId}` : '')),
   saveAuto:     (type, data) => req('PUT', `/whatsapp/automations/${type}`, data),

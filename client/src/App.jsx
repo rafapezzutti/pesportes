@@ -5567,6 +5567,18 @@ function CRMWhatsApp({crmUser,showToast}){
     finally{setDisconnecting(false);}
   };
 
+  const [forceLoading,setForceLoading]=useState(false);
+  const handleForceReconnect=async()=>{
+    if(!confirm('Isso vai apagar e recriar a sessão WhatsApp. Continuar?'))return;
+    setForceLoading(true);setQrcode(null);
+    try{
+      const r=await whatsappApi.forceReconnect();
+      if(r.qrcode){setQrcode(r.qrcode);showToast('Sessão reiniciada! Escaneie o QR Code.','success');}
+      else showToast('Não foi possível gerar QR Code','error');
+    }catch(e){showToast(e.message||'Erro','error');}
+    finally{setForceLoading(false);}
+  };
+
   // ── Salvar automação ──────────────────────────────────────────────────────
   const saveAuto=async(type,enabled,cfg)=>{
     try{
@@ -5639,8 +5651,10 @@ function CRMWhatsApp({crmUser,showToast}){
         </div>
         :<div>
           <p className="text-sm text-gray-500 mb-4">Clique em "Gerar QR Code" e escaneie com o WhatsApp do estabelecimento em <strong>Aparelhos conectados → Conectar um aparelho</strong>.</p>
-          <Btn className="w-full mb-4" disabled={qrLoading} onClick={handleConnect}>
+          <Btn className="w-full mb-3" disabled={qrLoading} onClick={handleConnect}>
             {qrLoading?'Gerando QR Code...':'📱 Gerar QR Code'}</Btn>
+          <Btn variant="secondary" className="w-full mb-4" disabled={forceLoading} onClick={handleForceReconnect}>
+            {forceLoading?'Reiniciando sessão...':'🔄 Forçar reconexão (sessão travada)'}</Btn>
           {qrcode&&<div className="text-center">
             <p className="text-xs text-gray-400 mb-3">Escaneie o QR Code com o WhatsApp do estabelecimento</p>
             <img src={qrcode} alt="QR Code" className="mx-auto rounded-xl border-4 border-green-100" style={{maxWidth:260}}/>

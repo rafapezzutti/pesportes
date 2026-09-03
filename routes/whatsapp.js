@@ -42,6 +42,13 @@ router.post('/disconnect', auth, adminOrManager, async (req, res) => {
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.post('/force-reconnect', auth, adminOrManager, async (req, res) => {
+  const estId = getEstId(req.user, req.body?.est_id);
+  const instance = wa.instanceForEst(estId);
+  try { res.json(await wa.forceReconnect(instance)); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── Automações ────────────────────────────────────────────────────────────────
 const VALID_TYPES = ['cobranca_mensal', 'saldo_pendente', 'aniversario'];
 
