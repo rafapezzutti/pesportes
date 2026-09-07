@@ -74,7 +74,8 @@ app.use('/api/expenses',         require('./routes/expenses'));
 app.use('/api/rankings',         require('./routes/rankings'));
 app.use('/api/finance',          require('./routes/finance'));
 app.use('/api/reviews',          require('./routes/reviews'));
-app.use('/api/bar-produtos',     require('./routes/bar_produtos'));
+app.use('/api/bar-produtos',               require('./routes/bar_produtos'));
+app.use('/api/reservation-notif-contacts', require('./routes/reservation-notif-contacts'));
 app.use('/api/reports',          require('./routes/reports'));
 app.use('/api/employees',        require('./routes/employees'));
 app.use('/api/ponto',            require('./routes/ponto'));
@@ -389,6 +390,23 @@ async function runMigrations() {
     )`,
     `ALTER TABLE aulas_avulsas ADD COLUMN IF NOT EXISTS pacote_id INTEGER REFERENCES pacotes(id) ON DELETE SET NULL`,
     `ALTER TABLE aulas_avulsas ADD COLUMN IF NOT EXISTS percentual_repasse NUMERIC(5,2)`,
+    `CREATE TABLE IF NOT EXISTS reservation_notif_contacts (
+      id         SERIAL PRIMARY KEY,
+      est_id     INTEGER NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+      nome       TEXT    NOT NULL,
+      telefone   TEXT    NOT NULL,
+      ativo      BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE TABLE IF NOT EXISTS reservation_notif_queue (
+      id         SERIAL PRIMARY KEY,
+      est_id     INTEGER NOT NULL,
+      telefone   TEXT    NOT NULL,
+      message    TEXT    NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      sent_at    TIMESTAMPTZ
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_rnotif_queue_pending ON reservation_notif_queue(telefone, sent_at) WHERE sent_at IS NULL`,
     `CREATE TABLE IF NOT EXISTS bar_produtos (
       id          SERIAL PRIMARY KEY,
       est_id      INTEGER REFERENCES establishments(id) ON DELETE CASCADE,
@@ -419,6 +437,16 @@ cron.schedule('0 8 * * *', async () => {
     console.error('[CRON-WA] Erro:', err.message);
   }
 }, { timezone: 'America/Sao_Paulo' });
+
+// Cron — fila de notificações de reserva (a cada 30s)
+cron.schedule('*/30 * * * * *', async () => {
+  try {
+    const { processQueue } = require('./services/reservation-notif');
+    await processQueue();
+  } catch (err) {
+    console.error('[CRON-NOTIF] Erro:', err.message);
+  }
+});
 
 runMigrations().then(() => {
   app.listen(PORT, () => {

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
 const { auth, crmOnly } = require('../middleware/auth');
+const { enqueue, msgRecorrente } = require('../services/reservation-notif');
 
 // GET /api/recurring-reservations
 router.get('/', auth, crmOnly, async (req, res) => {
@@ -73,7 +74,15 @@ router.post('/', auth, crmOnly, async (req, res) => {
       start_date || null, observacoes || null, req.user.id,
       professor_id ? Number(professor_id) : null,
     ]);
-    res.status(201).json(rows[0]);
+    const rec = rows[0];
+    // Busca nome da quadra para a notificação
+    pool.query('SELECT name FROM points WHERE id=$1', [rec.point_id])
+      .then(({ rows: pts }) => {
+        const r = { ...rec, point_name: pts[0]?.name || String(rec.point_id) };
+        return enqueue(rec.est_id, msgRecorrente(r));
+      })
+      .catch(() => {});
+    res.status(201).json(rec);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao criar recorrência' });

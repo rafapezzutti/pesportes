@@ -277,6 +277,13 @@ export const whatsappApi = {
   alert:        ()           => get('/whatsapp/alert'),
   ackAlert:     ()           => post('/whatsapp/alert/ack', {}),
 };
+// ── Notificações de Reservas ─────────────────────────────────────
+export const reservaNotifApi = {
+  list:   (estId)     => get('/reservation-notif-contacts' + (estId ? `?est_id=${estId}` : '')),
+  create: (data)      => post('/reservation-notif-contacts', data),
+  toggle: (id, ativo) => req('PATCH', `/reservation-notif-contacts/${id}`, { ativo }),
+  remove: (id)        => req('DELETE', `/reservation-notif-contacts/${id}`, {}),
+};
 // ── Comissão Gerente ──────────────────────────────────────────────
 export const comissaoGerenteApi = {
   list:         (params={}) => get('/comissao-gerente?' + new URLSearchParams(params).toString()),

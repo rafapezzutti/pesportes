@@ -4,7 +4,7 @@ import {
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
   employeeApi, pontoApi, alunoApi, contasApi, impersonateApi, recurringApi,
-  whatsappApi, comissaoGerenteApi, horariosLivresApi, rankingApi, downloadReport, saveToken, clearToken,
+  whatsappApi, comissaoGerenteApi, horariosLivresApi, rankingApi, reservaNotifApi, downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -5528,7 +5528,12 @@ function CRMWhatsApp({crmUser,showToast}){
   const [autosLoading,setAutosLoading]=useState(true);
   const [logs,setLogs]=useState([]);
   const [showLogs,setShowLogs]=useState(false);
-  const [tab,setTab]=useState('conexao'); // 'conexao' | 'automacoes' | 'logs'
+  const [tab,setTab]=useState('conexao'); // 'conexao' | 'automacoes' | 'logs' | 'notificacoes'
+  // ── Contatos de notificação de reservas ──────────────────────────
+  const [notifContacts,setNotifContacts]=useState([]);
+  const [notifLoading,setNotifLoading]=useState(false);
+  const [notifForm,setNotifForm]=useState({nome:'',telefone:''});
+  const [notifSaving,setNotifSaving]=useState(false);
 
   const estId=crmUser?.est_id||(crmUser?.est_ids&&crmUser.est_ids[0]);
 
@@ -5597,7 +5602,15 @@ function CRMWhatsApp({crmUser,showToast}){
     catch{setLogs([]);}
   };
 
+  const loadNotifContacts=useCallback(async()=>{
+    setNotifLoading(true);
+    try{const d=await reservaNotifApi.list(estId);setNotifContacts(d);}
+    catch{setNotifContacts([]);}
+    finally{setNotifLoading(false);}
+  },[estId]);
+
   useEffect(()=>{if(tab==='logs')loadLogs();},[tab]);
+  useEffect(()=>{if(tab==='notificacoes')loadNotifContacts();},[tab,loadNotifContacts]);
 
   const stateLabel={open:'✅ Conectado',close:'⭕ Desconectado',connecting:'🔄 Conectando...'};
 
@@ -5617,7 +5630,7 @@ function CRMWhatsApp({crmUser,showToast}){
 
     {/* Tabs */}
     <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
-      {[['conexao','📱 Conexão'],['automacoes','⚡ Automações'],['logs','📋 Histórico']].map(([k,l])=>(
+      {[['conexao','📱 Conexão'],['automacoes','⚡ Automações'],['logs','📋 Histórico'],['notificacoes','🔔 Notificações']].map(([k,l])=>(
         <button key={k} onClick={()=>setTab(k)}
           className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${tab===k?'bg-white shadow text-gray-800':'text-gray-500 hover:text-gray-700'}`}>{l}</button>
       ))}
@@ -5767,6 +5780,70 @@ function CRMWhatsApp({crmUser,showToast}){
           </div>
         </div>)}
       </div>}
+    </div>}
+
+    {/* ── Tab Notificações ── */}
+    {tab==='notificacoes'&&<div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+        📣 Esses contatos recebem uma mensagem WhatsApp a cada nova reserva, alteração ou cancelamento neste estabelecimento. Limite: 1 mensagem por número/minuto.
+      </div>
+      {/* Formulário de adição */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <p className="font-semibold text-gray-700 mb-3">Adicionar contato</p>
+        <div className="flex gap-2 flex-wrap">
+          <input className="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-[140px]"
+            placeholder="Nome" value={notifForm.nome}
+            onChange={e=>setNotifForm(f=>({...f,nome:e.target.value}))}/>
+          <input className="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-[140px]"
+            placeholder="Telefone (55DDD9XXXXXXXX)" value={notifForm.telefone}
+            onChange={e=>setNotifForm(f=>({...f,telefone:e.target.value}))}/>
+          <Btn disabled={notifSaving||!notifForm.nome.trim()||!notifForm.telefone.trim()}
+            onClick={async()=>{
+              setNotifSaving(true);
+              try{
+                const body={nome:notifForm.nome.trim(),telefone:notifForm.telefone.replace(/\D/g,'')};
+                if(estId)body.est_id=estId;
+                await reservaNotifApi.create(body);
+                setNotifForm({nome:'',telefone:''});
+                await loadNotifContacts();
+                showToast('Contato adicionado!','success');
+              }catch(e){showToast(e.message||'Erro ao adicionar','error');}
+              finally{setNotifSaving(false);}
+            }}>
+            {notifSaving?'Salvando...':'+ Adicionar'}
+          </Btn>
+        </div>
+      </div>
+      {/* Lista de contatos */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <p className="font-semibold text-gray-700">Contatos cadastrados</p>
+          <Btn variant="secondary" size="sm" onClick={loadNotifContacts}>↻ Atualizar</Btn>
+        </div>
+        {notifLoading?<div className="text-center text-gray-400 py-8">Carregando...</div>
+        :notifContacts.length===0?<div className="text-center text-gray-400 py-8">Nenhum contato cadastrado</div>
+        :<div className="divide-y divide-gray-50">
+          {notifContacts.map(c=><div key={c.id} className="px-5 py-3 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm text-gray-800">{c.nome}</p>
+              <p className="text-xs text-gray-400 font-mono">{c.telefone}</p>
+            </div>
+            <button
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${c.ativo?'bg-green-100 text-green-700 hover:bg-green-200':'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+              onClick={async()=>{
+                try{await reservaNotifApi.toggle(c.id,!c.ativo);await loadNotifContacts();}
+                catch(e){showToast(e.message||'Erro','error');}
+              }}>{c.ativo?'Ativo':'Inativo'}</button>
+            <button className="text-red-400 hover:text-red-600 text-lg leading-none px-1"
+              title="Remover"
+              onClick={async()=>{
+                if(!confirm(`Remover ${c.nome}?`))return;
+                try{await reservaNotifApi.remove(c.id);await loadNotifContacts();showToast('Removido','success');}
+                catch(e){showToast(e.message||'Erro','error');}
+              }}>×</button>
+          </div>)}
+        </div>}
+      </div>
     </div>}
   </div>;
 }
