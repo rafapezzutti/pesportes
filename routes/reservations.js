@@ -37,7 +37,7 @@ router.get('/', anyAuth, async (req, res) => {
       params.push(req.user.id);
     }
 
-    if (req.user.type === 'crm' && req.user.role === 'simples' && req.user.est_id) {
+    if (req.user.type === 'crm' && ['simples','professor','recepcao'].includes(req.user.role) && req.user.est_id) {
       clauses.push(`r.est_id = $${params.length + 1}`);
       params.push(req.user.est_id);
     }

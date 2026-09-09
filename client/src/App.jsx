@@ -475,7 +475,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
   const groups=[
     {label:'Principal', items:[
       {key:'crm-dashboard',      label:'Dashboard', icon:'📊',roles:['admin','manager']},
-      {key:'crm-reservations',   label:'Reservas',  icon:'📅',roles:['admin','manager','simples'],feature:'reservas'},
+      {key:'crm-reservations',   label:'Reservas',  icon:'📅',roles:['admin','manager','simples','professor','recepcao'],feature:'reservas'},
     ]},
     {label:'Cadastros', items:[
       {key:'crm-establishment',  label:'Estabelecimentos', icon:'🏢',roles:['admin','manager']},
