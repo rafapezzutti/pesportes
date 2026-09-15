@@ -126,13 +126,21 @@ async function forceReconnect(instance) {
   // 2. delete silencioso
   try { await evoFetch('DELETE', `/instance/delete/${instance}`); } catch {}
   await new Promise(r => setTimeout(r, 2000));
-  // 3. recriar
-  await evoFetch('POST', '/instance/create', {
-    instanceName: instance,
-    qrcode: true,
-    integration: 'WHATSAPP-BAILEYS',
-  });
-  await new Promise(r => setTimeout(r, 1000));
+  // 3. recriar — se a instância ainda existir (delete falhou), conecta direto
+  try {
+    await evoFetch('POST', '/instance/create', {
+      instanceName: instance,
+      qrcode: true,
+      integration: 'WHATSAPP-BAILEYS',
+    });
+    await new Promise(r => setTimeout(r, 1000));
+  } catch (e) {
+    // 403 "already in use" = delete não funcionou mas a instância existe; segue para connect
+    const alreadyExists = e.message?.toLowerCase().includes('already in use') ||
+                          e.message?.toLowerCase().includes('already exists');
+    if (!alreadyExists) throw e;
+    console.log(`[forceReconnect] instância ${instance} ainda existe, conectando diretamente`);
+  }
   // 4. conectar e retornar QR
   const data = await evoFetch('GET', `/instance/connect/${instance}`);
   const qrcode = data?.base64 || data?.qrcode?.base64 || null;
