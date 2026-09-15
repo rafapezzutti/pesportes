@@ -41,7 +41,10 @@ async function evoFetch(method, path, body) {
     if (Array.isArray(msgArr) && msgArr[0]?.exists === false) {
       throw new Error(`Número ${msgArr[0].number} não está registrado no WhatsApp`);
     }
-    const msg = data?.message || data?.error || `Erro ${res.status}`;
+    // Extrai mensagem aninhada (ex: {"response":{"message":["This name ... is already in use."]}})
+    const nestedMsg = Array.isArray(msgArr) ? msgArr[0] : null;
+    const msg = (typeof nestedMsg === 'string' ? nestedMsg : null)
+      || data?.message || data?.error || `Erro ${res.status}`;
     console.error('[evoFetch] Bad response', { method, path, status: res.status, body: JSON.stringify(body), response: text });
     throw new Error(msg);
   }
@@ -135,11 +138,9 @@ async function forceReconnect(instance) {
     });
     await new Promise(r => setTimeout(r, 1000));
   } catch (e) {
-    // 403 "already in use" = delete não funcionou mas a instância existe; segue para connect
-    const alreadyExists = e.message?.toLowerCase().includes('already in use') ||
-                          e.message?.toLowerCase().includes('already exists');
-    if (!alreadyExists) throw e;
-    console.log(`[forceReconnect] instância ${instance} ainda existe, conectando diretamente`);
+    // Se o create falhar por qualquer razão, a instância pode ainda existir.
+    // Seguimos para connect — no pior caso ele também falhará e o erro chegará ao cliente.
+    console.log(`[forceReconnect] create falhou (${e.message}), tentando conectar instância existente`);
   }
   // 4. conectar e retornar QR
   const data = await evoFetch('GET', `/instance/connect/${instance}`);
