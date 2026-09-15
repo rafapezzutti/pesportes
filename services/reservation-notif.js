@@ -105,44 +105,54 @@ const DAYS_PT = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado
  * Monta mensagem de nova reserva avulsa.
  */
 function msgNova(r) {
-  const nome = r.user_name || r.client_name || '—';
+  const nome   = r.user_name || r.client_name || '—';
   const quadra = r.point_name || '—';
-  const data = fmtDate(r.date);
-  const hora = fmtTime(r.start_time);
-  return `📅 *Nova Reserva*\n👤 ${nome}\n🏟️ ${quadra}\n📆 ${data} às ${hora}`;
+  const data   = fmtDate(r.date);
+  const inicio = fmtTime(r.start_time);
+  const fim    = fmtTime(r.end_time);
+  const feita  = r.crm_user_name ? `\n🖊️ Cadastrada por: ${r.crm_user_name}` : '';
+  return `📅 *Nova Reserva*\n👤 ${nome}\n🏟️ ${quadra}\n📆 ${data}\n⏰ ${inicio} – ${fim}${feita}`;
 }
 
 /**
  * Monta mensagem de reserva alterada.
  */
 function msgAlterada(r) {
-  const nome = r.user_name || r.client_name || '—';
+  const nome   = r.user_name || r.client_name || '—';
   const quadra = r.point_name || '—';
-  const data = fmtDate(r.date);
-  const hora = fmtTime(r.start_time);
-  return `✏️ *Reserva Alterada*\n👤 ${nome}\n🏟️ ${quadra}\n📆 ${data} às ${hora}`;
+  const data   = fmtDate(r.date);
+  const inicio = fmtTime(r.start_time);
+  const fim    = fmtTime(r.end_time);
+  const feita  = r.crm_user_name ? `\n🖊️ Alterada por: ${r.crm_user_name}` : '';
+  return `✏️ *Reserva Alterada*\n👤 ${nome}\n🏟️ ${quadra}\n📆 ${data}\n⏰ ${inicio} – ${fim}${feita}`;
 }
 
 /**
  * Monta mensagem de cancelamento.
+ * @param {object} r - dados da reserva
+ * @param {string|null} cancelledBy - nome do usuário CRM que cancelou (opcional)
  */
-function msgCancelada(r) {
-  const nome = r.user_name || r.client_name || '—';
+function msgCancelada(r, cancelledBy) {
+  const nome   = r.user_name || r.client_name || '—';
   const quadra = r.point_name || '—';
-  const data = fmtDate(r.date);
-  const hora = fmtTime(r.start_time);
-  return `❌ *Reserva Cancelada*\n👤 ${nome}\n🏟️ ${quadra}\n📆 ${data} às ${hora}`;
+  const data   = fmtDate(r.date);
+  const inicio = fmtTime(r.start_time);
+  const fim    = fmtTime(r.end_time);
+  const por    = cancelledBy ? `\n🖊️ Cancelada por: ${cancelledBy}` : '';
+  return `❌ *Reserva Cancelada*\n👤 ${nome}\n🏟️ ${quadra}\n📆 ${data}\n⏰ ${inicio} – ${fim}${por}`;
 }
 
 /**
  * Monta mensagem de recorrente criada (uma única vez).
  */
 function msgRecorrente(r) {
-  const nome = r.client_name || '—';
+  const nome   = r.client_name || '—';
   const quadra = r.point_name || r.point_id || '—';
-  const dia = DAYS_PT[r.day_of_week] || '—';
-  const hora = fmtTime(r.start_time);
-  return `🔁 *Reserva Recorrente Criada*\n👤 ${nome}\n🏟️ ${quadra}\n📅 Toda ${dia} às ${hora}`;
+  const dia    = DAYS_PT[r.day_of_week] || '—';
+  const inicio = fmtTime(r.start_time);
+  const fim    = fmtTime(r.end_time);
+  const horario = fim && fim !== '—' ? `${inicio} – ${fim}` : inicio;
+  return `🔁 *Reserva Recorrente Criada*\n👤 ${nome}\n🏟️ ${quadra}\n📅 Toda ${dia}\n⏰ ${horario}`;
 }
 
 module.exports = { enqueue, processQueue, msgNova, msgAlterada, msgCancelada, msgRecorrente };

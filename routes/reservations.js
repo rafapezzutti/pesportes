@@ -8,6 +8,15 @@ const {
 } = require('../services/email');
 const { enqueue, msgNova, msgAlterada, msgCancelada } = require('../services/reservation-notif');
 
+/** Retorna o nome do usuário CRM pelo id (silencioso) */
+async function getCrmUserName(userId) {
+  if (!userId) return null;
+  try {
+    const { rows } = await pool.query('SELECT name FROM crm_users WHERE id=$1', [userId]);
+    return rows[0]?.name || null;
+  } catch { return null; }
+}
+
 const RES_QUERY = `
   SELECT r.*,
          COALESCE(pu.name,  r.client_name)       AS user_name,
@@ -17,11 +26,13 @@ const RES_QUERY = `
          e.name   AS est_name,   e.phone AS est_phone,
          e.street, e.number AS est_number, e.city, e.state,
          pr.nome  AS professor_nome,
-         pr.percentual_repasse
+         pr.percentual_repasse,
+         cu.name  AS crm_user_name
   FROM reservations r
   LEFT JOIN public_users  pu ON r.user_id    = pu.id
   LEFT JOIN professores   pr ON r.professor_id = pr.id
-  LEFT JOIN points    p ON r.point_id = p.id
+  LEFT JOIN points        p  ON r.point_id   = p.id
+  LEFT JOIN crm_users     cu ON r.crm_user_id = cu.id
   JOIN establishments e ON r.est_id   = e.id
 `;
 
@@ -233,7 +244,9 @@ router.patch('/:id/cancel', anyAuth, async (req, res) => {
 
     await pool.query("UPDATE reservations SET status='cancelled' WHERE id=$1", [req.params.id]);
     sendCancellationEmail(res_, res_.user_email).catch(console.error);
-    enqueue(res_.est_id, msgCancelada(res_)).catch(() => {});
+    getCrmUserName(req.user.type === 'crm' ? req.user.id : null)
+      .then(actor => enqueue(res_.est_id, msgCancelada(res_, actor)).catch(() => {}))
+      .catch(() => {});
     res.json({ message: 'Reserva cancelada' });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao cancelar reserva' });
@@ -335,7 +348,11 @@ router.patch('/:id', auth, crmOnly, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Nao encontrado' });
     if (status === 'cancelled') {
       const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [rows[0].id]);
-      if (full.length) enqueue(full[0].est_id, msgCancelada(full[0])).catch(() => {});
+      if (full.length) {
+        getCrmUserName(req.user.id)
+          .then(actor => enqueue(full[0].est_id, msgCancelada(full[0], actor)).catch(() => {}))
+          .catch(() => {});
+      }
     }
     res.json(rows[0]);
   } catch (err) {
@@ -349,7 +366,11 @@ router.delete('/:id', auth, crmOnly, async (req, res) => {
     const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [req.params.id]);
     const { rowCount } = await pool.query('DELETE FROM reservations WHERE id=$1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Reserva não encontrada' });
-    if (full.length) enqueue(full[0].est_id, msgCancelada(full[0])).catch(() => {});
+    if (full.length) {
+      getCrmUserName(req.user.id)
+        .then(actor => enqueue(full[0].est_id, msgCancelada(full[0], actor)).catch(() => {}))
+        .catch(() => {});
+    }
     res.json({ message: 'Reserva excluída' });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao excluir reserva' });
