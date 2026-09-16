@@ -90,7 +90,8 @@ async function processQueue() {
 /** Formata data DD/MM/AAAA */
 function fmtDate(d) {
   if (!d) return '—';
-  const dt = new Date(d + 'T12:00:00');
+  const dateOnly = String(d).slice(0, 10); // garante apenas YYYY-MM-DD
+  const dt = new Date(dateOnly + 'T12:00:00');
   return dt.toLocaleDateString('pt-BR');
 }
 
