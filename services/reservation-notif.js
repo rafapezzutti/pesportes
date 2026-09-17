@@ -90,8 +90,16 @@ async function processQueue() {
 /** Formata data DD/MM/AAAA */
 function fmtDate(d) {
   if (!d) return '—';
-  const dateOnly = String(d).slice(0, 10); // garante apenas YYYY-MM-DD
+  let dateOnly;
+  if (d instanceof Date) {
+    // node-pg retorna DATE como objeto Date (UTC midnight)
+    dateOnly = d.toISOString().slice(0, 10);
+  } else {
+    // string "2026-09-17" ou "2026-09-17T03:00:00.000Z"
+    dateOnly = String(d).slice(0, 10);
+  }
   const dt = new Date(dateOnly + 'T12:00:00');
+  if (isNaN(dt.getTime())) return String(d); // fallback: retorna o valor bruto
   return dt.toLocaleDateString('pt-BR');
 }
 
