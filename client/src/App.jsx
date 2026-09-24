@@ -4535,7 +4535,7 @@ function CRMFinanceiro({crmUser,showToast}){
   const [cfLoading,setCfLoading]=useState(false);
   const loadFluxo=useCallback(()=>{setCfLoading(true);setCf(null);financeApi.cashflow({from,to}).then(d=>{setCf(d);setCfLoading(false);}).catch(()=>{setCf(CF_EMPTY);setCfLoading(false);});},[from,to]);
   const loadExps =useCallback(()=>{expenseApi.list({from,to}).then(setExps).catch(()=>{});},[from,to]);
-  const loadRep  =useCallback(()=>{repasseApi.list({from,to}).then(setRep).catch(e=>showToast&&showToast('Repasse: '+(e.message||'Erro'),'error'));},[from,to]);
+  const loadRep  =useCallback(()=>{return repasseApi.list({from,to}).then(setRep).catch(e=>showToast&&showToast('Repasse: '+(e.message||'Erro'),'error'));},[from,to]);
   const loadProj =useCallback(()=>{financeApi.projecao({saldoInicial:parseFloat(saldoIni)||0}).then(setProj).catch(()=>{});},[saldoIni]);
   const loadComissao=useCallback(()=>{comissaoGerenteApi.list({from,to}).then(setComissao).catch(()=>{});},[from,to]);
   const loadContas=useCallback((clienteOverride)=>{
@@ -4578,6 +4578,26 @@ function CRMFinanceiro({crmUser,showToast}){
     if(!confirm('Marcar todo o repasse pendente do período como pago?'))return;
     try{await repasseApi.marcar({professor_id,from,to});loadRep();showToast&&showToast('Repasse marcado como pago','success');}
     catch(e){showToast&&showToast(e.message||'Erro','error');}
+  };
+  const canEditRep=['admin','manager'].includes(crmUser.role);
+  const reloadRepDet=async(professor_id)=>{
+    try{const data=await repasseApi.detalhe(professor_id,{from,to});setRepExp(p=>p[professor_id]?{...p,[professor_id]:{loading:false,data}}:p);}catch(e){}
+  };
+  const setItemRepStatus=async(professor_id,item,status)=>{
+    if(status==='pendente'&&!confirm(`Reverter o repasse de "${item.descricao||'item'}" para PENDENTE?`))return;
+    try{
+      await repasseApi.status({status,itens:[{origem:item.origem,id:item.id}]});
+      await Promise.all([loadRep(),reloadRepDet(professor_id)]);
+      showToast&&showToast(status==='pago'?'Marcado como pago':'Revertido para pendente','success');
+    }catch(e){showToast&&showToast(e.message||'Erro','error');}
+  };
+  const reverterRep=async(r)=>{
+    if(!confirm(`Reverter TODOS os repasses pagos de ${r.nome} no período ${new Date(from+'T12:00').toLocaleDateString('pt-BR')} a ${new Date(to+'T12:00').toLocaleDateString('pt-BR')} para PENDENTE?`))return;
+    try{
+      const res=await repasseApi.status({status:'pendente',professor_id:r.professor_id,from,to});
+      await Promise.all([loadRep(),reloadRepDet(r.professor_id)]);
+      showToast&&showToast(`${res?.alterados??''} item(ns) revertido(s) para pendente`,'success');
+    }catch(e){showToast&&showToast(e.message||'Erro','error');}
   };
 
   const totExp=exps.reduce((s,e)=>s+Number(e.valor||0),0);
@@ -4698,7 +4718,7 @@ function CRMFinanceiro({crmUser,showToast}){
               <td className="px-3 py-2.5 text-gray-600">{fmt$(r.total_planos)}</td>
               <td className="px-3 py-2.5 font-semibold text-emerald-700">{fmt$(r.repasse_devido)}</td>
               <td className="px-3 py-2.5 text-amber-700">{fmt$(r.total_pendente)}</td>
-              <td className="px-3 py-2.5 text-right" onClick={e=>e.stopPropagation()}>{Number(r.total_pendente)>0&&<Btn size="sm" variant="secondary" onClick={()=>pagarRep(r.professor_id)}>Marcar pago</Btn>}</td>
+              <td className="px-3 py-2.5 text-right whitespace-nowrap" onClick={e=>e.stopPropagation()}><div className="flex gap-2 justify-end">{Number(r.total_pendente)>0&&<Btn size="sm" variant="secondary" onClick={()=>pagarRep(r.professor_id)}>Marcar pago</Btn>}{canEditRep&&Number(r.total_pago)>0&&<Btn size="sm" variant="secondary" onClick={()=>reverterRep(r)}>↩ Reverter p/ pendente</Btn>}</div></td>
             </tr>
             {isOpen&&<tr><td colSpan={8} className="p-0">
               <div className="bg-gray-50 border-t border-gray-100 px-6 py-4">
@@ -4725,7 +4745,12 @@ function CRMFinanceiro({crmUser,showToast}){
                         <td className="py-1.5 pr-4 text-gray-500">{dataFmt}</td>
                         <td className="py-1.5 pr-4 font-medium text-gray-700">{fmt$(item.valor)}</td>
                         <td className="py-1.5 pr-4 font-semibold text-emerald-700">{fmt$(item.repasse)}</td>
-                        <td className="py-1.5 pr-4">{isPago?<span className="text-green-600 font-semibold">✓ Pago</span>:<span className="text-amber-600">Pendente</span>}</td>
+                        <td className="py-1.5 pr-4">{canEditRep
+                          ?<select value={isPago?'pago':'pendente'} onChange={e=>setItemRepStatus(r.professor_id,item,e.target.value)} title={isPago&&item.repasse_pago_em?`Pago em ${new Date(item.repasse_pago_em).toLocaleDateString('pt-BR')}`:''} className={`text-xs font-semibold rounded-md border px-1.5 py-0.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isPago?'text-green-700 border-green-200':'text-amber-700 border-amber-200'}`}>
+                              <option value="pago">✓ Pago</option>
+                              <option value="pendente">Pendente</option>
+                            </select>
+                          :isPago?<span className="text-green-600 font-semibold">✓ Pago</span>:<span className="text-amber-600">Pendente</span>}</td>
                       </tr>;
                     })}</tbody>
                   </table>}

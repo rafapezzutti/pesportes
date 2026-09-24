@@ -108,6 +108,7 @@ export const repasseApi = {
   list:    (params = {}) => get('/repasse?' + new URLSearchParams(params).toString()),
   detalhe: (id, params = {}) => get(`/repasse/${id}/detalhe?` + new URLSearchParams(params).toString()),
   marcar:  (body)        => patch('/repasse/marcar', body),
+  status:  (body)        => patch('/repasse/status', body), // { status:'pago'|'pendente', itens:[{origem,id}] } ou { status, professor_id, from, to }
 };
 
 // ── Despesas ──────────────────────────────────────────────────────

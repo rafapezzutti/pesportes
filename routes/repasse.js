@@ -184,34 +184,101 @@ router.get('/:professorId/detalhe', auth, async (req, res) => {
   }
 });
 
-// PATCH /api/repasse/marcar — marca planos + reservas como pagos
-router.patch('/marcar', auth, adminOrManager, async (req, res) => {
-  const { plano_ids, reserva_ids, professor_id, from, to } = req.body;
+// Tabelas de origem do repasse e coluna de data de cada uma
+const ORIGENS = {
+  plano:   { table: 'planos_aula',   dateCol: 'data_inicio', extra: '' },
+  reserva: { table: 'reservations',  dateCol: 'date',        extra: ' AND total > 0' },
+  avulsa:  { table: 'aulas_avulsas', dateCol: 'data',        extra: '' },
+};
+
+// est_ids que o usuário pode alterar (null = sem restrição, só admin)
+function allowedEstIds(user) {
+  if (user.role === 'admin') return null;
+  return Array.from(new Set([
+    ...(user.est_ids || []),
+    ...(user.est_id ? [user.est_id] : []),
+  ])).map(Number).filter(Boolean);
+}
+
+/**
+ * Define repasse_pago = pago em itens específicos ou em todo o período de um professor.
+ * itens: [{ origem: 'plano'|'reserva'|'avulsa', id }]
+ * Retorna quantidade de linhas alteradas.
+ */
+async function setRepasseStatus(user, { itens, professor_id, from, to }, pago) {
+  const ests = allowedEstIds(user);
+  const setSql = pago
+    ? 'repasse_pago=TRUE, repasse_pago_em=NOW()'
+    : 'repasse_pago=FALSE, repasse_pago_em=NULL';
+  const client = await pool.connect();
+  let total = 0;
   try {
-    if (Array.isArray(plano_ids) && plano_ids.length) {
-      await pool.query(
-        `UPDATE planos_aula SET repasse_pago=TRUE, repasse_pago_em=NOW() WHERE id=ANY($1)`,
-        [plano_ids]
-      );
+    await client.query('BEGIN');
+    if (Array.isArray(itens) && itens.length) {
+      for (const [origem, cfg] of Object.entries(ORIGENS)) {
+        const ids = itens.filter(i => i && i.origem === origem).map(i => Number(i.id)).filter(Boolean);
+        if (!ids.length) continue;
+        const params = [ids];
+        let sql = `UPDATE ${cfg.table} SET ${setSql} WHERE id = ANY($1)`;
+        if (ests) { params.push(ests); sql += ` AND est_id = ANY($${params.length})`; }
+        const r = await client.query(sql, params);
+        if (r.rowCount !== ids.length) throw Object.assign(new Error('Item fora do seu estabelecimento ou inexistente'), { status: 403 });
+        total += r.rowCount;
+      }
+    } else if (professor_id) {
+      for (const cfg of Object.values(ORIGENS)) {
+        const params = [professor_id, !pago];
+        let sql = `UPDATE ${cfg.table} SET ${setSql}
+                   WHERE professor_id = $1 AND COALESCE(repasse_pago,FALSE) = $2${cfg.extra}`;
+        if (cfg.table === 'planos_aula') sql += ` AND COALESCE(status,'ativo') != 'cancelado'`;
+        if (from) { params.push(from); sql += ` AND ${cfg.dateCol} >= $${params.length}`; }
+        if (to)   { params.push(to);   sql += ` AND ${cfg.dateCol} <= $${params.length}`; }
+        if (ests) { params.push(ests); sql += ` AND est_id = ANY($${params.length})`; }
+        const r = await client.query(sql, params);
+        total += r.rowCount;
+      }
+    } else {
+      throw Object.assign(new Error('Informe itens ou professor_id'), { status: 400 });
     }
-    if (Array.isArray(reserva_ids) && reserva_ids.length) {
-      await pool.query(
-        `UPDATE reservations SET repasse_pago=TRUE, repasse_pago_em=NOW() WHERE id=ANY($1)`,
-        [reserva_ids]
-      );
-    }
-    if (!plano_ids && !reserva_ids && professor_id) {
-      const p = [professor_id];
-      let sql1 = `UPDATE planos_aula SET repasse_pago=TRUE, repasse_pago_em=NOW() WHERE professor_id=$1 AND repasse_pago=FALSE`;
-      let sql2 = `UPDATE reservations SET repasse_pago=TRUE, repasse_pago_em=NOW() WHERE professor_id=$1 AND COALESCE(repasse_pago,FALSE)=FALSE AND total>0`;
-      if (from) { p.push(from); sql1 += ` AND data_inicio>=$${p.length}`; sql2 += ` AND date>=$${p.length}`; }
-      if (to)   { p.push(to);   sql1 += ` AND data_inicio<=$${p.length}`; sql2 += ` AND date<=$${p.length}`; }
-      await Promise.all([pool.query(sql1, p), pool.query(sql2, p)]);
-    }
-    res.json({ message: 'Repasse marcado como pago' });
+    await client.query('COMMIT');
+    return total;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// PATCH /api/repasse/marcar — marca itens (ou período do professor) como pagos
+// Compatível com o formato antigo { plano_ids, reserva_ids } e o novo { itens }
+router.patch('/marcar', auth, adminOrManager, async (req, res) => {
+  const { plano_ids, reserva_ids, avulsa_ids, itens, professor_id, from, to } = req.body;
+  const lista = Array.isArray(itens) ? itens : [
+    ...(plano_ids   || []).map(id => ({ origem: 'plano',   id })),
+    ...(reserva_ids || []).map(id => ({ origem: 'reserva', id })),
+    ...(avulsa_ids  || []).map(id => ({ origem: 'avulsa',  id })),
+  ];
+  try {
+    const n = await setRepasseStatus(req.user, { itens: lista, professor_id, from, to }, true);
+    res.json({ message: 'Repasse marcado como pago', alterados: n });
   } catch (err) {
     console.error('[PATCH /repasse/marcar]', err);
-    res.status(500).json({ error: 'Erro ao marcar repasse' });
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Erro ao marcar repasse' });
+  }
+});
+
+// PATCH /api/repasse/status — altera status (pago|pendente) de itens ou do período
+// body: { status: 'pago'|'pendente', itens?: [{origem,id}], professor_id?, from?, to? }
+router.patch('/status', auth, adminOrManager, async (req, res) => {
+  const { status, itens, professor_id, from, to } = req.body;
+  if (!['pago', 'pendente'].includes(status)) return res.status(400).json({ error: 'Status inválido' });
+  try {
+    const n = await setRepasseStatus(req.user, { itens, professor_id, from, to }, status === 'pago');
+    res.json({ message: status === 'pago' ? 'Repasse marcado como pago' : 'Repasse revertido para pendente', alterados: n });
+  } catch (err) {
+    console.error('[PATCH /repasse/status]', err);
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Erro ao alterar status do repasse' });
   }
 });
 
