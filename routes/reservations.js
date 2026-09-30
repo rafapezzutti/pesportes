@@ -291,7 +291,9 @@ router.patch('/:id/reschedule', anyAuth, async (req, res) => {
 
     const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [req.params.id]);
     sendRescheduleEmail(full[0], full[0].user_email).catch(console.error);
-    enqueue(full[0].est_id, msgAlterada(full[0])).catch(() => {});
+    const actorP = req.user.type === 'crm' ? getCrmUserName(req.user.id) : Promise.resolve(full[0].user_name || null);
+    actorP.then(actor => enqueue(full[0].est_id, msgAlterada({ ...full[0], crm_user_name: actor || full[0].crm_user_name })))
+      .catch(() => {});
     res.json(full[0]);
   } catch (err) {
     console.error(err);
@@ -302,7 +304,14 @@ router.patch('/:id/reschedule', anyAuth, async (req, res) => {
 // PUT /api/reservations/:id — edição completa (CRM)
 router.put('/:id', auth, crmOnly, async (req, res) => {
   const { client_name, client_phone, client_email, payment_method, status, status_pgto, forma_pgto, total, observacoes, date, start_time, end_time, hours } = req.body;
+  // Horário final precisa ser depois do inicial (evita "19:00 – 19:00")
+  if (start_time && end_time && String(end_time).slice(0,5) <= String(start_time).slice(0,5))
+    return res.status(400).json({ error: 'Horário final deve ser maior que o inicial' });
   try {
+    const { rows: before } = await pool.query(
+      `SELECT date, start_time, end_time, point_id, status FROM reservations WHERE id=$1`,
+      [req.params.id]
+    );
     const { rows } = await pool.query(
       `UPDATE reservations SET
          client_name   = COALESCE($1, client_name),
@@ -325,8 +334,26 @@ router.put('/:id', auth, crmOnly, async (req, res) => {
        hours!=null&&hours!==''?parseFloat(hours):null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Reserva não encontrada' });
-    const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [rows[0].id]);
-    if (full.length) enqueue(full[0].est_id, msgAlterada(full[0])).catch(() => {});
+    // Notifica só quando muda data, horário, quadra ou quando cancela.
+    // Mudanças de pagamento, observação, contato etc. NÃO disparam WhatsApp.
+    const b = before[0] || {};
+    const a = rows[0];
+    const d = v => (v instanceof Date ? v.toISOString() : String(v ?? '')).slice(0, 10);
+    const t = v => String(v ?? '').slice(0, 5);
+    const mudouHorario = d(b.date) !== d(a.date) || t(b.start_time) !== t(a.start_time)
+      || t(b.end_time) !== t(a.end_time) || String(b.point_id) !== String(a.point_id);
+    const cancelou = b.status !== 'cancelled' && a.status === 'cancelled';
+    if (mudouHorario || cancelou) {
+      const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [a.id]);
+      if (full.length) {
+        getCrmUserName(req.user.id).then(actor => {
+          const msg = cancelou
+            ? msgCancelada(full[0], actor)
+            : msgAlterada({ ...full[0], crm_user_name: actor || full[0].crm_user_name });
+          return enqueue(full[0].est_id, msg);
+        }).catch(() => {});
+      }
+    }
     res.json(rows[0]);
   } catch (err) {
     console.error(err);
@@ -341,12 +368,13 @@ router.patch('/:id', auth, crmOnly, async (req, res) => {
     return res.status(400).json({ error: 'Status invalido' });
 
   try {
+    const { rows: prev } = await pool.query(`SELECT status FROM reservations WHERE id=$1`, [req.params.id]);
     const { rows } = await pool.query(
       `UPDATE reservations SET status=$1 WHERE id=$2 RETURNING id, status`,
       [status, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Nao encontrado' });
-    if (status === 'cancelled') {
+    if (status === 'cancelled' && prev[0]?.status !== 'cancelled') {
       const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [rows[0].id]);
       if (full.length) {
         getCrmUserName(req.user.id)

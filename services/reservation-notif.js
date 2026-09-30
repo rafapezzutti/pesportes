@@ -9,21 +9,32 @@
 const pool    = require('../db/pool');
 const { sendText, instanceForEst } = require('./whatsapp');
 
+// Desliga todas as notificações de reserva sem precisar de deploy:
+// no Render, defina RES_NOTIF_DISABLED=1 e reinicie.
+const DISABLED = () => process.env.RES_NOTIF_DISABLED === '1';
+
 /**
  * Enfileira uma mensagem para todos os contatos de notificação do estabelecimento.
+ * Ignora se a MESMA mensagem para o MESMO telefone já foi enfileirada nos últimos 10 min
+ * (evita rajadas de mensagens idênticas por duplo clique / saves repetidos).
  * Silencioso — nunca lança erro para não afetar o fluxo principal.
  */
 async function enqueue(est_id, message) {
-  if (!est_id || !message) return;
+  if (!est_id || !message || DISABLED()) return;
   try {
     const { rows: contacts } = await pool.query(
-      `SELECT telefone FROM reservation_notif_contacts WHERE est_id=$1 AND ativo=TRUE`,
+      `SELECT DISTINCT telefone FROM reservation_notif_contacts WHERE est_id=$1 AND ativo=TRUE`,
       [est_id]
     );
-    if (!contacts.length) return;
     for (const c of contacts) {
       await pool.query(
-        `INSERT INTO reservation_notif_queue (est_id, telefone, message) VALUES ($1,$2,$3)`,
+        `INSERT INTO reservation_notif_queue (est_id, telefone, message)
+         SELECT $1, $2, $3
+         WHERE NOT EXISTS (
+           SELECT 1 FROM reservation_notif_queue
+           WHERE telefone = $2 AND message = $3
+             AND created_at > NOW() - INTERVAL '10 minutes'
+         )`,
         [est_id, c.telefone, message]
       );
     }
@@ -32,58 +43,54 @@ async function enqueue(est_id, message) {
   }
 }
 
+let running = false;
+
 /**
- * Processa a fila: para cada telefone com mensagens pendentes,
- * envia a próxima se passaram pelo menos 60s desde o último envio.
- * Chamado pelo cron a cada 30s.
+ * Processa a fila: envia no máximo 1 mensagem por telefone a cada 60s.
+ * - `running` impede execuções sobrepostas no mesmo servidor (cron de 30s).
+ * - O "claim" é um único UPDATE atômico: se houver 2 instâncias do servidor
+ *   (ex.: durante deploy no Render), cada linha só é pega por uma delas.
+ * - A linha é marcada como enviada ANTES do envio, então nunca é reenviada.
  */
 async function processQueue() {
+  if (running || DISABLED()) return;
+  running = true;
   try {
-    // Telefones distintos com mensagens pendentes
-    const { rows: phones } = await pool.query(
-      `SELECT DISTINCT telefone, est_id FROM reservation_notif_queue WHERE sent_at IS NULL`
-    );
-    if (!phones.length) return;
+    const { rows: items } = await pool.query(`
+      WITH next AS (
+        SELECT DISTINCT ON (q.telefone) q.id
+        FROM reservation_notif_queue q
+        WHERE q.sent_at IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM reservation_notif_queue s
+            WHERE s.telefone = q.telefone
+              AND s.sent_at > NOW() - INTERVAL '60 seconds'
+          )
+        ORDER BY q.telefone, q.created_at ASC, q.id ASC
+      )
+      UPDATE reservation_notif_queue q
+         SET sent_at = NOW()
+        FROM next
+       WHERE q.id = next.id AND q.sent_at IS NULL
+      RETURNING q.*`);
 
-    const now = new Date();
-
-    for (const { telefone, est_id } of phones) {
-      // Último envio para esse telefone
-      const { rows: ls } = await pool.query(
-        `SELECT MAX(sent_at) AS last FROM reservation_notif_queue
-         WHERE telefone=$1 AND sent_at IS NOT NULL`,
-        [telefone]
-      );
-      const last = ls[0]?.last;
-      if (last && (now - new Date(last)) < 60000) continue; // < 60s, aguarda
-
-      // Próxima mensagem pendente para esse telefone
-      const { rows: pending } = await pool.query(
-        `SELECT * FROM reservation_notif_queue
-         WHERE telefone=$1 AND sent_at IS NULL
-         ORDER BY created_at ASC LIMIT 1`,
-        [telefone]
-      );
-      if (!pending.length) continue;
-
-      const item = pending[0];
-
-      // Marca como enviada antes de tentar (evita duplos em falha transitória)
-      await pool.query(
-        `UPDATE reservation_notif_queue SET sent_at=NOW() WHERE id=$1`,
-        [item.id]
-      );
-
+    for (const item of items) {
+      // Mensagens muito antigas (ex.: acumuladas com WhatsApp desconectado) são descartadas
+      if (Date.now() - new Date(item.created_at).getTime() > 6 * 60 * 60 * 1000) {
+        console.log(`[reservation-notif] descartada (antiga) id=${item.id} para ${item.telefone}`);
+        continue;
+      }
       try {
-        const instance = instanceForEst(item.est_id);
-        await sendText(item.telefone, item.message, instance);
-        console.log(`[reservation-notif] enviado para ${item.telefone} (est ${item.est_id})`);
+        await sendText(item.telefone, item.message, instanceForEst(item.est_id));
+        console.log(`[reservation-notif] enviado id=${item.id} para ${item.telefone} (est ${item.est_id})`);
       } catch (e) {
-        console.error(`[reservation-notif] erro ao enviar para ${item.telefone}:`, e.message);
+        console.error(`[reservation-notif] erro ao enviar id=${item.id} para ${item.telefone}:`, e.message);
       }
     }
   } catch (e) {
     console.error('[reservation-notif] processQueue error:', e.message);
+  } finally {
+    running = false;
   }
 }
 
