@@ -41,12 +41,15 @@ async function evoFetch(method, path, body) {
     if (Array.isArray(msgArr) && msgArr[0]?.exists === false) {
       throw new Error(`Número ${msgArr[0].number} não está registrado no WhatsApp`);
     }
-    // Extrai mensagem aninhada (ex: {"response":{"message":["This name ... is already in use."]}})
-    const nestedMsg = Array.isArray(msgArr) ? msgArr[0] : null;
+    // Extrai mensagem aninhada — array (ex: ["This name ... is already in use."])
+    // ou string (ex: {"response":{"message":"Connection Closed"}})
+    const nestedMsg = Array.isArray(msgArr) ? msgArr[0] : msgArr;
     const msg = (typeof nestedMsg === 'string' ? nestedMsg : null)
       || data?.message || data?.error || `Erro ${res.status}`;
     console.error('[evoFetch] Bad response', { method, path, status: res.status, body: JSON.stringify(body), response: text });
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
   }
   return data;
 }
@@ -81,6 +84,34 @@ async function getStatus(instance) {
   } catch (err) {
     return { connected: false, state: 'close', instance, error: err.message };
   }
+}
+
+/**
+ * Reinicia a conexão da instância na Evolution API (sem apagar a sessão).
+ * Resolve o caso "instância aparece como open mas o envio dá Connection Closed".
+ */
+async function restartInstance(instance) {
+  instance = instance || INSTANCE_PREFIX;
+  try {
+    return await evoFetch('POST', `/instance/restart/${instance}`);
+  } catch (e) {
+    // Versões antigas da Evolution usam PUT
+    if (e.status === 404 || e.status === 405) return evoFetch('PUT', `/instance/restart/${instance}`);
+    throw e;
+  }
+}
+
+/** Aguarda a instância ficar "open" (até maxMs). Retorna true/false. */
+async function waitOpen(instance, maxMs = 15000) {
+  const until = Date.now() + maxMs;
+  while (Date.now() < until) {
+    await new Promise(r => setTimeout(r, 1500));
+    try {
+      const data = await evoFetch('GET', `/instance/connectionState/${instance}`);
+      if ((data?.instance?.state || data?.state) === 'open') return true;
+    } catch {}
+  }
+  return false;
 }
 
 /**
@@ -140,12 +171,17 @@ async function forceReconnect(instance) {
   } catch (e) {
     // Se o create falhar por qualquer razão, a instância pode ainda existir.
     // Seguimos para connect — no pior caso ele também falhará e o erro chegará ao cliente.
-    console.log(`[forceReconnect] create falhou (${e.message}), tentando conectar instância existente`);
+    console.log(`[forceReconnect] create falhou (${e.message}), reiniciando instância existente`);
+    try { await restartInstance(instance); } catch (e2) { console.log(`[forceReconnect] restart falhou (${e2.message})`); }
+    await new Promise(r => setTimeout(r, 3000));
   }
   // 4. conectar e retornar QR
   const data = await evoFetch('GET', `/instance/connect/${instance}`);
   const qrcode = data?.base64 || data?.qrcode?.base64 || null;
-  return { connected: false, qrcode, instance };
+  if (qrcode) return { connected: false, qrcode, instance };
+  // Sem QR: a sessão pode ter voltado sozinha após o restart — devolve o estado real
+  const status = await getStatus(instance);
+  return { connected: status.connected, qrcode: null, instance, state: status.state };
 }
 
 /**
@@ -167,16 +203,56 @@ function formatPhone(raw) {
  * @param {string} text     — mensagem
  * @param {string} instance — instância da Evolution API (usa instanceForEst)
  */
+// Erros que indicam sessão "zumbi": a Evolution diz open, mas o socket do WhatsApp caiu
+const CLOSED_RE = /connection closed|connection lost|connection terminated|not connected|stream errored|timed out/i;
+const RESTART_COOLDOWN_MS = 2 * 60 * 1000;
+const lastRestart = new Map(); // instance -> timestamp do último restart automático
+
+function disconnectedError(instance, cause) {
+  const err = new Error(
+    `WhatsApp sem conexão (${cause}). Vá em WhatsApp > Reconectar e leia o QR Code novamente.`
+  );
+  err.code = 'WA_DISCONNECTED';
+  err.instance = instance;
+  return err;
+}
+
 async function sendText(phone, text, instance) {
   instance = instance || INSTANCE_PREFIX;
   const number = formatPhone(phone);
   if (!number || number.length < 12) throw new Error('Telefone inválido: ' + phone);
 
-  const data = await evoFetch('POST', `/message/sendText/${instance}`, {
-    number,
-    text,
-  });
+  const path = `/message/sendText/${instance}`;
+  const payload = { number, text };
+  let data;
+  try {
+    data = await evoFetch('POST', path, payload);
+  } catch (err) {
+    if (!CLOSED_RE.test(err.message || '')) throw err;
+
+    // Sessão caiu: reinicia a instância (no máx. 1x a cada 2 min) e tenta de novo uma vez
+    const now = Date.now();
+    if (now - (lastRestart.get(instance) || 0) < RESTART_COOLDOWN_MS) throw disconnectedError(instance, err.message);
+    lastRestart.set(instance, now);
+    console.warn(`[whatsapp] ${instance}: "${err.message}" — reiniciando instância e tentando novamente`);
+    try {
+      await restartInstance(instance);
+    } catch (e) {
+      console.error(`[whatsapp] ${instance}: restart falhou: ${e.message}`);
+      throw disconnectedError(instance, err.message);
+    }
+    const open = await waitOpen(instance);
+    if (!open) throw disconnectedError(instance, 'sessão não voltou após reinício');
+    await new Promise(r => setTimeout(r, 1500));
+    try {
+      data = await evoFetch('POST', path, payload);
+      lastRestart.delete(instance); // voltou a funcionar — libera novo restart se cair de novo
+      console.log(`[whatsapp] ${instance}: reconectado, mensagem enviada`);
+    } catch (e2) {
+      throw CLOSED_RE.test(e2.message || '') ? disconnectedError(instance, e2.message) : e2;
+    }
+  }
   return { success: true, messageId: data?.key?.id || data?.id, number };
 }
 
-module.exports = { getStatus, getQRCode, forceReconnect, disconnect, sendText, formatPhone, instanceForEst, INSTANCE_PREFIX };
+module.exports = { getStatus, getQRCode, forceReconnect, restartInstance, disconnect, sendText, formatPhone, instanceForEst, INSTANCE_PREFIX };
