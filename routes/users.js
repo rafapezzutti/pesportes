@@ -3,6 +3,19 @@ const bcrypt = require('bcryptjs');
 const pool   = require('../db/pool');
 const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 
+// GET /api/crm-users/me/permissions — permissões atuais do usuário logado (lidas do banco)
+router.get('/me/permissions', auth, async (req, res) => {
+  if (req.user?.type !== 'crm') return res.status(403).json({ error: 'Acesso restrito ao CRM' });
+  try {
+    const { getActions } = require('../middleware/permissions');
+    const { rows } = await pool.query('SELECT role, permissions FROM crm_users WHERE id = $1', [req.user.id]);
+    res.json({ role: rows[0]?.role || req.user.role, permissions: rows[0]?.permissions || null, actions: await getActions(req.user) });
+  } catch (err) {
+    console.error('[GET /crm-users/me/permissions]', err.message);
+    res.status(500).json({ error: 'Erro ao carregar permissões' });
+  }
+});
+
 // GET /api/crm-users
 router.get('/', auth, adminOrManager, async (req, res) => {
   try {

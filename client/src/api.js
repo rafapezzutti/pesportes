@@ -104,6 +104,11 @@ export const auditApi = {
 };
 
 // ── Repasse de professores ────────────────────────────────────────
+// Permissões do usuário logado (lidas do banco a cada chamada)
+export const permApi = {
+  me: () => get('/crm-users/me/permissions'),
+};
+
 export const repasseApi = {
   list:    (params = {}) => get('/repasse?' + new URLSearchParams(params).toString()),
   detalhe: (id, params = {}) => get(`/repasse/${id}/detalhe?` + new URLSearchParams(params).toString()),

@@ -7,6 +7,7 @@ const {
   sendRescheduleEmail,
 } = require('../services/email');
 const { enqueue, msgNova, msgAlterada, msgCancelada } = require('../services/reservation-notif');
+const { requirePerm, userEstIds } = require('../middleware/permissions');
 
 /** Retorna o nome do usuário CRM pelo id (silencioso) */
 async function getCrmUserName(userId) {
@@ -389,9 +390,12 @@ router.patch('/:id', auth, crmOnly, async (req, res) => {
 });
 
 // DELETE /api/reservations/:id — admin/gerente apenas
-router.delete('/:id', auth, crmOnly, async (req, res) => {
+router.delete('/:id', auth, crmOnly, requirePerm('reservas_excluir'), async (req, res) => {
   try {
     const { rows: full } = await pool.query(`${RES_QUERY} WHERE r.id = $1`, [req.params.id]);
+    if (!full.length) return res.status(404).json({ error: 'Reserva não encontrada' });
+    if (req.user.role !== 'admin' && !userEstIds(req.user).includes(Number(full[0].est_id)))
+      return res.status(403).json({ error: 'Reserva de outro estabelecimento' });
     const { rowCount } = await pool.query('DELETE FROM reservations WHERE id=$1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Reserva não encontrada' });
     if (full.length) {

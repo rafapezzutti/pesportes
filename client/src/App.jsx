@@ -4,7 +4,7 @@ import {
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
   employeeApi, pontoApi, alunoApi, contasApi, impersonateApi, recurringApi,
-  whatsappApi, comissaoGerenteApi, horariosLivresApi, rankingApi, reservaNotifApi, downloadReport, saveToken, clearToken,
+  whatsappApi, comissaoGerenteApi, horariosLivresApi, rankingApi, reservaNotifApi, permApi, downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -2998,6 +2998,7 @@ function GradeQuadras({data, date, reservations}){
 // CRM RESERVATIONS
 // ================================================================
 function CRMReservations({showToast,crmUser}){
+  const acts=useMyActions(crmUser);
   const [reservations,setReservations]=useState([]);
   const [loading,setLoading]=useState(true);
   const [dateF,setDateF]=useState(TODAY);
@@ -3232,7 +3233,7 @@ function CRMReservations({showToast,crmUser}){
           <Btn variant="secondary" size="sm" onClick={()=>openEditRes(r)}>Editar</Btn>
           {r.status==='confirmed'&&<><Btn variant="secondary" size="sm" onClick={()=>{setReschRes(r);setNewDate('');setNewSlots([]);}}>Remarcar</Btn>
           <Btn variant="danger" size="sm" onClick={()=>handleCancel(r.id)}>Cancelar</Btn></>}
-          <Btn variant="danger" size="sm" onClick={()=>handleDelete(r.id)}>Excluir</Btn>
+          {acts.reservas_excluir&&<Btn variant="danger" size="sm" onClick={()=>handleDelete(r.id)}>Excluir</Btn>}
         </div>
       </div>)}
     </div>
@@ -3594,6 +3595,8 @@ function CRMAlunos({crmUser,showToast}){
 
   const [profs,setProfs]=useState([]);
   const isProfessor=crmUser?.role==='professor';
+  const acts=useMyActions(crmUser);
+  const readOnly=!!editA&&!acts.alunos_editar;
   const load=()=>{
     Promise.all([alunoApi.list(),estApi.list(),professorApi.list()])
       .then(([a,e,pr])=>{setAlunos(a);setEsts(e);setProfs(pr);})
@@ -3666,7 +3669,7 @@ function CRMAlunos({crmUser,showToast}){
     <div className="flex items-center justify-between mb-6">
       <div><h1 className="text-2xl font-black text-gray-900">Alunos / Clientes</h1>
       <p className="text-sm text-gray-400">{alunos.length} aluno{alunos.length!==1?'s':''} • <span className="text-green-600">{alunos.filter(a=>a.ativo!==false).length} ativo{alunos.filter(a=>a.ativo!==false).length!==1?'s':''}</span> · <span className="text-gray-400">{alunos.filter(a=>a.ativo===false).length} inativo{alunos.filter(a=>a.ativo===false).length!==1?'s':''}</span></p></div>
-      <Btn onClick={openNew}>+ Novo Aluno</Btn>
+      {acts.alunos_criar&&<Btn onClick={openNew}>+ Novo Aluno</Btn>}
     </div>
 
     {/* Search + filter */}
@@ -3682,8 +3685,8 @@ function CRMAlunos({crmUser,showToast}){
       </div>
     </div>
     <div className="mb-4 flex gap-3 flex-wrap items-center">
-      <Btn variant="secondary" size="sm" disabled={notifLoading} onClick={()=>notificar(null)}>📲 Avisar vencidos</Btn>
-      {selected.size>0&&<Btn size="sm" disabled={notifLoading} onClick={()=>notificar([...selected],true)} style={{background:'#25D366',color:'white',border:'none'}}>📲 Enviar para selecionados ({selected.size})</Btn>}
+      {acts.alunos_cobrar&&<Btn variant="secondary" size="sm" disabled={notifLoading} onClick={()=>notificar(null)}>📲 Avisar vencidos</Btn>}
+      {acts.alunos_cobrar&&selected.size>0&&<Btn size="sm" disabled={notifLoading} onClick={()=>notificar([...selected],true)} style={{background:'#25D366',color:'white',border:'none'}}>📲 Enviar para selecionados ({selected.size})</Btn>}
       {selected.size>0&&<button onClick={()=>setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-600">✕ Limpar seleção</button>}
     </div>
 
@@ -3691,7 +3694,7 @@ function CRMAlunos({crmUser,showToast}){
       const filtered=alunos.filter(a=>{if(search&&!a.nome.toLowerCase().includes(search.toLowerCase()))return false;if(filtroAtivo==='ativo'&&a.ativo===false)return false;if(filtroAtivo==='inativo'&&a.ativo!==false)return false;if(filtroAtivo==='vencida'&&vencStatus(a)!=='vencida')return false;if(filtroProfessor==='sem_professor'&&a.professor_id)return false;if(filtroProfessor&&filtroProfessor!=='sem_professor'&&String(a.professor_id)!==filtroProfessor)return false;return true;});
       const totalPages=Math.ceil(filtered.length/PAGE_SIZE);
       const paged=filtered.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
-      if(alunos.length===0)return<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎽</p><p className="text-lg">Nenhum aluno cadastrado</p><Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro aluno</Btn></div>;
+      if(alunos.length===0)return<div className="text-center py-20 text-gray-400"><p className="text-5xl mb-3">🎽</p><p className="text-lg">Nenhum aluno cadastrado</p>{acts.alunos_criar&&<Btn className="mt-5" onClick={openNew}>+ Cadastrar primeiro aluno</Btn>}</div>;
       return<>
         {filtered.length===0?<div className="text-center py-12 text-gray-400"><p className="text-3xl mb-2">🔍</p><p>Nenhum aluno encontrado para "{search}"</p></div>:<>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
@@ -3713,9 +3716,9 @@ function CRMAlunos({crmUser,showToast}){
                   <td className="px-4 py-3 text-gray-500 text-sm">{a.est_name||'—'}</td>
                   <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${a.ativo!==false?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}`}>{a.ativo!==false?'Ativo':'Inativo'}</span></td>
                   <td className="px-4 py-3 text-right"><div className="flex gap-2 justify-end">
-                    <Btn variant="secondary" size="sm" onClick={()=>openEdit(a)}>Editar</Btn>
-                    {a.telefone&&<Btn size="sm" onClick={()=>notificar([a.id],vs!=='vencida')} disabled={notifLoading} title={vs==='vencida'?'Avisar mensalidade vencida':'Enviar cobrança'} style={{background:'#25D366',color:'white',border:'none'}}>📲</Btn>}
-                    <Btn variant="danger" size="sm" onClick={()=>setDelA(a)}>Excluir</Btn>
+                    <Btn variant="secondary" size="sm" onClick={()=>openEdit(a)}>{acts.alunos_editar?'Editar':'Ver'}</Btn>
+                    {acts.alunos_cobrar&&a.telefone&&<Btn size="sm" onClick={()=>notificar([a.id],vs!=='vencida')} disabled={notifLoading} title={vs==='vencida'?'Avisar mensalidade vencida':'Enviar cobrança'} style={{background:'#25D366',color:'white',border:'none'}}>📲</Btn>}
+                    {acts.alunos_excluir&&<Btn variant="danger" size="sm" onClick={()=>setDelA(a)}>Excluir</Btn>}
                   </div></td>
                 </tr>;})}
               </tbody>
@@ -3734,8 +3737,9 @@ function CRMAlunos({crmUser,showToast}){
       </>;
     })()}
 
-    <Modal open={showForm} onClose={()=>setShowForm(false)} title={editA?'Editar Aluno':'Novo Aluno'}>
+    <Modal open={showForm} onClose={()=>setShowForm(false)} title={readOnly?'Dados do Aluno':editA?'Editar Aluno':'Novo Aluno'}>
       <div className="space-y-3">
+        <fieldset disabled={readOnly} className="space-y-3 min-w-0 border-0 p-0 m-0">
         <Field label="Nome do Aluno" required><Inp value={f.nome} onChange={e=>upd('nome',e.target.value)} placeholder="Nome completo"/></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="CPF"><Inp value={f.cpf} onChange={e=>upd('cpf',e.target.value)} placeholder="000.000.000-00"/></Field>
@@ -3760,9 +3764,11 @@ function CRMAlunos({crmUser,showToast}){
           <label htmlFor="ativo-chk" className="text-sm font-medium text-gray-700 cursor-pointer">Aluno ativo</label>
           {f.ativo===false&&<span className="text-xs text-gray-400">— não aparecerá em listas de cobrança</span>}
         </div>
+        </fieldset>
+        {readOnly&&<p className="text-xs text-gray-400">Somente leitura — alterações e inativação são feitas pelo gestor.</p>}
         <div className="flex gap-3 pt-1">
-          <Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>Cancelar</Btn>
-          <Btn className="flex-1" onClick={save}>Salvar</Btn>
+          <Btn variant="secondary" className="flex-1" onClick={()=>setShowForm(false)}>{readOnly?'Fechar':'Cancelar'}</Btn>
+          {!readOnly&&<Btn className="flex-1" onClick={save}>Salvar</Btn>}
         </div>
       </div>
     </Modal>
@@ -4475,6 +4481,7 @@ const FIN_TABS=[
 
 function CRMFinanceiro({crmUser,showToast}){
   const isProfessor=crmUser.role==='professor';
+  const acts=useMyActions(crmUser);
   const visibleTabs=FIN_TABS.filter(t=>t.roles.includes(crmUser.role));
   const [tab,setTab]=useState(isProfessor?'repasse':'fluxo');
   const mr=monthRange();
@@ -4535,7 +4542,7 @@ function CRMFinanceiro({crmUser,showToast}){
   const [cfLoading,setCfLoading]=useState(false);
   const loadFluxo=useCallback(()=>{setCfLoading(true);setCf(null);financeApi.cashflow({from,to}).then(d=>{setCf(d);setCfLoading(false);}).catch(()=>{setCf(CF_EMPTY);setCfLoading(false);});},[from,to]);
   const loadExps =useCallback(()=>{expenseApi.list({from,to}).then(setExps).catch(()=>{});},[from,to]);
-  const loadRep  =useCallback(()=>{repasseApi.list({from,to}).then(setRep).catch(e=>showToast&&showToast('Repasse: '+(e.message||'Erro'),'error'));},[from,to]);
+  const loadRep  =useCallback(()=>{return repasseApi.list({from,to}).then(setRep).catch(e=>showToast&&showToast('Repasse: '+(e.message||'Erro'),'error'));},[from,to]);
   const loadProj =useCallback(()=>{financeApi.projecao({saldoInicial:parseFloat(saldoIni)||0}).then(setProj).catch(()=>{});},[saldoIni]);
   const loadComissao=useCallback(()=>{comissaoGerenteApi.list({from,to}).then(setComissao).catch(()=>{});},[from,to]);
   const loadContas=useCallback((clienteOverride)=>{
@@ -4578,6 +4585,26 @@ function CRMFinanceiro({crmUser,showToast}){
     if(!confirm('Marcar todo o repasse pendente do período como pago?'))return;
     try{await repasseApi.marcar({professor_id,from,to});loadRep();showToast&&showToast('Repasse marcado como pago','success');}
     catch(e){showToast&&showToast(e.message||'Erro','error');}
+  };
+  const canEditRep=['admin','manager'].includes(crmUser.role);
+  const reloadRepDet=async(professor_id)=>{
+    try{const data=await repasseApi.detalhe(professor_id,{from,to});setRepExp(p=>p[professor_id]?{...p,[professor_id]:{loading:false,data}}:p);}catch(e){}
+  };
+  const setItemRepStatus=async(professor_id,item,status)=>{
+    if(status==='pendente'&&!confirm(`Reverter o repasse de "${item.descricao||'item'}" para PENDENTE?`))return;
+    try{
+      await repasseApi.status({status,itens:[{origem:item.origem,id:item.id}]});
+      await Promise.all([loadRep(),reloadRepDet(professor_id)]);
+      showToast&&showToast(status==='pago'?'Marcado como pago':'Revertido para pendente','success');
+    }catch(e){showToast&&showToast(e.message||'Erro','error');}
+  };
+  const reverterRep=async(r)=>{
+    if(!confirm(`Reverter TODOS os repasses pagos de ${r.nome} no período ${new Date(from+'T12:00').toLocaleDateString('pt-BR')} a ${new Date(to+'T12:00').toLocaleDateString('pt-BR')} para PENDENTE?`))return;
+    try{
+      const res=await repasseApi.status({status:'pendente',professor_id:r.professor_id,from,to});
+      await Promise.all([loadRep(),reloadRepDet(r.professor_id)]);
+      showToast&&showToast(`${res?.alterados??''} item(ns) revertido(s) para pendente`,'success');
+    }catch(e){showToast&&showToast(e.message||'Erro','error');}
   };
 
   const totExp=exps.reduce((s,e)=>s+Number(e.valor||0),0);
@@ -4698,7 +4725,7 @@ function CRMFinanceiro({crmUser,showToast}){
               <td className="px-3 py-2.5 text-gray-600">{fmt$(r.total_planos)}</td>
               <td className="px-3 py-2.5 font-semibold text-emerald-700">{fmt$(r.repasse_devido)}</td>
               <td className="px-3 py-2.5 text-amber-700">{fmt$(r.total_pendente)}</td>
-              <td className="px-3 py-2.5 text-right" onClick={e=>e.stopPropagation()}>{Number(r.total_pendente)>0&&<Btn size="sm" variant="secondary" onClick={()=>pagarRep(r.professor_id)}>Marcar pago</Btn>}</td>
+              <td className="px-3 py-2.5 text-right whitespace-nowrap" onClick={e=>e.stopPropagation()}><div className="flex gap-2 justify-end">{Number(r.total_pendente)>0&&<Btn size="sm" variant="secondary" onClick={()=>pagarRep(r.professor_id)}>Marcar pago</Btn>}{canEditRep&&Number(r.total_pago)>0&&<Btn size="sm" variant="secondary" onClick={()=>reverterRep(r)}>↩ Reverter p/ pendente</Btn>}</div></td>
             </tr>
             {isOpen&&<tr><td colSpan={8} className="p-0">
               <div className="bg-gray-50 border-t border-gray-100 px-6 py-4">
@@ -4725,7 +4752,12 @@ function CRMFinanceiro({crmUser,showToast}){
                         <td className="py-1.5 pr-4 text-gray-500">{dataFmt}</td>
                         <td className="py-1.5 pr-4 font-medium text-gray-700">{fmt$(item.valor)}</td>
                         <td className="py-1.5 pr-4 font-semibold text-emerald-700">{fmt$(item.repasse)}</td>
-                        <td className="py-1.5 pr-4">{isPago?<span className="text-green-600 font-semibold">✓ Pago</span>:<span className="text-amber-600">Pendente</span>}</td>
+                        <td className="py-1.5 pr-4">{canEditRep
+                          ?<select value={isPago?'pago':'pendente'} onChange={e=>setItemRepStatus(r.professor_id,item,e.target.value)} title={isPago&&item.repasse_pago_em?`Pago em ${new Date(item.repasse_pago_em).toLocaleDateString('pt-BR')}`:''} className={`text-xs font-semibold rounded-md border px-1.5 py-0.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isPago?'text-green-700 border-green-200':'text-amber-700 border-amber-200'}`}>
+                              <option value="pago">✓ Pago</option>
+                              <option value="pendente">Pendente</option>
+                            </select>
+                          :isPago?<span className="text-green-600 font-semibold">✓ Pago</span>:<span className="text-amber-600">Pendente</span>}</td>
                       </tr>;
                     })}</tbody>
                   </table>}
@@ -4902,8 +4934,8 @@ function CRMFinanceiro({crmUser,showToast}){
                     <td className="px-4 py-2.5 text-gray-600">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
                     <td className="px-4 py-2.5">{!vs?<span className="text-gray-300 text-xs">—</span>:vs==='vencida'?<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">🔴 Vencida</span>:vs==='vence_breve'?<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">🟡 Vence em breve</span>:<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">🟢 Em dia</span>}</td>
                     <td className="px-4 py-2.5 text-right"><div className="flex gap-2 justify-end">
-                      {vs&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
-                      {a.telefone&&<button onClick={async()=>{try{await alunoApi.notificarVencidos([a.id],vs!=='vencida');showToast(`WhatsApp enviado para ${a.nome}`,'success');}catch(e){showToast(e.message||'Erro','error');}}} className="text-xs font-semibold px-2 py-1 rounded-lg text-white hover:opacity-90" style={{background:'#25D366'}}>📲</button>}
+                      {vs&&acts.alunos_editar&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
+                      {acts.alunos_cobrar&&a.telefone&&<button onClick={async()=>{try{await alunoApi.notificarVencidos([a.id],vs!=='vencida');showToast(`WhatsApp enviado para ${a.nome}`,'success');}catch(e){showToast(e.message||'Erro','error');}}} className="text-xs font-semibold px-2 py-1 rounded-lg text-white hover:opacity-90" style={{background:'#25D366'}}>📲</button>}
                     </div></td>
                   </tr>;
                 })}</tbody>
@@ -4937,8 +4969,8 @@ function CRMFinanceiro({crmUser,showToast}){
                   {a.telefone&&<span>{a.telefone}</span>}
                 </div>
                 <div className="flex gap-2">
-                  {vs&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
-                  {a.telefone&&<button onClick={async()=>{try{await alunoApi.notificarVencidos([a.id],vs!=='vencida');showToast(`WhatsApp enviado para ${a.nome}`,'success');}catch(e){showToast(e.message||'Erro','error');}}} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{background:'#25D366'}}>📲 WhatsApp</button>}
+                  {vs&&acts.alunos_editar&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
+                  {acts.alunos_cobrar&&a.telefone&&<button onClick={async()=>{try{await alunoApi.notificarVencidos([a.id],vs!=='vencida');showToast(`WhatsApp enviado para ${a.nome}`,'success');}catch(e){showToast(e.message||'Erro','error');}}} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{background:'#25D366'}}>📲 WhatsApp</button>}
                 </div>
               </div>;
             })}</div>
@@ -6038,12 +6070,47 @@ const ROLE_DFLT={
   profissional:{reservas:false,horarios_livres:false,alunos:false,financeiro:false,funcionarios:false,bar:false,unimidia:false,whatsapp:false},
 };
 
+// Permissões por AÇÃO (dentro das telas). Espelha middleware/permissions.js no servidor.
+// Só o professor muda em relação ao comportamento anterior.
+const ACTION_KEYS=['alunos_criar','alunos_editar','alunos_excluir','alunos_cobrar','reservas_excluir'];
+const ACT_ALL=v=>Object.fromEntries(ACTION_KEYS.map(k=>[k,v]));
+const ROLE_ACTIONS={
+  admin:ACT_ALL(true), manager:ACT_ALL(true), simples:ACT_ALL(true),
+  professor:{alunos_criar:true,alunos_editar:false,alunos_excluir:false,alunos_cobrar:true,reservas_excluir:false},
+  recepcao:{alunos_criar:false,alunos_editar:false,alunos_excluir:false,alunos_cobrar:false,reservas_excluir:true},
+  profissional:ACT_ALL(false),
+};
+const PERFIL_ACTIONS=[
+  {key:'alunos_criar',     label:'Cadastrar aluno',                     icon:'➕'},
+  {key:'alunos_editar',    label:'Editar / inativar aluno e dar baixa',  icon:'✏️'},
+  {key:'alunos_excluir',   label:'Excluir aluno',                       icon:'🗑️'},
+  {key:'alunos_cobrar',    label:'Cobrar por WhatsApp',                 icon:'📲'},
+  {key:'reservas_excluir', label:'Excluir reserva',                     icon:'🚫'},
+];
+function mergeActions(role,permissions){
+  const base={...(ROLE_ACTIONS[role]||ACT_ALL(false))};
+  if(permissions&&typeof permissions==='object')ACTION_KEYS.forEach(k=>{if(typeof permissions[k]==='boolean')base[k]=permissions[k];});
+  return base;
+}
+// Ações do usuário logado: começa pelo que veio no login e confirma no servidor (vale na hora, sem relogar)
+function useMyActions(crmUser){
+  const [acts,setActs]=useState(()=>crmUser?.role==='admin'?ACT_ALL(true):mergeActions(crmUser?.role,crmUser?.permissions));
+  useEffect(()=>{
+    let alive=true;
+    permApi.me().then(r=>{if(alive&&r?.actions)setActs(r.actions);}).catch(()=>{});
+    return()=>{alive=false;};
+  },[crmUser?.id]);
+  return acts;
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PERFIS DE USUÁRIO — controle de permissões por usuário (admin + manager)
 // ─────────────────────────────────────────────────────────────────────────────
 const PERFIL_FEATURES=[
   {key:'reservas',        label:'Reservas',       icon:'📅'},
+  {key:'alunos',          label:'Alunos',         icon:'🎽'},
+  {key:'financeiro',      label:'Financeiro',     icon:'💰'},
   {key:'horarios_livres', label:'Horários Livres', icon:'🟢'},
   {key:'alunos',          label:'Alunos',         icon:'🎽'},
   {key:'financeiro',      label:'Financeiro',     icon:'💰'},
@@ -6070,7 +6137,7 @@ function CRMUserProfiles({crmUser,showToast}){
         const p={};
         filtered.forEach(u=>{
           // if user has custom permissions use them, else use role defaults
-          p[u.id]=u.permissions?{...u.permissions}:{...(ROLE_DFLT[u.role]||{})};
+          p[u.id]=u.permissions?{...(ROLE_ACTIONS[u.role]||{}),...u.permissions}:{...(ROLE_DFLT[u.role]||{}),...(ROLE_ACTIONS[u.role]||{})};
         });
         setPerms(p);
         setLoading(false);
@@ -6086,7 +6153,7 @@ function CRMUserProfiles({crmUser,showToast}){
   };
 
   const resetToDefault=(userId,role)=>{
-    setPerms(prev=>({...prev,[userId]:{...(ROLE_DFLT[role]||{})}}));
+    setPerms(prev=>({...prev,[userId]:{...(ROLE_DFLT[role]||{}),...(ROLE_ACTIONS[role]||{})}}));
   };
 
   const save=(userId)=>{
@@ -6120,9 +6187,9 @@ function CRMUserProfiles({crmUser,showToast}){
       {filtered.length===0&&<div className="text-center text-gray-400 py-16">{search?'Nenhum usuário encontrado.':'Nenhum usuário cadastrado.'}</div>}
 
       {filtered.map(u=>{
-        const p=perms[u.id]||ROLE_DFLT[u.role]||{};
-        const dflt=ROLE_DFLT[u.role]||{};
-        const hasChanges=PERFIL_FEATURES.some(f=>p[f.key]!==dflt[f.key]);
+        const dflt={...(ROLE_DFLT[u.role]||{}),...(ROLE_ACTIONS[u.role]||{})};
+        const p=perms[u.id]||dflt;
+        const hasChanges=[...PERFIL_FEATURES,...PERFIL_ACTIONS].some(f=>!!p[f.key]!==!!dflt[f.key]);
         return(
           <div key={u.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-3 justify-between">
@@ -6148,9 +6215,11 @@ function CRMUserProfiles({crmUser,showToast}){
                   {saving[u.id]?'Salvando...':'💾 Salvar'}</button>
               </div>
             </div>
-            <div className="p-5">
+            <div className="p-5 space-y-4">
+              {[['Telas que acessa',PERFIL_FEATURES],['O que pode fazer',PERFIL_ACTIONS]].map(([titulo,list])=><div key={titulo}>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{titulo}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {PERFIL_FEATURES.map(feat=>{
+{list.map(feat=>{
                   const enabled=!!p[feat.key];
                   const isDefault=enabled===!!dflt[feat.key];
                   return(
@@ -6171,6 +6240,7 @@ function CRMUserProfiles({crmUser,showToast}){
                   );
                 })}
               </div>
+              </div>)}
             </div>
           </div>
         );

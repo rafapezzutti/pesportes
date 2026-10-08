@@ -2,14 +2,39 @@ const router = require('express').Router();
 const pool   = require('../db/pool');
 const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 const { sendText, formatPhone, instanceForEst } = require('../services/whatsapp');
+const { requirePerm, userEstIds } = require('../middleware/permissions');
 
-// simples também pode gerenciar alunos do seu est
+// Perfis que podem mexer em alunos; o que cada um pode fazer é decidido por requirePerm()
 function canManageAluno(user) {
-  return ['admin','manager','simples','professor'].includes(user.role);
+  return user.type === 'crm' && ['admin','manager','simples','professor','recepcao'].includes(user.role);
+}
+
+/**
+ * O aluno está dentro do escopo do usuário?
+ * admin: todos · manager: seus estabelecimentos · simples/recepcao: seu estabelecimento
+ * professor: só os próprios alunos (ou o estabelecimento, se não tiver professor_id)
+ */
+function alunoInScope(user, aluno) {
+  if (user.role === 'admin') return true;
+  if (user.role === 'professor') {
+    if (user.professor_id) return Number(aluno.professor_id) === Number(user.professor_id);
+    return Number(aluno.est_id) === Number(user.est_id);
+  }
+  if (user.role === 'manager') return userEstIds(user).includes(Number(aluno.est_id));
+  return !!user.est_id && Number(aluno.est_id) === Number(user.est_id);
+}
+
+async function loadAlunoInScope(req, res) {
+  const { rows } = await pool.query('SELECT * FROM alunos WHERE id = $1', [req.params.id]);
+  if (!rows.length) { res.status(404).json({ error: 'Aluno não encontrado' }); return null; }
+  if (!alunoInScope(req.user, rows[0])) { res.status(403).json({ error: 'Aluno fora do seu escopo' }); return null; }
+  return rows[0];
 }
 
 // ── GET / — lista alunos ──────────────────────────────────────────
 router.get('/', auth, async (req, res) => {
+  // Antes qualquer token (inclusive de cliente do site) listava todos os alunos
+  if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });
   try {
     const params = [];
     const where  = [];
@@ -23,7 +48,7 @@ router.get('/', auth, async (req, res) => {
         params.push(ids);
         where.push(`a.est_id = ANY($${params.length})`);
       }
-    } else if (req.user.role === 'simples' && req.user.est_id) {
+    } else if (['simples','recepcao'].includes(req.user.role) && req.user.est_id) {
       params.push(req.user.est_id);
       where.push(`a.est_id = $${params.length}`);
     } else if (req.user.role === 'professor') {
@@ -58,7 +83,7 @@ router.get('/', auth, async (req, res) => {
 
 // ── POST /notificar-vencidos — envia WhatsApp para alunos ─────────────────────
 // force=true: envia para qualquer aluno selecionado (não só vencidos)
-router.post('/notificar-vencidos', auth, async (req, res) => {
+router.post('/notificar-vencidos', auth, requirePerm('alunos_cobrar'), async (req, res) => {
   if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });
   try {
     const { alunoIds, force } = req.body;
@@ -75,10 +100,13 @@ router.post('/notificar-vencidos', auth, async (req, res) => {
     if (req.user.role === 'manager') {
       const ids = Array.from(new Set([...(req.user.est_ids || []), ...(req.user.est_id ? [req.user.est_id] : [])])).map(Number).filter(Boolean);
       if (ids.length) { params.push(ids); where.push(`a.est_id = ANY($${params.length})`); }
-    } else if (req.user.role === 'simples' && req.user.est_id) {
+    } else if (['simples','recepcao'].includes(req.user.role) && req.user.est_id) {
       params.push(req.user.est_id); where.push(`a.est_id = $${params.length}`);
-    } else if (req.user.role === 'professor' && req.user.professor_id) {
-      params.push(req.user.professor_id); where.push(`a.professor_id = $${params.length}`);
+    } else if (req.user.role === 'professor') {
+      // professor cobra só os próprios alunos
+      if (req.user.professor_id) { params.push(req.user.professor_id); where.push(`a.professor_id = $${params.length}`); }
+      else if (req.user.est_id)  { params.push(req.user.est_id);       where.push(`a.est_id = $${params.length}`); }
+      else return res.status(403).json({ error: 'Professor sem vínculo' });
     }
 
     // filtro de IDs específicos
@@ -125,11 +153,11 @@ router.post('/notificar-vencidos', auth, async (req, res) => {
 });
 
 // ── POST / — cria aluno ───────────────────────────────────────────
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requirePerm('alunos_criar'), async (req, res) => {
   if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });
   const { nome, cpf, email, telefone, data_nascimento, mensalidade_valor, mensalidade_vencimento } = req.body;
   let { est_id } = req.body;
-  if (req.user.role === 'simples') est_id = req.user.est_id;
+  if (['simples','recepcao'].includes(req.user.role)) est_id = req.user.est_id;
   if (req.user.role === 'professor') est_id = req.user.est_id;
   if (req.user.role === 'manager' && !est_id) {
     est_id = req.user.est_id || (req.user.est_ids && req.user.est_ids[0]) || null;
@@ -157,9 +185,18 @@ router.post('/', auth, async (req, res) => {
 });
 
 // ── PUT /:id — atualiza aluno ─────────────────────────────────────
-router.put('/:id', auth, async (req, res) => {
-  const { nome, cpf, email, telefone, data_nascimento, est_id, ativo, professor_id, mensalidade_valor, mensalidade_vencimento } = req.body;
+router.put('/:id', auth, requirePerm('alunos_editar'), async (req, res) => {
+  if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });
+  const { nome, cpf, email, telefone, data_nascimento, ativo, mensalidade_valor, mensalidade_vencimento } = req.body;
+  let { est_id, professor_id } = req.body;
   try {
+    const atual = await loadAlunoInScope(req, res);
+    if (!atual) return;
+    // Fora do admin/manager ninguém troca o aluno de estabelecimento;
+    // professor não troca o professor responsável.
+    if (!['admin', 'manager'].includes(req.user.role)) est_id = atual.est_id;
+    if (req.user.role === 'manager' && est_id && !userEstIds(req.user).includes(Number(est_id))) est_id = atual.est_id;
+    if (req.user.role === 'professor') professor_id = atual.professor_id;
     const { rows } = await pool.query(
       `UPDATE alunos SET
          nome                   = COALESCE($1, nome),
@@ -191,9 +228,11 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // ── DELETE /:id ───────────────────────────────────────────────────
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, requirePerm('alunos_excluir'), async (req, res) => {
   if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });
   try {
+    const atual = await loadAlunoInScope(req, res);
+    if (!atual) return;
     const { rowCount } = await pool.query('DELETE FROM alunos WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Aluno não encontrado' });
     res.json({ message: 'Aluno removido' });
