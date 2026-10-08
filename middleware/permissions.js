@@ -9,7 +9,7 @@
  */
 const pool = require('../db/pool');
 
-const ACTION_KEYS = ['alunos_criar', 'alunos_editar', 'alunos_excluir', 'alunos_cobrar', 'reservas_excluir'];
+const ACTION_KEYS = ['alunos_criar', 'alunos_editar', 'alunos_excluir', 'alunos_cobrar', 'mensalidade_baixa', 'reservas_excluir'];
 
 const all = v => Object.fromEntries(ACTION_KEYS.map(k => [k, v]));
 
@@ -18,8 +18,8 @@ const ROLE_ACTIONS = {
   admin:        all(true),
   manager:      all(true),
   simples:      all(true),
-  professor:    { alunos_criar: true,  alunos_editar: false, alunos_excluir: false, alunos_cobrar: true,  reservas_excluir: false },
-  recepcao:     { alunos_criar: false, alunos_editar: false, alunos_excluir: false, alunos_cobrar: false, reservas_excluir: true  },
+  professor:    { alunos_criar: true,  alunos_editar: false, alunos_excluir: false, alunos_cobrar: true,  mensalidade_baixa: true,  reservas_excluir: false },
+  recepcao:     { alunos_criar: false, alunos_editar: false, alunos_excluir: false, alunos_cobrar: false, mensalidade_baixa: false, reservas_excluir: true  },
   profissional: all(false),
 };
 

@@ -227,6 +227,28 @@ router.put('/:id', auth, requirePerm('alunos_editar'), async (req, res) => {
   }
 });
 
+// ── PATCH /:id/baixa — dá baixa na mensalidade (avança o vencimento 1 mês) ──
+// Separado do PUT para o professor poder dar baixa sem poder editar o cadastro.
+router.patch('/:id/baixa', auth, requirePerm('mensalidade_baixa'), async (req, res) => {
+  if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });
+  try {
+    const atual = await loadAlunoInScope(req, res);
+    if (!atual) return;
+    const { rows } = await pool.query(
+      `UPDATE alunos
+          SET mensalidade_vencimento = (COALESCE(mensalidade_vencimento, CURRENT_DATE) + INTERVAL '1 month')::date,
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+      [req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('[PATCH /alunos/:id/baixa]', err);
+    res.status(500).json({ error: 'Erro ao dar baixa na mensalidade' });
+  }
+});
+
 // ── DELETE /:id ───────────────────────────────────────────────────
 router.delete('/:id', auth, requirePerm('alunos_excluir'), async (req, res) => {
   if (!canManageAluno(req.user)) return res.status(403).json({ error: 'Sem permissão' });

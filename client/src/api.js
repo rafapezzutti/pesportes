@@ -246,6 +246,7 @@ export const alunoApi = {
   create:           (data)       => post('/alunos', data),
   update:           (id, data)   => put(`/alunos/${id}`, data),
   remove:           (id)         => del(`/alunos/${id}`),
+  baixa:            (id)         => patch(`/alunos/${id}/baixa`, {}),
   notificarVencidos:(alunoIds, force) => post('/alunos/notificar-vencidos', { ...(alunoIds ? { alunoIds } : {}), ...(force ? { force: true } : {}) }),
 };
 

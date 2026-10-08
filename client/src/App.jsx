@@ -4921,8 +4921,9 @@ function CRMFinanceiro({crmUser,showToast}){
                       const dataBase=vd?new Date(vd+'T12:00:00'):new Date();
                       const proxMes=new Date(dataBase);proxMes.setMonth(proxMes.getMonth()+1);
                       const novaData=proxMes.toISOString().split('T')[0];
-                      await alunoApi.update(a.id,{...a,data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:null,mensalidade_vencimento:novaData});
-                      setMensAlunos(prev=>prev.map(al=>al.id===a.id?{...al,mensalidade_vencimento:novaData}:al));
+                      const upd=await alunoApi.baixa(a.id);
+                      const novaVenc=upd?.mensalidade_vencimento||novaData;
+                      setMensAlunos(prev=>prev.map(al=>al.id===a.id?{...al,mensalidade_vencimento:novaVenc}:al));
                       showToast(`Mensalidade de ${a.nome} marcada como paga!`,'success');
                     }catch(e){showToast(e.message||'Erro','error');}
                     finally{setMensSaving(null);}
@@ -4934,7 +4935,7 @@ function CRMFinanceiro({crmUser,showToast}){
                     <td className="px-4 py-2.5 text-gray-600">{vd?new Date(vd+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
                     <td className="px-4 py-2.5">{!vs?<span className="text-gray-300 text-xs">—</span>:vs==='vencida'?<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">🔴 Vencida</span>:vs==='vence_breve'?<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">🟡 Vence em breve</span>:<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">🟢 Em dia</span>}</td>
                     <td className="px-4 py-2.5 text-right"><div className="flex gap-2 justify-end">
-                      {vs&&acts.alunos_editar&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
+                      {vs&&acts.mensalidade_baixa&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
                       {acts.alunos_cobrar&&a.telefone&&<button onClick={async()=>{try{await alunoApi.notificarVencidos([a.id],vs!=='vencida');showToast(`WhatsApp enviado para ${a.nome}`,'success');}catch(e){showToast(e.message||'Erro','error');}}} className="text-xs font-semibold px-2 py-1 rounded-lg text-white hover:opacity-90" style={{background:'#25D366'}}>📲</button>}
                     </div></td>
                   </tr>;
@@ -4952,8 +4953,9 @@ function CRMFinanceiro({crmUser,showToast}){
                   const dataBase=vd?new Date(vd+'T12:00:00'):new Date();
                   const proxMes=new Date(dataBase);proxMes.setMonth(proxMes.getMonth()+1);
                   const novaData=proxMes.toISOString().split('T')[0];
-                  await alunoApi.update(a.id,{...a,data_nascimento:a.data_nascimento?a.data_nascimento.split('T')[0]:null,mensalidade_vencimento:novaData});
-                  setMensAlunos(prev=>prev.map(al=>al.id===a.id?{...al,mensalidade_vencimento:novaData}:al));
+                  const upd=await alunoApi.baixa(a.id);
+                  const novaVenc=upd?.mensalidade_vencimento||novaData;
+                  setMensAlunos(prev=>prev.map(al=>al.id===a.id?{...al,mensalidade_vencimento:novaVenc}:al));
                   showToast(`Mensalidade de ${a.nome} marcada como paga!`,'success');
                 }catch(e){showToast(e.message||'Erro','error');}
                 finally{setMensSaving(null);}
@@ -4969,7 +4971,7 @@ function CRMFinanceiro({crmUser,showToast}){
                   {a.telefone&&<span>{a.telefone}</span>}
                 </div>
                 <div className="flex gap-2">
-                  {vs&&acts.alunos_editar&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
+                  {vs&&acts.mensalidade_baixa&&<button onClick={marcarPago} disabled={mensSaving===a.id} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">✓ Marcar pago</button>}
                   {acts.alunos_cobrar&&a.telefone&&<button onClick={async()=>{try{await alunoApi.notificarVencidos([a.id],vs!=='vencida');showToast(`WhatsApp enviado para ${a.nome}`,'success');}catch(e){showToast(e.message||'Erro','error');}}} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{background:'#25D366'}}>📲 WhatsApp</button>}
                 </div>
               </div>;
@@ -6072,19 +6074,20 @@ const ROLE_DFLT={
 
 // Permissões por AÇÃO (dentro das telas). Espelha middleware/permissions.js no servidor.
 // Só o professor muda em relação ao comportamento anterior.
-const ACTION_KEYS=['alunos_criar','alunos_editar','alunos_excluir','alunos_cobrar','reservas_excluir'];
+const ACTION_KEYS=['alunos_criar','alunos_editar','alunos_excluir','alunos_cobrar','mensalidade_baixa','reservas_excluir'];
 const ACT_ALL=v=>Object.fromEntries(ACTION_KEYS.map(k=>[k,v]));
 const ROLE_ACTIONS={
   admin:ACT_ALL(true), manager:ACT_ALL(true), simples:ACT_ALL(true),
-  professor:{alunos_criar:true,alunos_editar:false,alunos_excluir:false,alunos_cobrar:true,reservas_excluir:false},
-  recepcao:{alunos_criar:false,alunos_editar:false,alunos_excluir:false,alunos_cobrar:false,reservas_excluir:true},
+  professor:{alunos_criar:true,alunos_editar:false,alunos_excluir:false,alunos_cobrar:true,mensalidade_baixa:true,reservas_excluir:false},
+  recepcao:{alunos_criar:false,alunos_editar:false,alunos_excluir:false,alunos_cobrar:false,mensalidade_baixa:false,reservas_excluir:true},
   profissional:ACT_ALL(false),
 };
 const PERFIL_ACTIONS=[
   {key:'alunos_criar',     label:'Cadastrar aluno',                     icon:'➕'},
-  {key:'alunos_editar',    label:'Editar / inativar aluno e dar baixa',  icon:'✏️'},
+  {key:'alunos_editar',    label:'Editar / inativar aluno',             icon:'✏️'},
   {key:'alunos_excluir',   label:'Excluir aluno',                       icon:'🗑️'},
   {key:'alunos_cobrar',    label:'Cobrar por WhatsApp',                 icon:'📲'},
+  {key:'mensalidade_baixa',label:'Dar baixa em mensalidade',            icon:'✅'},
   {key:'reservas_excluir', label:'Excluir reserva',                     icon:'🚫'},
 ];
 function mergeActions(role,permissions){
