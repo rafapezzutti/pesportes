@@ -43,6 +43,28 @@ async function enqueue(est_id, message) {
   }
 }
 
+/**
+ * Enfileira uma mensagem para UM telefone específico (ex.: aluno do Match),
+ * pela instância WhatsApp do estabelecimento. Mesma deduplicação de 10 min.
+ */
+async function enqueueTo(est_id, telefone, message) {
+  if (!est_id || !telefone || !message || DISABLED()) return;
+  try {
+    await pool.query(
+      `INSERT INTO reservation_notif_queue (est_id, telefone, message)
+       SELECT $1, $2, $3
+       WHERE NOT EXISTS (
+         SELECT 1 FROM reservation_notif_queue
+         WHERE telefone = $2 AND message = $3
+           AND created_at > NOW() - INTERVAL '10 minutes'
+       )`,
+      [est_id, telefone, message]
+    );
+  } catch (e) {
+    console.error('[reservation-notif] enqueueTo error:', e.message);
+  }
+}
+
 let running = false;
 
 /**
@@ -171,4 +193,4 @@ function msgRecorrente(r) {
   return `🔁 *Reserva Recorrente Criada*\n👤 ${nome}\n🏟️ ${quadra}\n📅 Toda ${dia}\n⏰ ${horario}`;
 }
 
-module.exports = { enqueue, processQueue, msgNova, msgAlterada, msgCancelada, msgRecorrente };
+module.exports = { enqueue, enqueueTo, processQueue, msgNova, msgAlterada, msgCancelada, msgRecorrente };

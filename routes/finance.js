@@ -177,7 +177,8 @@ router.get('/contas-a-receber', auth, crmOnly, async (req, res) => {
               e.name AS est_name
        FROM reservations r
        LEFT JOIN establishments e ON r.est_id = e.id
-       ${w1} ORDER BY r.date DESC`, p1);
+       ${w1 ? w1 + ' AND' : 'WHERE'} COALESCE(r.status,'confirmed') <> 'aguardando'
+       ORDER BY r.date DESC`, p1);
 
     // Expande reservas com participantes em linhas individuais proporcional
     const reservas = [];
@@ -399,6 +400,7 @@ router.get('/resumo-aluno', auth, crmOnly, async (req, res) => {
       ' LEFT JOIN points p ON r.point_id = p.id' +
       " WHERE REPLACE(REPLACE(REPLACE(TRIM(r.client_name), ' /', '/'), '/ ', '/'), '/', ' / ') ILIKE $1" +
       (hasMes ? ' AND r.date >= $2 AND r.date <= $3' : '') +
+      " AND COALESCE(r.status,'confirmed') <> 'aguardando'" +
       statusClause('r.status_pgto') +
       ' ORDER BY r.date',
       buildParams(aBase));

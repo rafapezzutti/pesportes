@@ -104,6 +104,21 @@ export const auditApi = {
 };
 
 // ── Repasse de professores ────────────────────────────────────────
+// Match — alunos procurando parceiro
+export const matchApi = {
+  estabelecimentos: ()                 => get('/match/estabelecimentos'),
+  me:               ()                 => get('/match/me'),
+  solicitarCodigo:  (est_id, telefone) => post('/match/vinculo/solicitar', { est_id, telefone }),
+  confirmarCodigo:  (est_id, codigo, consentimento) => post('/match/vinculo/confirmar', { est_id, codigo, consentimento }),
+  criarIntencao:    (data)             => post('/match/intencoes', data),
+  cancelarIntencao: (id)               => del(`/match/intencoes/${id}`),
+  renovar:          (id)               => post(`/match/intencoes/${id}/renovar`, {}),
+  reservar:         (grupoId)          => post(`/match/grupos/${grupoId}/reservar`, {}),
+  crmPainel:        ()                 => get('/match/crm/painel'),
+  crmConfirmar:     (id)               => post(`/match/crm/grupos/${id}/confirmar`, {}),
+  crmRecusar:       (id, motivo)       => post(`/match/crm/grupos/${id}/recusar`, { motivo }),
+};
+
 // Permissões do usuário logado (lidas do banco a cada chamada)
 export const permApi = {
   me: () => get('/crm-users/me/permissions'),

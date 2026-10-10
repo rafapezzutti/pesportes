@@ -60,6 +60,7 @@ app.use('/api/establishments',   require('./routes/establishments'));
 app.use('/api/points',           require('./routes/points'));
 app.use('/api/crm-users',        require('./routes/users'));
 app.use('/api/reservations',     require('./routes/reservations'));
+app.use('/api/match',            require('./routes/match'));
 app.use('/api/dashboard',        require('./routes/dashboard'));
 app.use('/api/professores',      require('./routes/professores'));
 app.use('/api/planos',           require('./routes/planos'));
@@ -418,6 +419,67 @@ async function runMigrations() {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
+    // ── Match: alunos procurando parceiro ───────────────────────────────
+    // status "aguardando" = pré-reserva do Match esperando o clube confirmar
+    `ALTER TABLE reservations DROP CONSTRAINT IF EXISTS reservations_status_check`,
+    `ALTER TABLE reservations ADD CONSTRAINT reservations_status_check
+       CHECK (status IN ('confirmed','cancelled','completed','aguardando'))`,
+    `CREATE TABLE IF NOT EXISTS match_vinculos (
+      id                SERIAL PRIMARY KEY,
+      user_id           INTEGER NOT NULL REFERENCES public_users(id) ON DELETE CASCADE,
+      est_id            INTEGER NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+      aluno_id          INTEGER NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+      codigo_hash       TEXT,
+      codigo_expira     TIMESTAMPTZ,
+      codigo_enviado_em TIMESTAMPTZ,
+      tentativas        INTEGER NOT NULL DEFAULT 0,
+      verificado_em     TIMESTAMPTZ,
+      consentimento_em  TIMESTAMPTZ,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, est_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS match_intencoes (
+      id          SERIAL PRIMARY KEY,
+      est_id      INTEGER NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+      aluno_id    INTEGER NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+      user_id     INTEGER NOT NULL REFERENCES public_users(id) ON DELETE CASCADE,
+      modalidade  TEXT NOT NULL,
+      formato     TEXT NOT NULL CHECK (formato IN ('simples','dupla')),
+      nivel       TEXT NOT NULL,
+      tipo        TEXT NOT NULL CHECK (tipo IN ('avulsa','semanal')),
+      data        DATE,
+      dia_semana  SMALLINT,
+      hora_inicio TEXT NOT NULL,
+      hora_fim    TEXT NOT NULL,
+      status      TEXT NOT NULL DEFAULT 'aberta',
+      expira_em   TIMESTAMPTZ,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_match_int_est ON match_intencoes(est_id, status)`,
+    `CREATE TABLE IF NOT EXISTS match_grupos (
+      id             SERIAL PRIMARY KEY,
+      est_id         INTEGER NOT NULL REFERENCES establishments(id) ON DELETE CASCADE,
+      modalidade     TEXT NOT NULL,
+      formato        TEXT NOT NULL,
+      nivel          TEXT NOT NULL,
+      data           DATE NOT NULL,
+      hora_inicio    TEXT NOT NULL,
+      hora_fim       TEXT NOT NULL,
+      status         TEXT NOT NULL DEFAULT 'formado',
+      reservation_id INTEGER REFERENCES reservations(id) ON DELETE SET NULL,
+      solicitado_por INTEGER REFERENCES public_users(id) ON DELETE SET NULL,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_match_grupos_est ON match_grupos(est_id, status, data)`,
+    `CREATE TABLE IF NOT EXISTS match_participantes (
+      grupo_id    INTEGER NOT NULL REFERENCES match_grupos(id) ON DELETE CASCADE,
+      intencao_id INTEGER NOT NULL REFERENCES match_intencoes(id) ON DELETE CASCADE,
+      aluno_id    INTEGER NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+      user_id     INTEGER NOT NULL REFERENCES public_users(id) ON DELETE CASCADE,
+      PRIMARY KEY (grupo_id, intencao_id)
+    )`,
+    `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS match_grupo_id INTEGER`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>
@@ -437,6 +499,19 @@ cron.schedule('0 8 * * *', async () => {
     console.error('[CRON-WA] Erro:', err.message);
   }
 }, { timezone: 'America/Sao_Paulo' });
+
+// Cron — Match: expira pendências e procura novos matches (a cada 10 min, 7h–23h BRT)
+cron.schedule('*/10 * * * *', async () => {
+  try {
+    const brHour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: TZ }).format(new Date()));
+    if (brHour < 7 || brHour >= 23) return;
+    const match = require('./services/match');
+    await match.expirar();
+    await match.runMatching();
+  } catch (err) {
+    console.error('[CRON-MATCH] Erro:', err.message);
+  }
+});
 
 // Cron — fila de notificações de reserva (a cada 30s)
 cron.schedule('*/30 * * * * *', async () => {

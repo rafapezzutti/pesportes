@@ -4,7 +4,7 @@ import {
   professorApi, planoApi, barApi, manutencaoApi, dashClienteApi, profEfApi,
   auditApi, repasseApi, expenseApi, financeApi, reviewApi, barProdutoApi,
   employeeApi, pontoApi, alunoApi, contasApi, impersonateApi, recurringApi,
-  whatsappApi, comissaoGerenteApi, horariosLivresApi, rankingApi, reservaNotifApi, permApi, downloadReport, saveToken, clearToken,
+  whatsappApi, comissaoGerenteApi, horariosLivresApi, rankingApi, reservaNotifApi, permApi, matchApi, downloadReport, saveToken, clearToken,
 } from './api';
 
 // ================================================================
@@ -51,8 +51,8 @@ const RECORRENCIA_LABEL = {nenhuma:'Sem recorrência',semanal:'Semanal',quinzena
 // ================================================================
 const fmt$ = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
 const fmtDate = d => { if(!d)return''; const s=(typeof d==='string'?d:d.toISOString()).split('T')[0]; const[y,m,dd]=s.split('-'); return`${dd}/${m}/${y}`; };
-const statusLabel = s => ({confirmed:'Confirmada',cancelled:'Cancelada',completed:'Concluída'}[s]||s);
-const statusColor = s => ({confirmed:'bg-emerald-100 text-emerald-700',cancelled:'bg-red-100 text-red-700',completed:'bg-gray-100 text-gray-600'}[s]||'bg-gray-100 text-gray-600');
+const statusLabel = s => ({confirmed:'Confirmada',cancelled:'Cancelada',completed:'Concluída',aguardando:'Aguardando confirmação'}[s]||s);
+const statusColor = s => ({confirmed:'bg-emerald-100 text-emerald-700',cancelled:'bg-red-100 text-red-700',completed:'bg-gray-100 text-gray-600',aguardando:'bg-amber-100 text-amber-700'}[s]||'bg-gray-100 text-gray-600');
 const canModify = r => { const dt=new Date(`${typeof r.date==='string'?r.date:r.date.toISOString().split('T')[0]}T${r.start_time}:00`); return new Date()<new Date(dt.getTime()-2*60*60*1000); };
 
 async function viaCEP(cep) {
@@ -135,7 +135,7 @@ function HoursEditor({value,onChange}){
 // MARKETPLACE HEADER
 // ================================================================
 function MktHeader({publicUser,page,navigate,onLogout}){
-  return<header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm"><div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between"><div className="flex items-center gap-2.5 cursor-pointer" onClick={()=>navigate('mkt-home')}><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-sm"><span className="text-white font-black text-base">P</span></div><div className="hidden sm:block"><p className="font-bold text-gray-800 text-sm leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">Esportes &amp; Reservas</p></div></div><nav className="flex items-center gap-2">{publicUser?<><button onClick={()=>navigate('my-reservations')} className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${page==='my-reservations'?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:text-emerald-600'}`}>Minhas Reservas</button><div className="h-5 w-px bg-gray-200"/><div className="text-sm text-gray-700 font-medium">{publicUser.name.split(' ')[0]}</div><Btn variant="ghost" size="sm" onClick={onLogout}>Sair</Btn></>:<><Btn variant="outline" size="sm" onClick={()=>navigate('public-auth','login')}>Entrar</Btn><Btn variant="primary" size="sm" onClick={()=>navigate('public-auth','register')}>Cadastrar</Btn></>}<div className="h-5 w-px bg-gray-200 ml-1"/><Btn variant="ghost" size="sm" onClick={()=>navigate('crm-login')} className="text-gray-400 text-xs">CRM ›</Btn></nav></div></header>;
+  return<header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm"><div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between"><div className="flex items-center gap-2.5 cursor-pointer" onClick={()=>navigate('mkt-home')}><div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-sm"><span className="text-white font-black text-base">P</span></div><div className="hidden sm:block"><p className="font-bold text-gray-800 text-sm leading-tight">P. Soluções</p><p className="text-xs text-gray-400 leading-tight">Esportes &amp; Reservas</p></div></div><nav className="flex items-center gap-2"><button onClick={()=>navigate('match')} className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${page==='match'?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:text-emerald-600'}`}>🎾 Match</button>{publicUser?<><button onClick={()=>navigate('my-reservations')} className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${page==='my-reservations'?'bg-emerald-50 text-emerald-700':'text-gray-600 hover:text-emerald-600'}`}>Minhas Reservas</button><div className="h-5 w-px bg-gray-200"/><div className="text-sm text-gray-700 font-medium">{publicUser.name.split(' ')[0]}</div><Btn variant="ghost" size="sm" onClick={onLogout}>Sair</Btn></>:<><Btn variant="outline" size="sm" onClick={()=>navigate('public-auth','login')}>Entrar</Btn><Btn variant="primary" size="sm" onClick={()=>navigate('public-auth','register')}>Cadastrar</Btn></>}<div className="h-5 w-px bg-gray-200 ml-1"/><Btn variant="ghost" size="sm" onClick={()=>navigate('crm-login')} className="text-gray-400 text-xs">CRM ›</Btn></nav></div></header>;
 }
 
 // ================================================================
@@ -214,7 +214,7 @@ function EstDetail({estId,points,navigate,publicUser,onReserve}){
     onReserve({pt:selPt,est,date:selDate,startT,endT,hours,total},false);
   };
 
-  return<div className="max-w-7xl mx-auto px-4 py-8"><button onClick={()=>navigate('mkt-home')} className="text-emerald-600 hover:text-emerald-700 text-sm mb-5 flex items-center gap-1.5 font-medium">← Voltar</button><div className="grid grid-cols-1 lg:grid-cols-3 gap-8"><div className="lg:col-span-2 space-y-6"><div className="relative rounded-2xl overflow-hidden h-72 bg-gray-200">{photos.length?<img src={photos[photo]} alt={est.name} className="w-full h-full object-cover"/>:<div className="w-full h-full flex items-center justify-center text-7xl">🏟️</div>}{photos.length>1&&<><button onClick={()=>setPhoto(p=>(p-1+photos.length)%photos.length)} className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center">‹</button><button onClick={()=>setPhoto(p=>(p+1)%photos.length)} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center">›</button><div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">{photos.map((_,i)=><button key={i} onClick={()=>setPhoto(i)} className={`w-2 h-2 rounded-full ${i===photo?'bg-white':'bg-white/40'}`}/>)}</div></>}</div><div><h1 className="text-2xl font-black text-gray-900 mb-2">{est.name}</h1><p className="text-gray-500 text-sm mb-1">📍 {est.street}{est.number?`, ${est.number}`:''}{est.complement?` — ${est.complement}`:''}</p><p className="text-gray-500 text-sm mb-1">{est.city}/{est.state} — CEP {est.cep}</p><p className="text-gray-500 text-sm mb-1">📞 {est.phone}</p>{est.site&&<a href={est.site} target="_blank" rel="noopener noreferrer" className="text-emerald-600 text-sm hover:underline flex items-center gap-1">🌐 {est.site.replace(/^https?:\/\//,'')}</a>}</div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h3 className="font-bold text-gray-800 mb-3">Horário de Funcionamento</h3><div className="grid grid-cols-2 gap-1">{DAYS.map(({key,label})=><div key={key} className="flex items-center gap-2 text-sm py-0.5"><span className="w-9 text-gray-500 font-medium">{label}:</span>{est.operating_hours?.[key]?.open?<span className="text-gray-700">{est.operating_hours[key].start} – {est.operating_hours[key].end}</span>:<span className="text-gray-400 italic text-xs">Fechado</span>}</div>)}</div></div><div><h3 className="font-bold text-gray-800 mb-3">Espaços disponíveis</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{pts.map(pt=><div key={pt.id} onClick={()=>{setSelPt(pt);setSelSlots([]);}} className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${selPt?.id===pt.id?'border-emerald-500 bg-emerald-50':'border-gray-200 hover:border-emerald-300 bg-white'}`}><div className="flex justify-between items-start"><div><p className="font-semibold text-gray-800">{pt.name}</p><p className="text-xs text-gray-500 mt-0.5">{pt.type}</p></div><span className="text-emerald-600 font-bold text-sm">{fmt$(pt.price_per_hour)}/h</span></div>{pt.custom_hours&&<p className="text-xs text-amber-600 mt-1.5">⏰ Horário próprio</p>}</div>)}</div></div></div><div className="lg:col-span-1"><div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm sticky top-24"><h3 className="font-bold text-gray-800 mb-4 text-base">Fazer uma Reserva</h3>{!selPt?<div className="text-center py-8"><p className="text-4xl mb-2">👈</p><p className="text-sm text-gray-400">Selecione um espaço ao lado</p></div>:<div className="space-y-4"><div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100"><p className="text-sm font-semibold text-emerald-800">{selPt.name}</p><p className="text-xs text-emerald-600">{selPt.type} • {fmt$(selPt.price_per_hour)}/hora</p></div><Field label="Data da reserva" required><Inp type="date" value={selDate} min={TODAY} max={maxDateStr} onChange={e=>{setSelDate(e.target.value);setSelSlots([]);}}/></Field>{selDate&&<div><p className="text-sm font-medium text-gray-700 mb-2">Horários disponíveis</p>{slotsLoading?<Spinner text="Buscando horários..."/>:slots.length===0?<div className="text-center py-4 bg-gray-50 rounded-lg"><p className="text-sm text-gray-400">Nenhum horário disponível</p></div>:<><div className="grid grid-cols-3 gap-1.5">{slots.map(s=><button key={s.time} onClick={()=>toggleSlot(s)} disabled={!s.available} className={`slot-btn py-2 text-xs rounded-lg border font-medium ${selSlots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through'}`}>{s.time}</button>)}</div><p className="text-xs text-gray-400 mt-1.5">Selecione horários consecutivos</p></>}</div>}{selSlots.length>0&&<div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-sm"><div className="flex justify-between text-gray-600"><span>Período</span><span className="font-medium">{startT} – {endT}</span></div><div className="flex justify-between text-gray-600"><span>Duração</span><span className="font-medium">{hours}h</span></div><div className="flex justify-between text-emerald-700 font-bold pt-1.5 border-t border-gray-200"><span>Total estimado</span><span>{fmt$(total)}</span></div><p className="text-xs text-gray-400">💳 Pagamento no local</p></div>}<Btn onClick={handleRes} disabled={!canRes} className="w-full" size="lg">{publicUser?'Solicitar Reserva':'Entrar para Reservar'}</Btn></div>}</div></div></div></div>;
+  return<div className="max-w-7xl mx-auto px-4 py-8"><button onClick={()=>navigate('mkt-home')} className="text-emerald-600 hover:text-emerald-700 text-sm mb-5 flex items-center gap-1.5 font-medium">← Voltar</button>{est.match_enabled&&<div onClick={()=>navigate('match')} className="mb-5 cursor-pointer bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 hover:bg-emerald-100 transition-colors"><div><p className="font-semibold text-emerald-800 text-sm">🎾 Aluno do {est.name}? Procure parceiro pelo Match</p><p className="text-xs text-emerald-700">Diga quando quer jogar e avisamos quando aparecer alguém do seu nível.</p></div><span className="text-emerald-700 font-bold">›</span></div>}<div className="grid grid-cols-1 lg:grid-cols-3 gap-8"><div className="lg:col-span-2 space-y-6"><div className="relative rounded-2xl overflow-hidden h-72 bg-gray-200">{photos.length?<img src={photos[photo]} alt={est.name} className="w-full h-full object-cover"/>:<div className="w-full h-full flex items-center justify-center text-7xl">🏟️</div>}{photos.length>1&&<><button onClick={()=>setPhoto(p=>(p-1+photos.length)%photos.length)} className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center">‹</button><button onClick={()=>setPhoto(p=>(p+1)%photos.length)} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center">›</button><div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">{photos.map((_,i)=><button key={i} onClick={()=>setPhoto(i)} className={`w-2 h-2 rounded-full ${i===photo?'bg-white':'bg-white/40'}`}/>)}</div></>}</div><div><h1 className="text-2xl font-black text-gray-900 mb-2">{est.name}</h1><p className="text-gray-500 text-sm mb-1">📍 {est.street}{est.number?`, ${est.number}`:''}{est.complement?` — ${est.complement}`:''}</p><p className="text-gray-500 text-sm mb-1">{est.city}/{est.state} — CEP {est.cep}</p><p className="text-gray-500 text-sm mb-1">📞 {est.phone}</p>{est.site&&<a href={est.site} target="_blank" rel="noopener noreferrer" className="text-emerald-600 text-sm hover:underline flex items-center gap-1">🌐 {est.site.replace(/^https?:\/\//,'')}</a>}</div><div className="bg-white rounded-2xl border border-gray-100 p-5"><h3 className="font-bold text-gray-800 mb-3">Horário de Funcionamento</h3><div className="grid grid-cols-2 gap-1">{DAYS.map(({key,label})=><div key={key} className="flex items-center gap-2 text-sm py-0.5"><span className="w-9 text-gray-500 font-medium">{label}:</span>{est.operating_hours?.[key]?.open?<span className="text-gray-700">{est.operating_hours[key].start} – {est.operating_hours[key].end}</span>:<span className="text-gray-400 italic text-xs">Fechado</span>}</div>)}</div></div><div><h3 className="font-bold text-gray-800 mb-3">Espaços disponíveis</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{pts.map(pt=><div key={pt.id} onClick={()=>{setSelPt(pt);setSelSlots([]);}} className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${selPt?.id===pt.id?'border-emerald-500 bg-emerald-50':'border-gray-200 hover:border-emerald-300 bg-white'}`}><div className="flex justify-between items-start"><div><p className="font-semibold text-gray-800">{pt.name}</p><p className="text-xs text-gray-500 mt-0.5">{pt.type}</p></div><span className="text-emerald-600 font-bold text-sm">{fmt$(pt.price_per_hour)}/h</span></div>{pt.custom_hours&&<p className="text-xs text-amber-600 mt-1.5">⏰ Horário próprio</p>}</div>)}</div></div></div><div className="lg:col-span-1"><div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm sticky top-24"><h3 className="font-bold text-gray-800 mb-4 text-base">Fazer uma Reserva</h3>{!selPt?<div className="text-center py-8"><p className="text-4xl mb-2">👈</p><p className="text-sm text-gray-400">Selecione um espaço ao lado</p></div>:<div className="space-y-4"><div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100"><p className="text-sm font-semibold text-emerald-800">{selPt.name}</p><p className="text-xs text-emerald-600">{selPt.type} • {fmt$(selPt.price_per_hour)}/hora</p></div><Field label="Data da reserva" required><Inp type="date" value={selDate} min={TODAY} max={maxDateStr} onChange={e=>{setSelDate(e.target.value);setSelSlots([]);}}/></Field>{selDate&&<div><p className="text-sm font-medium text-gray-700 mb-2">Horários disponíveis</p>{slotsLoading?<Spinner text="Buscando horários..."/>:slots.length===0?<div className="text-center py-4 bg-gray-50 rounded-lg"><p className="text-sm text-gray-400">Nenhum horário disponível</p></div>:<><div className="grid grid-cols-3 gap-1.5">{slots.map(s=><button key={s.time} onClick={()=>toggleSlot(s)} disabled={!s.available} className={`slot-btn py-2 text-xs rounded-lg border font-medium ${selSlots.includes(s.time)?'bg-emerald-600 text-white border-emerald-600':s.available?'border-gray-300 hover:border-emerald-400 text-gray-700':'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through'}`}>{s.time}</button>)}</div><p className="text-xs text-gray-400 mt-1.5">Selecione horários consecutivos</p></>}</div>}{selSlots.length>0&&<div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-sm"><div className="flex justify-between text-gray-600"><span>Período</span><span className="font-medium">{startT} – {endT}</span></div><div className="flex justify-between text-gray-600"><span>Duração</span><span className="font-medium">{hours}h</span></div><div className="flex justify-between text-emerald-700 font-bold pt-1.5 border-t border-gray-200"><span>Total estimado</span><span>{fmt$(total)}</span></div><p className="text-xs text-gray-400">💳 Pagamento no local</p></div>}<Btn onClick={handleRes} disabled={!canRes} className="w-full" size="lg">{publicUser?'Solicitar Reserva':'Entrar para Reservar'}</Btn></div>}</div></div></div></div>;
 }
 
 // ================================================================
@@ -403,6 +403,133 @@ function MyReservations({publicUser,navigate,showToast}){
 // ================================================================
 // PASSWORD RECOVERY
 // ================================================================
+// ================================================================
+// MATCH — aluno procura parceiro (marketplace)
+// ================================================================
+const MATCH_NIVEL={iniciante:'Iniciante',intermediario:'Intermediário',avancado:'Avançado'};
+const MATCH_DIAS=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+const MATCH_HORAS=Array.from({length:35},(_,i)=>{const m=360+i*30;return`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;});
+const MATCH_STATUS={
+  formado:      {l:'Parceiro encontrado',            c:'bg-emerald-100 text-emerald-700'},
+  pre_reservado:{l:'Aguardando confirmação do clube',c:'bg-amber-100 text-amber-700'},
+  confirmado:   {l:'Quadra confirmada',              c:'bg-blue-100 text-blue-700'},
+  recusado:     {l:'Não confirmado pelo clube',      c:'bg-red-100 text-red-700'},
+  expirado:     {l:'Expirado',                       c:'bg-gray-100 text-gray-500'},
+  cancelado:    {l:'Desfeito',                       c:'bg-gray-100 text-gray-500'},
+};
+const matchQuando=i=>i.tipo==='semanal'?`Toda ${MATCH_DIAS[i.dia_semana]}`:fmtDate(String(i.data).split('T')[0]);
+const matchHora=(a,b)=>`${String(a).slice(0,5)}–${String(b).slice(0,5)}`;
+
+function MktMatch({publicUser,navigate,showToast}){
+  const [me,setMe]=useState(null);
+  const [ests,setEsts]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState(false);
+  const [vinc,setVinc]=useState(null);   // {est_id,telefone,codigo,consent,etapa}
+  const [form,setForm]=useState(null);
+  const load=useCallback(()=>{
+    if(!publicUser){setLoading(false);return;}
+    Promise.all([matchApi.me(),matchApi.estabelecimentos()])
+      .then(([m,e])=>{setMe(m);setEsts(e);})
+      .catch(e=>showToast(e.message||'Erro ao carregar o Match','error'))
+      .finally(()=>setLoading(false));
+  },[publicUser]);
+  useEffect(()=>{load();},[load]);
+
+  if(!publicUser)return<div className="max-w-xl mx-auto px-4 py-16 text-center">
+    <p className="text-6xl mb-4">🎾</p>
+    <h1 className="text-2xl font-black text-gray-900 mb-2">Match — encontre parceiro para jogar</h1>
+    <p className="text-gray-500 mb-6">Diga quando você quer jogar e a gente avisa no WhatsApp quando aparecer outro aluno do seu clube com o mesmo horário e nível.</p>
+    <div className="flex gap-3 justify-center"><Btn variant="outline" onClick={()=>navigate('public-auth','login')}>Entrar</Btn><Btn onClick={()=>navigate('public-auth','register')}>Criar conta</Btn></div>
+  </div>;
+  if(loading||!me)return<Spinner/>;
+
+  const vinculados=me.vinculos||[];
+  const estsLivres=ests.filter(e=>!vinculados.some(v=>v.est_id===e.id));
+  const run=async(fn,okMsg)=>{setBusy(true);try{const r=await fn();if(okMsg)showToast(typeof okMsg==='function'?okMsg(r):okMsg,'success');load();return r;}catch(e){showToast(e.message||'Erro','error');}finally{setBusy(false);}};
+
+  const solicitarCodigo=()=>run(async()=>{const r=await matchApi.solicitarCodigo(vinc.est_id,vinc.telefone);setVinc(v=>({...v,etapa:'codigo'}));return r;},r=>r.message);
+  const confirmarCodigo=()=>run(async()=>{await matchApi.confirmarCodigo(vinc.est_id,vinc.codigo,vinc.consent);setVinc(null);},'Pronto! Match ativado neste clube.');
+  const novaIntencao=()=>{const v=vinculados[0];const est=ests.find(e=>e.id===v.est_id);setForm({est_id:v.est_id,modalidade:est?.modalidades?.[0]||'',formato:'simples',nivel:'intermediario',tipo:'avulsa',data:'',dia_semana:'',hora_inicio:'18:00',hora_fim:'20:00'});};
+  const salvarIntencao=()=>run(async()=>{const r=await matchApi.criarIntencao({...form,est_id:Number(form.est_id),dia_semana:form.dia_semana===''?null:Number(form.dia_semana)});setForm(null);return r;},
+    r=>r?.match?'🎾 Match encontrado! Veja abaixo e peça a quadra ao clube.':'Intenção registrada. Avisamos no WhatsApp quando aparecer parceiro.');
+  const modsDoEst=id=>(ests.find(e=>e.id===Number(id))?.modalidades)||[];
+  const hojeStr=new Date().toISOString().split('T')[0];
+
+  return<div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
+    <div className="bg-gradient-to-br from-emerald-700 to-emerald-500 rounded-2xl p-6 text-white">
+      <h1 className="text-2xl font-black">🎾 Match</h1>
+      <p className="text-emerald-100 text-sm mt-1">Diga quando quer jogar. Quando outro aluno do seu clube tiver o mesmo horário e nível, avisamos os dois pelo WhatsApp do clube.</p>
+    </div>
+
+    {/* Meus jogos */}
+    {(me.grupos||[]).length>0&&<section>
+      <h2 className="font-bold text-gray-800 mb-3">Meus jogos</h2>
+      <div className="space-y-3">{me.grupos.map(g=>{const st=MATCH_STATUS[g.status]||{l:g.status,c:'bg-gray-100 text-gray-500'};const outros=(g.jogadores||[]).filter(j=>!j.eu).map(j=>j.nome);
+        return<div key={g.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3 mb-2"><div><p className="font-bold text-gray-800">{g.modalidade} · {g.formato==='dupla'?'Dupla':'Simples'}</p><p className="text-sm text-gray-500">{g.est_name}{g.quadra?` · ${g.quadra}`:''}</p></div><span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${st.c}`}>{st.l}</span></div>
+          <p className="text-sm text-gray-600">📅 {fmtDate(String(g.data).split('T')[0])} · ⏰ {matchHora(g.hora_inicio,g.hora_fim)} · {MATCH_NIVEL[g.nivel]||g.nivel}</p>
+          <p className="text-sm text-gray-600">👥 Com: {outros.join(', ')||'—'}</p>
+          {g.status==='formado'&&<div className="mt-3 flex items-center gap-3 flex-wrap"><Btn size="sm" disabled={busy} onClick={()=>run(()=>matchApi.reservar(g.id),r=>`Pedido enviado ao clube (${r.quadra}). Você recebe a confirmação no WhatsApp.`)}>Pedir quadra ao clube</Btn><span className="text-xs text-gray-400">O clube confirma e o pagamento é feito no local.</span></div>}
+        </div>;})}</div>
+    </section>}
+
+    {/* Clubes */}
+    <section>
+      <div className="flex items-center justify-between mb-3"><h2 className="font-bold text-gray-800">Meus clubes no Match</h2>{estsLivres.length>0&&!vinc&&<Btn size="sm" variant="secondary" onClick={()=>setVinc({est_id:estsLivres[0].id,telefone:'',codigo:'',consent:false,etapa:'telefone'})}>+ Ativar em um clube</Btn>}</div>
+      {vinculados.length===0&&!vinc&&<div className="bg-white border border-dashed border-gray-200 rounded-2xl p-6 text-center text-sm text-gray-500">
+        {ests.length===0?'Nenhum clube participa do Match ainda.':<>O Match é exclusivo para alunos. Ative no seu clube para começar.<div className="mt-3"><Btn size="sm" onClick={()=>setVinc({est_id:ests[0].id,telefone:'',codigo:'',consent:false,etapa:'telefone'})}>Ativar Match</Btn></div></>}
+      </div>}
+      {vinculados.length>0&&<div className="flex flex-wrap gap-2">{vinculados.map(v=><span key={v.est_id} className="text-sm bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-full">✅ {v.est_name}</span>)}</div>}
+      {vinc&&<div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm mt-3 space-y-3">
+        <Field label="Clube"><Sel value={vinc.est_id} onChange={e=>setVinc(v=>({...v,est_id:Number(e.target.value),etapa:'telefone'}))} options={estsLivres.map(e=>({value:e.id,label:e.name}))}/></Field>
+        <Field label="Seu celular (o mesmo cadastrado no clube)"><Inp type="tel" value={vinc.telefone} onChange={e=>setVinc(v=>({...v,telefone:e.target.value}))} placeholder="(11) 99999-9999" disabled={vinc.etapa==='codigo'}/></Field>
+        {vinc.etapa==='codigo'&&<>
+          <Field label="Código recebido no WhatsApp"><Inp value={vinc.codigo} onChange={e=>setVinc(v=>({...v,codigo:e.target.value.replace(/\D/g,'').slice(0,6)}))} placeholder="000000"/></Field>
+          <label className="flex items-start gap-2 text-xs text-gray-600"><input type="checkbox" checked={vinc.consent} onChange={e=>setVinc(v=>({...v,consent:e.target.checked}))} className="mt-0.5 accent-emerald-600"/>Concordo que o clube use meu nome, nível e horários para formar jogos, e que meu primeiro nome apareça para os parceiros. Meu telefone não é compartilhado.</label>
+        </>}
+        <div className="flex gap-2">
+          <Btn variant="secondary" size="sm" onClick={()=>setVinc(null)}>Cancelar</Btn>
+          {vinc.etapa==='telefone'?<Btn size="sm" disabled={busy||!vinc.telefone} onClick={solicitarCodigo}>Enviar código</Btn>
+            :<><Btn size="sm" disabled={busy||vinc.codigo.length!==6||!vinc.consent} onClick={confirmarCodigo}>Confirmar</Btn><button className="text-xs text-gray-400 underline" onClick={()=>setVinc(v=>({...v,etapa:'telefone',codigo:''}))}>Trocar telefone</button></>}
+        </div>
+      </div>}
+    </section>
+
+    {/* Intenções */}
+    {vinculados.length>0&&<section>
+      <div className="flex items-center justify-between mb-3"><h2 className="font-bold text-gray-800">Quando quero jogar</h2>{!form&&<Btn size="sm" onClick={novaIntencao}>+ Nova intenção</Btn>}</div>
+      {form&&<div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm mb-4 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Clube"><Sel value={form.est_id} onChange={e=>{const id=Number(e.target.value);setForm(f=>({...f,est_id:id,modalidade:modsDoEst(id)[0]||''}));}} options={vinculados.map(v=>({value:v.est_id,label:v.est_name}))}/></Field>
+          <Field label="Modalidade"><Sel value={form.modalidade} onChange={e=>setForm(f=>({...f,modalidade:e.target.value}))} options={modsDoEst(form.est_id).map(m=>({value:m,label:m}))}/></Field>
+          <Field label="Formato"><Sel value={form.formato} onChange={e=>setForm(f=>({...f,formato:e.target.value}))} options={[{value:'simples',label:'Simples (2 jogadores)'},{value:'dupla',label:'Dupla (4 jogadores)'}]}/></Field>
+          <Field label="Seu nível"><Sel value={form.nivel} onChange={e=>setForm(f=>({...f,nivel:e.target.value}))} options={Object.entries(MATCH_NIVEL).map(([v,l])=>({value:v,label:l}))}/></Field>
+        </div>
+        <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-medium w-fit">
+          {[['avulsa','Um dia específico'],['semanal','Toda semana']].map(([v,l])=><button key={v} onClick={()=>setForm(f=>({...f,tipo:v}))} className={`px-4 py-2 ${form.tipo===v?'bg-emerald-600 text-white':'text-gray-500 hover:bg-gray-50'}`}>{l}</button>)}
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {form.tipo==='avulsa'
+            ?<Field label="Data"><Inp type="date" value={form.data} min={hojeStr} onChange={e=>setForm(f=>({...f,data:e.target.value}))}/></Field>
+            :<Field label="Dia"><Sel value={form.dia_semana} onChange={e=>setForm(f=>({...f,dia_semana:e.target.value}))} options={MATCH_DIAS.map((d,i)=>({value:i,label:d}))} placeholder="Escolha"/></Field>}
+          <Field label="Das"><Sel value={form.hora_inicio} onChange={e=>setForm(f=>({...f,hora_inicio:e.target.value}))} options={MATCH_HORAS.map(h=>({value:h,label:h}))}/></Field>
+          <Field label="Até"><Sel value={form.hora_fim} onChange={e=>setForm(f=>({...f,hora_fim:e.target.value}))} options={MATCH_HORAS.map(h=>({value:h,label:h}))}/></Field>
+        </div>
+        <p className="text-xs text-gray-400">O jogo tem 1 hora, dentro da faixa que você escolher. Quanto maior a faixa, mais chance de match.</p>
+        <div className="flex gap-2"><Btn variant="secondary" size="sm" onClick={()=>setForm(null)}>Cancelar</Btn><Btn size="sm" disabled={busy||!form.modalidade||(form.tipo==='avulsa'?!form.data:form.dia_semana==='')} onClick={salvarIntencao}>{busy?'Procurando...':'Registrar'}</Btn></div>
+      </div>}
+      {(me.intencoes||[]).length===0&&!form&&<p className="text-sm text-gray-400">Nenhuma intenção ativa.</p>}
+      <div className="space-y-2">{(me.intencoes||[]).map(i=><div key={i.id} className="bg-white border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+        <div className="text-sm"><p className="font-semibold text-gray-800">{i.modalidade} · {i.formato==='dupla'?'Dupla':'Simples'} · {MATCH_NIVEL[i.nivel]||i.nivel}</p><p className="text-gray-500">{matchQuando(i)} · {matchHora(i.hora_inicio,i.hora_fim)} · {i.est_name}{i.status==='em_match'?' · 🎾 em match':''}</p>
+          {i.tipo==='semanal'&&i.expira_em&&<p className="text-xs text-gray-400">Vale até {fmtDate(String(i.expira_em).split('T')[0])} · <button className="underline" onClick={()=>run(()=>matchApi.renovar(i.id),'Renovada por mais 30 dias')}>renovar</button></p>}
+        </div>
+        <button className="text-xs text-red-500 hover:text-red-700 whitespace-nowrap" disabled={busy} onClick={()=>{if(confirm(i.status==='em_match'?'Você está num match com esta intenção. Cancelar desfaz o match e avisa os parceiros. Continuar?':'Cancelar esta intenção?'))run(()=>matchApi.cancelarIntencao(i.id),'Intenção cancelada');}}>Cancelar</button>
+      </div>)}</div>
+    </section>}
+  </div>;
+}
+
 function PasswordRecovery({navigate,type='public'}){
   const [step,setStep]=useState(1);
   const [email,setEmail]=useState('');
@@ -476,6 +603,7 @@ function CRMLayout({crmUser,page,navigate,onLogout,isImpersonating,onStopImperso
     {label:'Principal', items:[
       {key:'crm-dashboard',      label:'Dashboard', icon:'📊',roles:['admin','manager']},
       {key:'crm-reservations',   label:'Reservas',  icon:'📅',roles:['admin','manager','simples','professor','recepcao'],feature:'reservas'},
+      {key:'crm-match',          label:'Match',     icon:'🎾',roles:['admin','manager','simples','recepcao']},
     ]},
     {label:'Cadastros', items:[
       {key:'crm-establishment',  label:'Estabelecimentos', icon:'🏢',roles:['admin','manager']},
@@ -5888,6 +6016,95 @@ function CRMWhatsApp({crmUser,showToast}){
 // CRM HORÁRIOS LIVRES
 // ================================================================
 const DOW_SHORT=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+// ================================================================
+// CRM — MATCH (pré-reservas dos alunos aguardando o clube)
+// ================================================================
+function CRMMatch({crmUser,showToast}){
+  const [data,setData]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState(null);
+  const [recusa,setRecusa]=useState(null); // {grupo,motivo}
+  const load=useCallback(()=>{
+    matchApi.crmPainel().then(setData).catch(e=>showToast(e.message||'Erro ao carregar o Match','error')).finally(()=>setLoading(false));
+  },[]);
+  useEffect(()=>{load();const t=setInterval(load,60000);return()=>clearInterval(t);},[load]);
+  if(loading)return<Spinner/>;
+  if(!data)return null;
+  const ativos=(data.estabelecimentos||[]).filter(e=>e.match_enabled);
+  if(!ativos.length)return<div className="p-6 max-w-3xl"><h1 className="text-2xl font-black text-gray-900 mb-2">🎾 Match</h1>
+    <div className="bg-white border border-gray-100 rounded-2xl p-6 text-gray-500">O módulo Match não está ativo para o seu estabelecimento. Ele permite que seus alunos encontrem parceiros e peçam quadra pelo site. Fale com a P. Soluções para ativar.</div></div>;
+
+  const grupos=data.grupos||[];
+  const pend=grupos.filter(g=>g.status==='pre_reservado');
+  const formados=grupos.filter(g=>g.status==='formado');
+  const hist=grupos.filter(g=>!['pre_reservado','formado'].includes(g.status));
+  const multiEst=ativos.length>1;
+  const quando=g=>`${fmtDate(String(g.data).split('T')[0])} · ${matchHora(g.hora_inicio,g.hora_fim)}`;
+  const acao=async(id,fn,msg)=>{setBusy(id);try{await fn();showToast(msg,'success');load();}catch(e){showToast(e.message||'Erro','error');}finally{setBusy(null);}};
+  const Jog=({g,tel})=><div className="text-sm text-gray-600 mt-1">{(g.jogadores||[]).map((j,i)=><span key={i} className="inline-block mr-3">👤 {j.nome}{tel&&j.telefone?<span className="text-gray-400"> · {j.telefone}</span>:null}</span>)}</div>;
+
+  return<div className="p-6 max-w-5xl space-y-6">
+    <div><h1 className="text-2xl font-black text-gray-900">🎾 Match</h1><p className="text-sm text-gray-400">Alunos que se encontraram pelo site e pediram quadra. Confirme depois de combinar o pagamento.</p></div>
+    <div className="grid grid-cols-3 gap-3">
+      {[['Matches no mês',data.stats?.matches_mes||0],['Reservas via Match',data.stats?.reservas_mes||0],['Receita via Match',fmt$(data.stats?.receita_mes||0)]].map(([l,v])=>
+        <div key={l} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm"><p className="text-xs text-gray-400">{l}</p><p className="text-xl font-black text-gray-800">{v}</p></div>)}
+    </div>
+
+    <section>
+      <h2 className="font-bold text-gray-800 mb-2">⏳ Aguardando sua confirmação {pend.length>0&&<span className="ml-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{pend.length}</span>}</h2>
+      {pend.length===0?<p className="text-sm text-gray-400">Nenhuma pré-reserva pendente.</p>:
+      <div className="space-y-3">{pend.map(g=><div key={g.id} className="bg-white border-l-4 border-amber-400 border border-gray-100 rounded-2xl p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div><p className="font-bold text-gray-800">{g.quadra||g.modalidade} · {g.formato==='dupla'?'Dupla':'Simples'} · {MATCH_NIVEL[g.nivel]||g.nivel}</p>
+            <p className="text-sm text-gray-500">📅 {quando(g)}{multiEst?` · ${g.est_name}`:''}{g.total!=null?` · ${fmt$(g.total)}`:''}</p>
+            <Jog g={g} tel/></div>
+          <div className="flex gap-2">
+            <Btn size="sm" disabled={busy===g.id} onClick={()=>acao(g.id,()=>matchApi.crmConfirmar(g.id),'Confirmado! Os alunos foram avisados.')}>✅ Confirmar</Btn>
+            <Btn size="sm" variant="danger" disabled={busy===g.id} onClick={()=>setRecusa({grupo:g,motivo:''})}>❌ Recusar</Btn>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 mt-2">Se não for confirmada até 2h antes do jogo, a pré-reserva é liberada automaticamente.</p>
+      </div>)}</div>}
+    </section>
+
+    {formados.length>0&&<section>
+      <h2 className="font-bold text-gray-800 mb-2">🤝 Matches formados <span className="text-xs font-normal text-gray-400">— os alunos ainda não pediram a quadra</span></h2>
+      <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">{formados.map(g=><div key={g.id} className="px-4 py-3">
+        <p className="text-sm font-semibold text-gray-800">{g.modalidade} · {g.formato==='dupla'?'Dupla':'Simples'} · {MATCH_NIVEL[g.nivel]||g.nivel} <span className="font-normal text-gray-500">· {quando(g)}</span></p><Jog g={g}/>
+      </div>)}</div>
+    </section>}
+
+    <section>
+      <h2 className="font-bold text-gray-800 mb-2">📋 Intenções abertas <span className="text-xs font-normal text-gray-400">— quem está procurando parceiro</span></h2>
+      {(data.intencoes||[]).length===0?<p className="text-sm text-gray-400">Nenhum aluno procurando parceiro agora.</p>:
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-x-auto"><table className="w-full text-sm">
+        <thead><tr className="border-b border-gray-100 bg-gray-50">{['Aluno','Modalidade','Formato','Nível','Quando','Horário',''].map(h=><th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
+        <tbody className="divide-y divide-gray-50">{data.intencoes.map(i=><tr key={i.id}>
+          <td className="px-3 py-2 font-medium text-gray-800">{i.aluno_nome}</td><td className="px-3 py-2">{i.modalidade}</td><td className="px-3 py-2">{i.formato==='dupla'?'Dupla':'Simples'}</td>
+          <td className="px-3 py-2">{MATCH_NIVEL[i.nivel]||i.nivel}</td><td className="px-3 py-2">{matchQuando(i)}</td><td className="px-3 py-2">{matchHora(i.hora_inicio,i.hora_fim)}</td>
+          <td className="px-3 py-2 text-xs">{i.status==='em_match'?<span className="text-emerald-600">🎾 em match</span>:null}</td>
+        </tr>)}</tbody></table></div>}
+    </section>
+
+    {hist.length>0&&<section>
+      <h2 className="font-bold text-gray-800 mb-2">Histórico (30 dias)</h2>
+      <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">{hist.map(g=>{const st=MATCH_STATUS[g.status]||{l:g.status,c:'bg-gray-100 text-gray-500'};return<div key={g.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+        <div className="text-sm"><span className="font-medium text-gray-800">{g.modalidade} · {g.formato==='dupla'?'Dupla':'Simples'}</span> <span className="text-gray-500">· {quando(g)}{g.quadra?` · ${g.quadra}`:''}</span><Jog g={g}/></div>
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${st.c}`}>{g.status==='recusado'?'Recusado':g.status==='confirmado'?'Confirmado':st.l}</span>
+      </div>;})}</div>
+    </section>}
+
+    <Modal open={!!recusa} onClose={()=>setRecusa(null)} title="Recusar pré-reserva">
+      {recusa&&<div className="space-y-3">
+        <p className="text-sm text-gray-600">Os alunos serão avisados pelo WhatsApp e a quadra fica livre.</p>
+        <Field label="Motivo (opcional, vai na mensagem)"><Inp value={recusa.motivo} onChange={e=>setRecusa(r=>({...r,motivo:e.target.value}))} placeholder="ex.: quadra em manutenção"/></Field>
+        <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setRecusa(null)}>Voltar</Btn>
+          <Btn variant="danger" className="flex-1" disabled={busy===recusa.grupo.id} onClick={async()=>{const g=recusa.grupo;await acao(g.id,()=>matchApi.crmRecusar(g.id,recusa.motivo),'Recusado. Os alunos foram avisados.');setRecusa(null);}}>Recusar</Btn></div>
+      </div>}
+    </Modal>
+  </div>;
+}
+
 function CRMHorariosLivres({crmUser,showToast}){
   const [ests,setEsts]=useState([]);
   const [selEst,setSelEst]=useState('');
@@ -6264,7 +6481,10 @@ const ENT_FEATURES=[
   {key:'bar',             label:'Estoque Bar',           icon:'📦'},
   {key:'unimidia',        label:'Quero Divulgar',        icon:'📺'},
   {key:'whatsapp',        label:'WhatsApp',              icon:'💬'},
+  {key:'match',           label:'Match (parceiros)',     icon:'🎾', dflt:false},
 ];
+// Módulos marcados com dflt:false ficam desligados até o admin ligar
+const entEnabled=(f,key)=>{const ft=ENT_FEATURES.find(x=>x.key===key);return f[key]===undefined?ft?.dflt!==false:f[key]!==false;};
 
 function CRMEntitlements({showToast}){
   const [ests,setEsts]=useState([]);
@@ -6288,7 +6508,7 @@ function CRMEntitlements({showToast}){
   const toggle=(estId,key)=>{
     setFeats(prev=>{
       const cur=prev[estId]||{};
-      const enabled=cur[key]!==false;
+      const enabled=entEnabled(cur,key);
       return {...prev,[estId]:{...cur,[key]:!enabled}};
     });
   };
@@ -6333,7 +6553,7 @@ function CRMEntitlements({showToast}){
             <div className="p-5">
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {ENT_FEATURES.map(feat=>{
-                  const enabled=f[feat.key]!==false;
+                  const enabled=entEnabled(f,feat.key);
                   return(
                     <label key={feat.key}
                       className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer select-none transition-all ${enabled?'border-emerald-200 bg-emerald-50 shadow-sm':'border-gray-200 bg-gray-50 opacity-55'}`}
@@ -6397,6 +6617,7 @@ export default function App(){
     else setView('marketplace');
     if(pg==='est-detail'&&arg) window.history.pushState({pg,arg},'',`/e/${arg}`);
     else if(pg==='prof-detail'&&arg) window.history.pushState({pg,arg},'',`/p/${arg}`);
+    else if(pg==='match') window.history.pushState({pg},'','/match');
     else if(!pg.startsWith('crm-')&&!pg.startsWith('prof-')&&pg!=='password-recovery'&&pg!=='reset-password')
       window.history.replaceState({pg,arg},'','/');
   };
@@ -6406,6 +6627,7 @@ export default function App(){
       const s=e.state;
       if(s?.pg==='est-detail'&&s?.arg){setPage('est-detail');setPageArg(s.arg);setView('marketplace');}
       else if(s?.pg==='prof-detail'&&s?.arg){setPage('prof-detail');setPageArg(s.arg);setView('marketplace');}
+      else if(s?.pg==='match'){setPage('match');setPageArg(null);setView('marketplace');}
       else{setPage('mkt-home');setPageArg(null);setView('marketplace');}
       window.scrollTo(0,0);
     };
@@ -6455,6 +6677,7 @@ export default function App(){
     const path=window.location.pathname;
     const estMatch=path.match(/^\/e\/(\d+)$/);
     if(estMatch){setPage('est-detail');setPageArg(Number(estMatch[1]));setView('marketplace');window.history.replaceState({pg:'est-detail',arg:Number(estMatch[1])},'',path);return;}
+    if(path==='/match'){setPage('match');setView('marketplace');window.history.replaceState({pg:'match'},'',path);return;}
     const profMatch=path.match(/^\/p\/(\d+)$/);
     if(profMatch){setPage('prof-detail');setPageArg(Number(profMatch[1]));setView('marketplace');window.history.replaceState({pg:'prof-detail',arg:Number(profMatch[1])},'',path);}
   },[]);
@@ -6548,6 +6771,7 @@ export default function App(){
     'crm-points':       <CRMPoints crmUser={crmUser} showToast={showToast}/>,
     'crm-users':        <CRMUsers crmUser={crmUser} showToast={showToast}/>,
     'crm-reservations': <CRMReservations crmUser={crmUser} showToast={showToast}/>,
+    'crm-match':        <CRMMatch crmUser={crmUser} showToast={showToast}/>,
     'crm-professors':   <CRMProfessors crmUser={crmUser} showToast={showToast}/>,
     'crm-profissionais-ef':<CRMProfissionaisEF showToast={showToast}/>,
     'crm-alunos':       <CRMAlunos crmUser={crmUser} showToast={showToast}/>,
@@ -6587,6 +6811,7 @@ export default function App(){
     {page==='est-detail'&&<><EstDetail estId={pageArg} points={points} navigate={navigate} publicUser={publicUser} onReserve={handleReserve}/><div className="max-w-7xl mx-auto px-4 pb-10"><ReviewsBlock targetType="establishment" targetId={pageArg} publicUser={publicUser} showToast={showToast}/></div></>}
     {page==='prof-detail'&&<><ProfDetail profId={pageArg} navigate={navigate}/><div className="max-w-2xl mx-auto px-4 pb-10"><ReviewsBlock targetType="profissional" targetId={pageArg} publicUser={publicUser} showToast={showToast}/></div></>}
     {page==='my-reservations'&&<MyReservations publicUser={publicUser} navigate={navigate} showToast={showToast}/>}
+    {page==='match'&&<MktMatch publicUser={publicUser} navigate={navigate} showToast={showToast}/>}
     {page==='public-auth'&&<AuthModal open={showAuth||true} onClose={()=>navigate('mkt-home')} onLogin={pubLogin} onRegister={pubRegister} initialMode={pageArg||'login'}/>}
     <AuthModal open={showAuth} onClose={()=>{setShowAuth(false);setPendRes(null);}} onLogin={pubLogin} onRegister={pubRegister} initialMode={authMode}/>
     <Modal open={!!confRes} onClose={()=>setConfRes(null)} title="Confirmar Reserva">

@@ -5,7 +5,8 @@ const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
 
 const PUBLIC_COLS = `id, name, street, number, complement, cep, city, state,
                      phone, site, photos, main_photo, operating_hours, unimidia_divulgacao, aulas,
-                     COALESCE(slot_interval, 60) AS slot_interval`;
+                     COALESCE(slot_interval, 60) AS slot_interval,
+                     (COALESCE(features->>'match','false') = 'true') AS match_enabled`;
 
 // GET /api/establishments
 // — Público (marketplace): retorna todos
