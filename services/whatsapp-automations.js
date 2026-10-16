@@ -170,7 +170,7 @@ async function runAutomations() {
       SELECT wa.*, e.name AS est_name
       FROM whatsapp_automations wa
       JOIN establishments e ON wa.est_id = e.id
-      WHERE wa.enabled = true
+      WHERE wa.enabled = true AND COALESCE(e.suspenso, FALSE) = FALSE
     `);
     for (const auto of rows) {
       const { est_id, est_name, type, config } = auto;

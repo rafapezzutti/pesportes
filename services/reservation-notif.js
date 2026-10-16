@@ -21,6 +21,7 @@ const DISABLED = () => process.env.RES_NOTIF_DISABLED === '1';
  */
 async function enqueue(est_id, message) {
   if (!est_id || !message || DISABLED()) return;
+  if (await require('../middleware/suspensao').estSuspenso(est_id)) return;
   try {
     const { rows: contacts } = await pool.query(
       `SELECT DISTINCT telefone FROM reservation_notif_contacts WHERE est_id=$1 AND ativo=TRUE`,
@@ -49,6 +50,7 @@ async function enqueue(est_id, message) {
  */
 async function enqueueTo(est_id, telefone, message) {
   if (!est_id || !telefone || !message || DISABLED()) return;
+  if (await require('../middleware/suspensao').estSuspenso(est_id)) return;
   try {
     await pool.query(
       `INSERT INTO reservation_notif_queue (est_id, telefone, message)

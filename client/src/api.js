@@ -31,6 +31,11 @@ async function req(method, path, body) {
     window.dispatchEvent(new CustomEvent('crm:session-expired'));
     throw new Error('Sessão expirada. Faça login novamente.');
   }
+  if (res.status === 403 && data.code === 'EST_SUSPENSO' && localStorage.getItem('userType') === 'crm') {
+    // Estabelecimento suspenso no meio da sessão — derruba o acesso com a mensagem
+    ['token','user','userType','token_admin_backup','user_admin_backup'].forEach(k => localStorage.removeItem(k));
+    window.dispatchEvent(new CustomEvent('crm:session-expired', { detail: { message: data.error } }));
+  }
   if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
   return data;
 }
@@ -58,6 +63,7 @@ export const estApi = {
   getFull: (id)       => get(`/establishments/${id}/full`),
   create:  (data)     => post('/establishments', data),
   update:  (id, data) => put(`/establishments/${id}`, data),
+  suspensao: (id, suspenso, motivo) => patch(`/establishments/${id}/suspensao`, { suspenso, motivo }),
 };
 
 // ── Points ────────────────────────────────────────────────────────

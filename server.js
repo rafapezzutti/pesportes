@@ -125,7 +125,7 @@ cron.schedule('*/20 * * * *', async () => {
       JOIN public_users pu  ON r.user_id  = pu.id
       JOIN points p         ON r.point_id = p.id
       JOIN establishments e ON r.est_id   = e.id
-      WHERE r.status = 'confirmed'
+      WHERE r.status = 'confirmed' AND COALESCE(e.suspenso, FALSE) = FALSE
         AND ((r.date + r.start_time::time) AT TIME ZONE $1)
               BETWEEN NOW() AND NOW() + INTERVAL '70 minutes'
         AND (r.reminded_1h = FALSE OR r.reminded_15m = FALSE)
@@ -480,6 +480,10 @@ async function runMigrations() {
       PRIMARY KEY (grupo_id, intencao_id)
     )`,
     `ALTER TABLE reservations ADD COLUMN IF NOT EXISTS match_grupo_id INTEGER`,
+    // ── Suspensão de estabelecimento ──
+    `ALTER TABLE establishments ADD COLUMN IF NOT EXISTS suspenso        BOOLEAN NOT NULL DEFAULT FALSE`,
+    `ALTER TABLE establishments ADD COLUMN IF NOT EXISTS suspenso_em     TIMESTAMPTZ`,
+    `ALTER TABLE establishments ADD COLUMN IF NOT EXISTS suspenso_motivo TEXT`,
   ];
   for (const sql of stmts) {
     await pool.query(sql).catch((e) =>

@@ -15,7 +15,14 @@ router.get('/', async (req, res) => {
     const { estId } = req.query;
     let query = 'SELECT * FROM points';
     const params = [];
-    if (estId) { query += ' WHERE est_id = $1'; params.push(estId); }
+    const where = [];
+    if (estId) { where.push('est_id = $1'); params.push(estId); }
+    // Quem não é usuário do CRM (site público) não vê quadras de estabelecimento suspenso
+    let crm = false;
+    const h = req.headers.authorization;
+    if (h && h.startsWith('Bearer ')) { try { crm = require('jsonwebtoken').verify(h.slice(7), process.env.JWT_SECRET).type === 'crm'; } catch {} }
+    if (!crm) where.push('est_id NOT IN (SELECT id FROM establishments WHERE suspenso IS TRUE)');
+    if (where.length) query += ' WHERE ' + where.join(' AND ');
     query += ' ORDER BY name';
     const { rows } = await pool.query(query, params);
     res.json(rows);

@@ -32,6 +32,11 @@ router.post('/crm/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password_hash)))
       return res.status(401).json({ error: 'Email ou senha invalidos' });
 
+    // Estabelecimento suspenso: usuários dele não entram (admin sempre entra)
+    const { usuarioBloqueado, MSG_BLOQUEIO } = require('../middleware/suspensao');
+    if (await usuarioBloqueado({ type: 'crm', role: user.role, est_id: user.est_id, est_ids: user.est_ids }))
+      return res.status(403).json({ error: MSG_BLOQUEIO, code: 'EST_SUSPENSO' });
+
     // Fetch establishment features + name for non-admin users
     let estFeatures = null;
     let estName = null;

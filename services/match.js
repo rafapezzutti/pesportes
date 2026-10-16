@@ -112,7 +112,7 @@ const msgMatch = (estName, g) => (p, outros) =>
 async function runMatching(estId = null) {
   const { rows: ests } = await pool.query(
     `SELECT id, name FROM establishments
-      WHERE COALESCE(features->>'match','false') = 'true' ${estId ? 'AND id = $1' : ''}`,
+      WHERE COALESCE(features->>'match','false') = 'true' AND COALESCE(suspenso, FALSE) = FALSE ${estId ? 'AND id = $1' : ''}`,
     estId ? [estId] : []);
   const criados = [];
   for (const est of ests) {

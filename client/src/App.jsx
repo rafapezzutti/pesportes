@@ -886,7 +886,10 @@ function CRMDashboard(){
 
 // CRM ESTABLISHMENT
 // ================================================================
-function CRMEstablishment({showToast}){
+function CRMEstablishment({crmUser,showToast}){
+  const isAdmin=crmUser?.role==='admin';
+  const [susp,setSusp]=useState(null); // {est,motivo}
+  const [suspSaving,setSuspSaving]=useState(false);
   const BLANK={name:'',responsible:'',cpf_cnpj:'',phone:'',email:'',site:'',unimidia:'nao',aulas:false,slot_interval:60,street:'',number:'',complement:'',cep:'',city:'',state:'',photos:[],main_photo:'',operating_hours:{...DEFAULT_HOURS}};
   const [tab,setTab]=useState('consulta');
   const [ests,setEsts]=useState([]);
@@ -898,6 +901,15 @@ function CRMEstablishment({showToast}){
   const [uploading,setUploading]=useState(false);
 
   const loadList=()=>{setLoading(true);estApi.list().then(setEsts).catch(()=>{}).finally(()=>setLoading(false));};
+  const alterarSuspensao=async(est,suspenso,motivo)=>{
+    setSuspSaving(true);
+    try{
+      await estApi.suspensao(est.id,suspenso,motivo);
+      showToast(suspenso?`${est.name} suspenso`:`${est.name} reativado`,'success');
+      setSusp(null);loadList();
+    }catch(e){showToast(e.message||'Erro','error');}
+    finally{setSuspSaving(false);}
+  };
   useEffect(()=>{loadList();},[]);
 
   const upd=(k,v)=>setForm(f=>{
@@ -971,11 +983,15 @@ function CRMEstablishment({showToast}){
               <tr>{['Nome','Cidade / UF','Telefone','Ações'].map(h=><th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide ${h==='Ações'?'text-right':''}`}>{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {ests.map(e=><tr key={e.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 font-semibold text-gray-800">{e.name}</td>
+              {ests.map(e=><tr key={e.id} className={`hover:bg-gray-50 transition-colors ${e.suspenso?'bg-red-50/40':''}`}>
+                <td className="px-4 py-3 font-semibold text-gray-800">{e.name}{e.suspenso&&<span title={e.suspenso_motivo||''} className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">⏸ Suspenso{e.suspenso_em?` desde ${new Date(e.suspenso_em).toLocaleDateString('pt-BR')}`:''}</span>}{e.suspenso&&e.suspenso_motivo&&<p className="text-xs font-normal text-gray-400 mt-0.5">Motivo: {e.suspenso_motivo}</p>}</td>
                 <td className="px-4 py-3 text-gray-500">{e.city&&e.state?`${e.city} / ${e.state}`:e.city||e.state||'—'}</td>
                 <td className="px-4 py-3 text-gray-500">{e.phone||'—'}</td>
-                <td className="px-4 py-3 text-right"><Btn variant="secondary" size="sm" onClick={()=>openEdit(e)}>Editar</Btn></td>
+                <td className="px-4 py-3 text-right whitespace-nowrap"><div className="flex gap-2 justify-end"><Btn variant="secondary" size="sm" onClick={()=>openEdit(e)}>Editar</Btn>
+                  {isAdmin&&(e.suspenso
+                    ?<Btn size="sm" disabled={suspSaving} onClick={()=>{if(confirm(`Reativar ${e.name}? O estabelecimento volta a aparecer no site e os usuários voltam a entrar no CRM.`))alterarSuspensao(e,false);}}>▶ Reativar</Btn>
+                    :<Btn variant="danger" size="sm" onClick={()=>setSusp({est:e,motivo:''})}>⏸ Suspender</Btn>)}
+                </div></td>
               </tr>)}
             </tbody>
           </table>
@@ -983,6 +999,21 @@ function CRMEstablishment({showToast}){
         </div>
       }
     </div>}
+
+    <Modal open={!!susp} onClose={()=>setSusp(null)} title="Suspender estabelecimento">
+      {susp&&<div className="space-y-3">
+        <p className="text-sm text-gray-700">Suspender <strong>{susp.est.name}</strong>?</p>
+        <ul className="text-sm text-gray-600 list-disc pl-5 space-y-1">
+          <li>Some do site de reservas e não recebe novas reservas</li>
+          <li>Os usuários do CRM deste estabelecimento não conseguem entrar</li>
+          <li>Nenhum WhatsApp é enviado (cobranças, avisos, automações, Match)</li>
+          <li>Os dados ficam guardados — dá para reativar a qualquer momento</li>
+        </ul>
+        <Field label="Motivo (opcional)"><Inp value={susp.motivo} onChange={ev=>setSusp(x=>({...x,motivo:ev.target.value}))} placeholder="ex.: inadimplência, fim do piloto"/></Field>
+        <div className="flex gap-3"><Btn variant="secondary" className="flex-1" onClick={()=>setSusp(null)}>Cancelar</Btn>
+          <Btn variant="danger" className="flex-1" disabled={suspSaving} onClick={()=>alterarSuspensao(susp.est,true,susp.motivo)}>{suspSaving?'Suspendendo...':'⏸ Suspender'}</Btn></div>
+      </div>}
+    </Modal>
 
     {tab==='cadastro'&&<div>
       {editId&&<p className="text-xs text-emerald-600 font-medium mb-4">✏️ Editando estabelecimento existente — <button className="underline" onClick={openNew}>ou criar novo</button></p>}
@@ -6637,10 +6668,11 @@ export default function App(){
 
   // Detecta sessão expirada (401) e força logout automático
   useEffect(()=>{
-    const handleExpired=()=>{
+    const handleExpired=(e)=>{
       setCrmUser(null);setIsImpersonating(false);setPublicUser(null);
       setPage('crm-login');setView('crm');
-      setTimeout(()=>showToast('Sessão expirada. Faça login novamente.','error'),100);
+      const msg=e?.detail?.message||'Sessão expirada. Faça login novamente.';
+      setTimeout(()=>showToast(msg,'error'),100);
     };
     window.addEventListener('crm:session-expired',handleExpired);
     return()=>window.removeEventListener('crm:session-expired',handleExpired);

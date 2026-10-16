@@ -24,7 +24,7 @@ const hash = c => crypto.createHash('sha256').update(String(c)).digest('hex');
 
 async function estMatch(estId) {
   const { rows } = await pool.query(
-    `SELECT id, name FROM establishments WHERE id=$1 AND COALESCE(features->>'match','false')='true'`, [estId]);
+    `SELECT id, name FROM establishments WHERE id=$1 AND COALESCE(features->>'match','false')='true' AND COALESCE(suspenso,FALSE)=FALSE`, [estId]);
   return rows[0] || null;
 }
 
@@ -37,7 +37,7 @@ router.get('/estabelecimentos', async (req, res) => {
       `SELECT e.id, e.name, e.city,
               COALESCE(array_agg(DISTINCT p.type) FILTER (WHERE p.type IS NOT NULL), '{}') AS modalidades
          FROM establishments e LEFT JOIN points p ON p.est_id = e.id
-        WHERE COALESCE(e.features->>'match','false')='true'
+        WHERE COALESCE(e.features->>'match','false')='true' AND COALESCE(e.suspenso,FALSE)=FALSE
         GROUP BY e.id ORDER BY e.name`);
     res.json(rows);
   } catch (e) { send(res, e, 'GET /estabelecimentos'); }

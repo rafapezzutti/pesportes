@@ -1,4 +1,13 @@
 const jwt = require('jsonwebtoken');
+const { usuarioBloqueado, MSG_BLOQUEIO } = require('./suspensao');
+
+async function checaSuspensao(req, res, next) {
+  try {
+    if (await usuarioBloqueado(req.user))
+      return res.status(403).json({ error: MSG_BLOQUEIO, code: 'EST_SUSPENSO' });
+  } catch { /* em erro, não bloqueia */ }
+  next();
+}
 
 /**
  * Middleware de autenticação JWT.
@@ -14,10 +23,10 @@ function auth(req, res, next) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     req.user = payload;
-    next();
   } catch {
     return res.status(401).json({ error: 'Token inválido ou expirado' });
   }
+  return checaSuspensao(req, res, next);
 }
 
 /** Garante que o usuário é do CRM (admin ou manager) */
@@ -45,10 +54,10 @@ function anyAuth(req, res, next) {
   const token = header.slice(7);
   try {
     req.user = jwt.verify(token, process.env.JWT_SECRET);
-    next();
   } catch {
     return res.status(401).json({ error: 'Token inválido' });
   }
+  return checaSuspensao(req, res, next);
 }
 
 /** Admin ou Gerente */

@@ -219,6 +219,10 @@ function disconnectedError(instance, cause) {
 
 async function sendText(phone, text, instance) {
   instance = instance || INSTANCE_PREFIX;
+  // Nenhum WhatsApp sai pela instância de estabelecimento suspenso
+  const estDaInstancia = instance.startsWith(INSTANCE_PREFIX + '_') ? instance.slice(INSTANCE_PREFIX.length + 1) : null;
+  if (estDaInstancia && /^\d+$/.test(estDaInstancia) && await require('../middleware/suspensao').estSuspenso(estDaInstancia))
+    throw Object.assign(new Error('Estabelecimento suspenso — WhatsApp desativado'), { code: 'EST_SUSPENSO' });
   const number = formatPhone(phone);
   if (!number || number.length < 12) throw new Error('Telefone inválido: ' + phone);
 

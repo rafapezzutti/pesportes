@@ -2,11 +2,21 @@ const router = require('express').Router();
 const pool = require('../db/pool');
 const jwt   = require('jsonwebtoken');
 const { auth, adminOnly, adminOrManager } = require('../middleware/auth');
+const { invalidar: invalidarSuspensos } = require('../middleware/suspensao');
+
+/** Token de admin do CRM no header? (rotas públicas que mostram mais coisa para o admin) */
+function isAdminToken(req) {
+  const h = req.headers.authorization;
+  if (!h || !h.startsWith('Bearer ')) return false;
+  try { const p = jwt.verify(h.slice(7), process.env.JWT_SECRET); return p.type === 'crm' && p.role === 'admin'; }
+  catch { return false; }
+}
 
 const PUBLIC_COLS = `id, name, street, number, complement, cep, city, state,
                      phone, site, photos, main_photo, operating_hours, unimidia_divulgacao, aulas,
                      COALESCE(slot_interval, 60) AS slot_interval,
-                     (COALESCE(features->>'match','false') = 'true') AS match_enabled`;
+                     (COALESCE(features->>'match','false') = 'true') AS match_enabled,
+                     COALESCE(suspenso, FALSE) AS suspenso`;
 
 // GET /api/establishments
 // — Público (marketplace): retorna todos
@@ -33,9 +43,14 @@ router.get('/', async (req, res) => {
         }
       } catch { /* token inválido → trata como público */ }
     }
-    // Admin ou sem token (marketplace público)
+    // Admin vê todos (inclusive suspensos, com motivo); site público não vê suspensos
+    if (isAdminToken(req)) {
+      const { rows } = await pool.query(
+        `SELECT ${PUBLIC_COLS}, suspenso_em, suspenso_motivo FROM establishments ORDER BY name`);
+      return res.json(rows);
+    }
     const { rows } = await pool.query(
-      `SELECT ${PUBLIC_COLS} FROM establishments ORDER BY name`
+      `SELECT ${PUBLIC_COLS} FROM establishments WHERE COALESCE(suspenso, FALSE) = FALSE ORDER BY name`
     );
     res.json(rows);
   } catch (err) {
@@ -63,7 +78,7 @@ router.get('/:id', async (req, res) => {
       `SELECT ${PUBLIC_COLS} FROM establishments WHERE id = $1`,
       [req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Nao encontrado' });
+    if (!rows.length || (rows[0].suspenso && !isAdminToken(req))) return res.status(404).json({ error: 'Nao encontrado' });
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Erro interno' });
@@ -158,6 +173,31 @@ router.put('/:id', auth, adminOrManager, async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao atualizar estabelecimento' });
+  }
+});
+
+// PATCH /api/establishments/:id/suspensao — admin: suspende ou reativa
+// body: { suspenso: true|false, motivo? }
+router.patch('/:id/suspensao', auth, adminOnly, async (req, res) => {
+  const suspenso = req.body?.suspenso === true;
+  const motivo = suspenso ? String(req.body?.motivo || '').trim().slice(0, 300) || null : null;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE establishments
+          SET suspenso = $1,
+              suspenso_em = CASE WHEN $1 THEN NOW() ELSE NULL END,
+              suspenso_motivo = $2,
+              updated_at = NOW()
+        WHERE id = $3
+        RETURNING id, name, suspenso, suspenso_em, suspenso_motivo`,
+      [suspenso, motivo, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Estabelecimento não encontrado' });
+    invalidarSuspensos();
+    console.log(`[suspensao] ${rows[0].name} (#${rows[0].id}) ${suspenso ? 'SUSPENSO' : 'reativado'} por admin #${req.user.id}${motivo ? ' — ' + motivo : ''}`);
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('[PATCH /establishments/:id/suspensao]', err.message);
+    res.status(500).json({ error: 'Erro ao alterar suspensão' });
   }
 });
 

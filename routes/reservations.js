@@ -85,6 +85,8 @@ router.post('/', auth, async (req, res) => {
     return res.status(400).json({ error: 'Campos obrigatorios faltando' });
 
   const pm = ['pix','credito','debito','dinheiro'].includes(payment_method) ? payment_method : 'dinheiro';
+  if (await require('../middleware/suspensao').estSuspenso(est_id))
+    return res.status(403).json({ error: 'Este estabelecimento não está aceitando reservas no momento' });
 
   try {
     const { rows: conflicts } = await pool.query(`
