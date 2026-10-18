@@ -55,7 +55,7 @@ function phoneKey(raw) {
 function abertoNoHorario(hoursJson, dateStr, ini, fim) {
   const h = hoursJson && hoursJson[DAY_KEY[dow(dateStr)]];
   if (!h || !h.open) return false;
-  return toMin(h.start) <= ini && toMin(h.end) >= fim;
+  return toMin(h.start || '08:00') <= ini && toMin(h.end || '22:00') >= fim;
 }
 
 /** Retorna a quadra livre mais barata da modalidade no horário, ou null */

@@ -64,8 +64,9 @@ router.get('/:id/slots', async (req, res) => {
 
     if (!dayHours || !dayHours.open) return res.json([]);
 
-    const [sh] = dayHours.start.split(':').map(Number);
-    const [eh] = dayHours.end.split(':').map(Number);
+    // Dia marcado como aberto sem horário salvo: usa o mesmo padrão que a tela mostra (08:00–22:00)
+    const [sh] = String(dayHours.start || '08:00').split(':').map(Number);
+    const [eh] = String(dayHours.end || '22:00').split(':').map(Number);
 
     // Reservas existentes neste dia/ponto
     const { rows: resList } = await pool.query(
@@ -88,7 +89,8 @@ router.get('/:id/slots', async (req, res) => {
       for (let m = 0; m < 60; m += slotInterval) {
         const t = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
         if (date === todayStr && h * 60 + m < nowMins && !req.query.crm) continue;
-        const taken = resList.some(r => r.start_time.slice(0,5) <= t && t < r.end_time.slice(0,5));
+        // Reserva lançada sem horário (permitido no CRM) não ocupa slot — antes derrubava a consulta
+        const taken = resList.some(r => r.start_time && r.end_time && r.start_time.slice(0,5) <= t && t < r.end_time.slice(0,5));
         slots.push({ time: t, available: !taken });
       }
     }

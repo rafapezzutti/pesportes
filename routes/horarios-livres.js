@@ -64,6 +64,7 @@ router.get('/', auth, async (req, res) => {
     // 4. Index reservations: resIdx[pointId][date] = [{start, end}]
     const resIdx = {};
     for (const r of reservations) {
+      if (!r.start_time || !r.end_time || !r.date) continue; // reserva sem horário não ocupa slot
       const ds = typeof r.date === 'string' ? r.date.split('T')[0] : r.date.toISOString().split('T')[0];
       if (!resIdx[r.point_id]) resIdx[r.point_id] = {};
       if (!resIdx[r.point_id][ds]) resIdx[r.point_id][ds] = [];
@@ -86,8 +87,9 @@ router.get('/', auth, async (req, res) => {
           continue;
         }
 
-        const [sh, sm = 0] = dayHours.start.split(':').map(Number);
-        const [eh, em = 0] = dayHours.end.split(':').map(Number);
+        // Dia marcado como aberto sem horário salvo: usa o mesmo padrão que a tela mostra (08:00–22:00)
+        const [sh, sm = 0] = String(dayHours.start || '08:00').split(':').map(Number);
+        const [eh, em = 0] = String(dayHours.end || '22:00').split(':').map(Number);
         const startMin = sh * 60 + sm;
         const endMin   = eh * 60 + em;
         const interval = pt.slot_interval || 60;

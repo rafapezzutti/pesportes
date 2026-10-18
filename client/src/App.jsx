@@ -127,7 +127,13 @@ function Tabs({tabs,active,onChange}){
 }
 
 function HoursEditor({value,onChange}){
-  const upd=(day,field,val)=>onChange({...value,[day]:{...value[day],[field]:val}});
+  // Ao marcar "Aberto", grava também o horário que aparece na tela (antes ficava só {open:true} e o dia não abria)
+  const upd=(day,field,val)=>{
+    const cur=value[day]||{};
+    const next={...cur,[field]:val};
+    if(field==='open'&&val){next.start=cur.start||'08:00';next.end=cur.end||'22:00';}
+    onChange({...value,[day]:next});
+  };
   return<div className="space-y-1.5">{DAYS.map(({key,label})=><div key={key} className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg"><div className="w-9 text-sm font-medium text-gray-600 shrink-0">{label}</div><label className="flex items-center gap-1.5 cursor-pointer shrink-0"><input type="checkbox" checked={value[key]?.open||false} onChange={e=>upd(key,'open',e.target.checked)} className="w-4 h-4 accent-emerald-600"/><span className="text-xs text-gray-500">Aberto</span></label>{value[key]?.open&&<><input type="time" value={value[key]?.start||'08:00'} onChange={e=>upd(key,'start',e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs w-24"/><span className="text-gray-400 text-xs shrink-0">até</span><input type="time" value={value[key]?.end||'22:00'} onChange={e=>upd(key,'end',e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs w-24"/></>}{!value[key]?.open&&<span className="text-xs text-gray-400 italic">Fechado</span>}</div>)}</div>;
 }
 
