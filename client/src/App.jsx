@@ -5208,17 +5208,22 @@ function CRMFinanceiro({crmUser,showToast}){
                 onChange={e=>{setResumoSearch(e.target.value);setSelAluno('');setResumo(null);setResumoShowSugg(true);}}
                 onFocus={()=>{if(resumoSearch)setResumoShowSugg(true);}}
                 onBlur={()=>setTimeout(()=>setResumoShowSugg(false),150)}
-                placeholder="🔍 Buscar aluno..."
+                placeholder="🔍 Aluno, professor ou cliente..."
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
               {resumoShowSugg&&(()=>{
-                const sugg=alunos.filter(a=>{
+                const q=resumoSearch.toLowerCase();
+                const profSugg=resumoProfs.filter(p=>(!resumoProfFilt||String(p.id)===resumoProfFilt)&&q.length>0&&(p.nome||'').toLowerCase().includes(q)).map(p=>({id:'prof-'+p.id,nome:p.nome,_prof:true}));
+                const alSugg=alunos.filter(a=>{
                   if(resumoProfFilt&&String(a.professor_id)!==resumoProfFilt)return false;
-                  return resumoSearch.length>0&&a.nome.toLowerCase().includes(resumoSearch.toLowerCase());
-                }).slice(0,8);
+                  return q.length>0&&a.nome.toLowerCase().includes(q);
+                });
+                const vistos=new Set();
+                const sugg=[...profSugg,...alSugg].filter(a=>{const k=(a.nome||'').trim().toLowerCase();if(vistos.has(k))return false;vistos.add(k);return true;}).slice(0,8);
                 return sugg.length>0?<div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden max-h-52 overflow-y-auto">
                   {sugg.map(a=><button key={a.id} type="button" onMouseDown={()=>{setSelAluno(a.nome);setResumoSearch(a.nome);setResumoShowSugg(false);setResumo(null);}}
                     className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 text-gray-700 flex items-center justify-between">
                     <span>{a.nome}</span>
+                    {a._prof&&<span className="text-xs font-semibold text-emerald-600">Professor</span>}
                     {a.professor_id&&resumoProfs.find(p=>String(p.id)===String(a.professor_id))&&
                       <span className="text-xs text-gray-400">{resumoProfs.find(p=>String(p.id)===String(a.professor_id))?.nome}</span>}
                   </button>)}
@@ -5241,10 +5246,12 @@ function CRMFinanceiro({crmUser,showToast}){
               <option value="em_atraso">Em atraso</option>
             </select>
           </div>
-          <Btn disabled={!selAluno||resumoLoading} onClick={()=>{
-            if(!selAluno)return;
+          <Btn disabled={!(selAluno||resumoSearch.trim().length>=3)||resumoLoading} onClick={()=>{
+            const nome=selAluno||resumoSearch.trim();
+            if(!nome)return;
+            if(!selAluno)setSelAluno(nome);
             setResumoLoading(true);
-            const params={aluno_nome:selAluno};
+            const params={aluno_nome:nome};
             if(selMes)params.mes=selMes;
             if(selResumoStatus)params.status_pgto=selResumoStatus;
             contasApi.resumoAluno(params)
@@ -5252,17 +5259,17 @@ function CRMFinanceiro({crmUser,showToast}){
           }}>{resumoLoading?'Buscando...':'🔍 Gerar Resumo'}</Btn>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={()=>{if(!selAluno){return;}setSelMes('');setSelResumoStatus('pendente');setResumoLoading(true);contasApi.resumoAluno({aluno_nome:selAluno,status_pgto:'pendente'}).then(setResumo).catch(()=>{}).finally(()=>setResumoLoading(false));}}
+          <button onClick={()=>{const nome=selAluno||resumoSearch.trim();if(nome.length<3)return;if(!selAluno)setSelAluno(nome);setSelMes('');setSelResumoStatus('pendente');setResumoLoading(true);contasApi.resumoAluno({aluno_nome:nome,status_pgto:'pendente'}).then(setResumo).catch(()=>{}).finally(()=>setResumoLoading(false));}}
             className="text-xs font-medium text-red-600 border border-red-200 bg-red-50 rounded-lg px-3 py-1.5 hover:bg-red-100 transition-colors">
             🔴 Ver todas as pendências
           </button>
-          <button onClick={()=>{if(!selAluno)return;setSelMes('');setSelResumoStatus('em_atraso');setResumoLoading(true);contasApi.resumoAluno({aluno_nome:selAluno,status_pgto:'em_atraso'}).then(setResumo).catch(()=>{}).finally(()=>setResumoLoading(false));}}
+          <button onClick={()=>{const nome=selAluno||resumoSearch.trim();if(nome.length<3)return;if(!selAluno)setSelAluno(nome);setSelMes('');setSelResumoStatus('em_atraso');setResumoLoading(true);contasApi.resumoAluno({aluno_nome:nome,status_pgto:'em_atraso'}).then(setResumo).catch(()=>{}).finally(()=>setResumoLoading(false));}}
             className="text-xs font-medium text-amber-600 border border-amber-200 bg-amber-50 rounded-lg px-3 py-1.5 hover:bg-amber-100 transition-colors">
             ⚠️ Apenas em atraso
           </button>
           {selMes&&<button onClick={()=>setSelMes('')} className="text-xs text-gray-400 border border-gray-200 rounded-lg px-3 py-1.5 hover:text-gray-600">✕ Limpar mês</button>}
         </div>
-        {!selAluno&&<p className="text-xs text-gray-400">Digite o nome do aluno para buscar e ver o histórico financeiro.</p>}
+        {!selAluno&&<p className="text-xs text-gray-400">Digite o nome do aluno, professor ou cliente (nome completo, como está na reserva) e clique em Gerar Resumo.</p>}
       </div>
 
       {resumoLoading&&<Spinner text="Gerando resumo..."/>}
